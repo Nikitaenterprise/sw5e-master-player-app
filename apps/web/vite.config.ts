@@ -9,7 +9,12 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
-      input: { index: resolve(import.meta.dirname, 'index.html') },
+      input: {
+        // Головна: екран майстра або гравця, залежно від ?as=
+        index: resolve(import.meta.dirname, 'index.html'),
+        // Демо на чотирьох екранах — інструмент приймання власника (F-011)
+        demo: resolve(import.meta.dirname, 'demo.html'),
+      },
     },
   },
 });
