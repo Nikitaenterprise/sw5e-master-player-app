@@ -100,3 +100,41 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--рам
 
 .порада { color: var(--тихий); font-size: .9rem; }
 .порада code { color: var(--текст); font-size: .85rem; }
+
+.керовані { display: flex; flex-direction: column; gap: .45rem; }
+
+.рядокСтану {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .75rem;
+  padding: .5rem .5rem .5rem .85rem;
+  background: var(--панель); border: 1px solid var(--рамка); border-radius: .45rem;
+}
+.рядокСтану .підпис { color: var(--тихий); font-size: .85rem; }
+.рядокСтану .значення { font-size: 1.1rem; font-variant-numeric: tabular-nums; min-width: 1.6rem; text-align: right; }
+
+.кнопки { display: flex; gap: .3rem; }
+.кнопки button, .додати button, .чип {
+  font: inherit; font-size: .85rem; font-variant-numeric: tabular-nums;
+  min-width: 2.4rem; min-height: 2.4rem; padding: 0 .5rem;
+  background: #1e2630; color: var(--текст);
+  border: 1px solid var(--рамка); border-radius: .4rem; cursor: pointer;
+}
+.кнопки button:hover:not(:disabled), .додати button:hover { border-color: var(--акцент); }
+.кнопки button:disabled { opacity: .35; cursor: default; }
+
+.умовиБлок {
+  display: flex; flex-direction: column; gap: .5rem;
+  padding: .6rem .85rem; background: var(--панель);
+  border: 1px solid var(--рамка); border-radius: .45rem;
+}
+.чипи { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+.порожньо { color: var(--тихий); font-size: .85rem; }
+.чип { min-width: 0; min-height: 2rem; color: var(--чекаю); border-color: color-mix(in srgb, var(--чекаю) 35%, transparent); }
+.чип:hover { color: var(--погано); border-color: color-mix(in srgb, var(--погано) 45%, transparent); }
+
+.додати { display: flex; gap: .35rem; }
+.додати input {
+  flex: 1; min-width: 0; font: inherit; font-size: .85rem; padding: .45rem .6rem;
+  background: var(--тло); color: var(--текст);
+  border: 1px solid var(--рамка); border-radius: .4rem;
+}
+.додати input:focus { outline: none; border-color: var(--акцент); }

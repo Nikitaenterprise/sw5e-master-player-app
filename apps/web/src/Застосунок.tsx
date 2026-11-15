@@ -44,7 +44,7 @@ export function Застосунок(): JSX.Element {
           </div>
         </section>
       ) : (
-        <ЛистГравця персонаж={персонаж} знімок={знімок} />
+        <ЛистГравця персонаж={персонаж} знімок={знімок} керування={керування} />
       )}
 
       <section>
@@ -60,7 +60,10 @@ export function Застосунок(): JSX.Element {
         </ul>
       </section>
 
-      <footer>Фаза 1 · F-018. Стан живий і спільний; кнопки зміни — наступна фіча.</footer>
+      <footer>
+        Фаза 1 · F-020. Обчислюваних чисел — максимуму ХП, КБ, сейвів — тут ще немає:
+        вони зʼявляться з рушієм правил.
+      </footer>
     </main>
   );
 }
@@ -68,9 +71,11 @@ export function Застосунок(): JSX.Element {
 function ЛистГравця({
   персонаж,
   знімок,
+  керування,
 }: {
   персонаж: string | undefined;
   знімок: Знімок;
+  керування: React.RefObject<Керування | null>;
 }): JSX.Element {
   if (персонаж === undefined) {
     return (
@@ -90,11 +95,117 @@ function ЛистГравця({
       </section>
     );
   }
+  const змінити = (зміни: СтанПерсонажа): void => {
+    керування.current?.змінити(персонаж, зміни);
+  };
+
   return (
     <section>
       <h2>Мій стан</h2>
-      <Поля стан={стан} />
+      <Керовані стан={стан} змінити={змінити} />
     </section>
+  );
+}
+
+/** Числові поля стану з кроками, якими за столом справді користуються. */
+const КРОКИ: Array<{ поле: 'hitPointsLost' | 'temporaryHitPoints' | 'forcePointsUsed' | 'techPointsUsed' | 'superiorityDiceUsed' | 'exhaustion'; кроки: number[] }> = [
+  { поле: 'hitPointsLost', кроки: [-5, -1, 1, 5] },
+  { поле: 'temporaryHitPoints', кроки: [-1, 1] },
+  { поле: 'forcePointsUsed', кроки: [-1, 1] },
+  { поле: 'techPointsUsed', кроки: [-1, 1] },
+  { поле: 'superiorityDiceUsed', кроки: [-1, 1] },
+  { поле: 'exhaustion', кроки: [-1, 1] },
+];
+
+function Керовані({
+  стан,
+  змінити,
+}: {
+  стан: СтанПерсонажа;
+  змінити: (зміни: СтанПерсонажа) => void;
+}): JSX.Element {
+  const [нова, задатиНову] = useState('');
+  const умови = Array.isArray(стан.conditions) ? стан.conditions : [];
+
+  const додатиУмову = (): void => {
+    const очищена = нова.trim();
+    if (очищена === '' || умови.includes(очищена)) {
+      задатиНову('');
+      return;
+    }
+    змінити({ conditions: [...умови, очищена] });
+    задатиНову('');
+  };
+
+  return (
+    <div className="керовані">
+      {КРОКИ.map(({ поле, кроки }) => {
+        const зараз = typeof стан[поле] === 'number' ? (стан[поле] as number) : 0;
+        return (
+          <div key={поле} className="рядокСтану">
+            <span className="підпис">{ПІДПИСИ[поле]}</span>
+            <b className="значення">{зараз}</b>
+            <span className="кнопки">
+              {кроки.map((крок) => (
+                <button
+                  key={крок}
+                  type="button"
+                  disabled={зараз + крок < 0}
+                  onClick={() => змінити({ [поле]: Math.max(0, зараз + крок) })}
+                >
+                  {крок > 0 ? `+${крок}` : крок}
+                </button>
+              ))}
+            </span>
+          </div>
+        );
+      })}
+
+      <div className="рядокСтану">
+        <span className="підпис">{ПІДПИСИ.hasInspiration}</span>
+        <b className="значення">{стан.hasInspiration === true ? 'так' : 'ні'}</b>
+        <span className="кнопки">
+          <button
+            type="button"
+            onClick={() => змінити({ hasInspiration: стан.hasInspiration !== true })}
+          >
+            {стан.hasInspiration === true ? 'прибрати' : 'дати'}
+          </button>
+        </span>
+      </div>
+
+      <div className="умовиБлок">
+        <span className="підпис">{ПІДПИСИ.conditions}</span>
+        <div className="чипи">
+          {умови.length === 0 && <span className="порожньо">немає</span>}
+          {умови.map((у) => (
+            <button
+              key={у}
+              type="button"
+              className="чип"
+              onClick={() => змінити({ conditions: умови.filter((і) => і !== у) })}
+            >
+              {у} <span aria-hidden="true">×</span>
+            </button>
+          ))}
+        </div>
+        <form
+          className="додати"
+          onSubmit={(под) => {
+            под.preventDefault();
+            додатиУмову();
+          }}
+        >
+          <input
+            value={нова}
+            onChange={(под) => задатиНову(под.target.value)}
+            placeholder="додати умову"
+            aria-label="Нова умова"
+          />
+          <button type="submit">+</button>
+        </form>
+      </div>
+    </div>
   );
 }
 
