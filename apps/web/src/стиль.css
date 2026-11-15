@@ -64,3 +64,39 @@ li.це-я { border-color: var(--акцент); }
 .мітка { margin-left: auto; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--акцент); }
 
 footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--рамка); font-size: .78rem; color: var(--тихий); }
+
+.картки { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .6rem; }
+
+.картка {
+  background: var(--панель); border: 1px solid var(--рамка);
+  border-radius: .5rem; padding: .7rem .85rem;
+}
+.картка h3 { margin: 0 0 .5rem; font-size: .95rem; font-weight: 600; }
+
+.числа { display: flex; flex-wrap: wrap; gap: .5rem .9rem; }
+.число { display: flex; flex-direction: column; line-height: 1.15; }
+.число b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.число small { font-size: .65rem; color: var(--тихий); text-transform: uppercase; letter-spacing: .04em; }
+
+.умови { margin: .6rem 0 0; font-size: .8rem; color: var(--чекаю); }
+
+.поля { margin: 0; display: flex; flex-direction: column; gap: .4rem; }
+.поля > div {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  padding: .55rem .85rem; background: var(--панель);
+  border: 1px solid var(--рамка); border-radius: .45rem;
+}
+.поля dt { color: var(--тихий); font-size: .85rem; }
+.поля dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.хтоТут li { padding: .5rem .75rem; }
+
+.відмова {
+  margin: 0; padding: .6rem .85rem; border-radius: .45rem;
+  background: color-mix(in srgb, var(--погано) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--погано) 40%, transparent);
+  color: var(--погано); font-size: .85rem;
+}
+
+.порада { color: var(--тихий); font-size: .9rem; }
+.порада code { color: var(--текст); font-size: .85rem; }
