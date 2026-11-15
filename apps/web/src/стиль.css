@@ -1,0 +1,66 @@
+:root {
+  --тло: #0e1116;
+  --панель: #151a22;
+  --рамка: #232b36;
+  --текст: #e6e9ee;
+  --тихий: #8b97a8;
+  --акцент: #4db8a8;
+  --погано: #d4705f;
+  --чекаю: #c9a227;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--тло);
+  color: var(--текст);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+header { border-bottom: 1px solid var(--рамка); padding-bottom: 1rem; }
+h1 { margin: 0 0 .35rem; font-size: clamp(1.25rem, 4vw, 1.6rem); font-weight: 600; letter-spacing: -.01em; }
+h2 { margin: 0 0 .75rem; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--тихий); }
+
+.майстер h1 { color: var(--акцент); }
+
+.звязок { margin: 0; font-size: .85rem; display: flex; align-items: center; gap: .45rem; }
+.звязок::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; flex: none; }
+.звязок.добре { color: var(--акцент); }
+.звязок.чекаю { color: var(--чекаю); }
+.звязок.погано { color: var(--погано); }
+
+ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+
+li {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .7rem .9rem;
+  background: var(--панель);
+  border: 1px solid var(--рамка);
+  border-radius: .5rem;
+}
+li.це-я { border-color: var(--акцент); }
+
+.роль {
+  flex: none; width: 1.6rem; height: 1.6rem; border-radius: .35rem;
+  display: grid; place-items: center;
+  font-size: .75rem; font-weight: 700;
+  background: #1e2630; color: var(--тихий);
+}
+.роль-gm { background: color-mix(in srgb, var(--акцент) 22%, transparent); color: var(--акцент); }
+
+.імя { font-weight: 500; }
+.мітка { margin-left: auto; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--акцент); }
+
+footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--рамка); font-size: .78rem; color: var(--тихий); }

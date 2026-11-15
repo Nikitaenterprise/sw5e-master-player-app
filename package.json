@@ -4,16 +4,31 @@
   "private": true,
   "type": "module",
   "description": "Екран майстра і синхронні листи персонажів для офлайнових сесій SW5e",
-  "engines": { "node": ">=22" },
-  "workspaces": ["packages/*", "apps/*"],
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "check": "npm run typecheck && npm run test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "build": "vite build --config apps/web/vite.config.ts",
+    "start": "npm run build && tsx apps/server/src/запустити.ts",
+    "demo": "npm run start"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-react": "^4.3.3",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3",
+    "vite": "^5.4.11",
     "vitest": "^2.1.5"
   }
 }

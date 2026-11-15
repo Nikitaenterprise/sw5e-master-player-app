@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Демо на чотирьох екранах · Holotable</title>
+    <style>
+      :root { --тло:#0e1116; --рамка:#232b36; --текст:#e6e9ee; --тихий:#8b97a8; --акцент:#4db8a8; }
+      * { box-sizing: border-box; }
+      body { margin:0; height:100vh; display:flex; flex-direction:column;
+             background:var(--тло); color:var(--текст);
+             font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+      .шапка { padding:.6rem 1rem; border-bottom:1px solid var(--рамка); display:flex;
+               align-items:baseline; gap:1rem; flex-wrap:wrap; }
+      .шапка strong { color:var(--акцент); font-weight:600; }
+      .шапка span { color:var(--тихий); font-size:.82rem; }
+      .сітка { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+               gap:1px; background:var(--рамка); min-height:0; }
+      .панель { display:flex; flex-direction:column; background:var(--тло); min-height:0; }
+      .підпис { padding:.3rem .7rem; font-size:.72rem; text-transform:uppercase;
+                letter-spacing:.07em; color:var(--тихий); border-bottom:1px solid var(--рамка);
+                display:flex; justify-content:space-between; align-items:center; }
+      .підпис button { background:none; border:1px solid var(--рамка); color:var(--тихий);
+                       border-radius:.3rem; font:inherit; font-size:.68rem; padding:.1rem .4rem;
+                       cursor:pointer; }
+      .підпис button:hover { color:var(--текст); border-color:var(--тихий); }
+      iframe { flex:1; width:100%; border:0; min-height:0; }
+    </style>
+  </head>
+  <body>
+    <div class="шапка">
+      <strong>Демо на чотирьох екранах</strong>
+      <span>Майстер і три гравці на одному сервері. Закрий один — решта оновиться.</span>
+    </div>
+    <div class="сітка" id="сітка"></div>
+    <script>
+      const екрани = [
+        { підпис: 'Майстер', адреса: '/?as=gm' },
+        { підпис: 'Гравець 1 · Крінж-Дор', адреса: '/?as=player&character=krinzh-dor' },
+        { підпис: 'Гравець 2 · Сандра Вонг', адреса: '/?as=player&character=sandra-vong' },
+        { підпис: 'Гравець 3 · Нигра 4', адреса: '/?as=player&character=nigra-4' },
+      ];
+      const сітка = document.getElementById('сітка');
+      for (const е of екрани) {
+        const панель = document.createElement('div');
+        панель.className = 'панель';
+        const підпис = document.createElement('div');
+        підпис.className = 'підпис';
+        підпис.append(document.createTextNode(е.підпис));
+        const кнопка = document.createElement('button');
+        кнопка.textContent = 'відключити';
+        const рамка = document.createElement('iframe');
+        рамка.src = е.адреса;
+        кнопка.addEventListener('click', () => {
+          const є = рамка.getAttribute('src') !== 'about:blank';
+          рамка.setAttribute('src', є ? 'about:blank' : е.адреса);
+          кнопка.textContent = є ? 'підключити' : 'відключити';
+        });
+        підпис.append(кнопка);
+        панель.append(підпис, рамка);
+        сітка.append(панель);
+      }
+    </script>
+  </body>
+</html>
