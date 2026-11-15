@@ -1,0 +1,64 @@
+{
+  "_інструкція": "ЯК ЗАПОВНИТИ ЦЕЙ ФАЙЛ. Персонаж: Алістер — Cathar, Sentinel 4 рівень, архетип «Path of Ethereality». Відкрий sw5e.com, увійди у свій акаунт, Characters → «Алістер» → вкладка Sheet. Далі переписуй числа з листа сюди, замінюючи кожен null: maxHitPoints і armorClass — великі числа вгорі листа; proficiencyBonus, initiative, passivePerception — там само біля них; abilityScores і savingThrows — ліва колонка листа (шість характеристик і шість сейвів); skillModifiers — список вмінь під ними, усі 18, зі знаком (+3, -1); attacks — блок Attacks: на кожну вдягнену зброю додай рядок з її назвою, бонусом влучання і шкодою ('1d8+3 kinetic'); forcePointsMax, techPointsMax, forceDC, techDC — блок Casting; superiorityDiceCount і superiorityDieSize — блок Superiority (size пиши числом: 8 замість d8); maneuversKnown і powersKnown — списки назв точно як на sw5e.com; carryingCapacity — Encumbrance / ліміт ваги. Чого немає на листі — лишай null і скажи мені, НЕ вигадуй і не рахуй у голові. Окремо перевір: сил Сили має бути 17 — 13 вибраних класом плюс 4 власних (Sever Force, Force Suppression, Telekinetic Storm, Resistance). Маневрів немає, superiorityDiceCount має бути 0. На 4 рівні взято рису War Caster, а не +2 до характеристик. У листі є нерозподілений рівень (unspentLevels: 1) — числа переписуй як для 4 рівня.",
+  "maxHitPoints": null,
+  "armorClass": null,
+  "proficiencyBonus": null,
+  "initiative": null,
+  "passivePerception": null,
+  "carryingCapacity": null,
+  "abilityScores": {
+    "Strength": null,
+    "Dexterity": null,
+    "Constitution": null,
+    "Intelligence": null,
+    "Wisdom": null,
+    "Charisma": null
+  },
+  "savingThrows": {
+    "Strength": null,
+    "Dexterity": null,
+    "Constitution": null,
+    "Intelligence": null,
+    "Wisdom": null,
+    "Charisma": null
+  },
+  "skillModifiers": {
+    "Acrobatics": null,
+    "Animal Handling": null,
+    "Athletics": null,
+    "Deception": null,
+    "Insight": null,
+    "Intimidation": null,
+    "Investigation": null,
+    "Lore": null,
+    "Medicine": null,
+    "Nature": null,
+    "Perception": null,
+    "Performance": null,
+    "Persuasion": null,
+    "Piloting": null,
+    "Sleight of Hand": null,
+    "Stealth": null,
+    "Survival": null,
+    "Technology": null
+  },
+  "attacks": [
+    {
+      "name": null,
+      "attackBonus": null,
+      "damage": null
+    }
+  ],
+  "forcePointsMax": null,
+  "techPointsMax": null,
+  "forceDC": null,
+  "techDC": null,
+  "superiorityDiceCount": null,
+  "superiorityDieSize": null,
+  "maneuversKnown": [
+    null
+  ],
+  "powersKnown": [
+    null
+  ]
+}
