@@ -1,0 +1,19 @@
+{
+  "name": "sw5e-master-player-app",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Екран майстра і синхронні листи персонажів для офлайнових сесій SW5e",
+  "engines": { "node": ">=22" },
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "check": "npm run typecheck && npm run test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}
