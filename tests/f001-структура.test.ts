@@ -8,6 +8,7 @@ const root = join(import.meta.dirname, '..');
 
 const обовязкові = [
   'CLAUDE.md',
+  'README.md',
   'package.json',
   'tsconfig.json',
   'docs/ПРОГРЕС.md',
