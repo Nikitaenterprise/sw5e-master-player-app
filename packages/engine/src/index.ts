@@ -14,6 +14,7 @@ import type {
 import type { Compendium, SpeciesDoc } from '../../compendium/src/index.js';
 import { ABILITIES, abilityModifier, toAbility } from './abilities.js';
 import { computeHitPoints, type HitPointsResult } from './hitPoints.js';
+import { computeArmorClass, type ArmorClassResult } from './armorClass.js';
 import { SKILLS, SKILL_ABILITY } from './skills.js';
 
 /** Where an ability score came from. The owner asks "why is this 18"; this answers. */
@@ -48,6 +49,7 @@ export interface ComputedSheet {
   savingThrows: Record<AbilityName, SavingThrow>;
   skills: Record<SkillName, SkillValue>;
   hitPoints: HitPointsResult;
+  armorClass: ArmorClassResult;
   /** Initiative is the Dexterity modifier; nothing in the five sheets changes it yet. */
   initiative: number;
   passivePerception: number;
@@ -336,6 +338,9 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
   const hitPoints = computeHitPoints(
     raw, compendium, abilities.Constitution.modifier, warnings,
   );
+  const armorClass = computeArmorClass(
+    raw, compendium, abilities.Dexterity.modifier, warnings,
+  );
 
   return {
     name: raw.name,
@@ -350,6 +355,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     savingThrows,
     skills,
     hitPoints,
+    armorClass,
     initiative: abilities.Dexterity.modifier,
     passivePerception: 10 + skills.Perception.modifier,
     warnings,
@@ -359,6 +365,8 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
 export { ABILITIES, abilityModifier, toAbility } from './abilities.js';
 export { SKILLS, SKILL_ABILITY, toSkill } from './skills.js';
 export { computeHitPoints } from './hitPoints.js';
+export { computeArmorClass, parseArmorFormula } from './armorClass.js';
+export type { ArmorClassResult, ArmorPiece } from './armorClass.js';
 export { computeCompanion, COMPANION_PROFICIENCY, COMPANION_NATURES } from './companion.js';
 export type {
   RawCompanion, CompanionSheet, CompanionNature, CompanionAbility, CompanionSkill,

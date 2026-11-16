@@ -195,6 +195,7 @@ describe('F-012 · рушій: базові характеристики', () =>
         passivePerception: number | null;
         maxHitPoints: number | null;
         initiative: number | null;
+        armorClass: number | null;
         abilityScores: Record<string, number | null>;
         savingThrows: Record<string, number | null>;
         skillModifiers: Record<string, number | null>;
@@ -208,6 +209,7 @@ describe('F-012 · рушій: базові характеристики', () =>
       };
       compare('бонус майстерності', golden.proficiencyBonus, computed.proficiencyBonus);
       compare('максимум ХП', golden.maxHitPoints, computed.hitPoints.maximum);
+      compare('КБ', golden.armorClass, computed.armorClass.value);
       compare('ініціатива', golden.initiative, computed.initiative);
       compare('пасивна увага', golden.passivePerception, computed.passivePerception);
       for (const ability of ABILITIES) {
