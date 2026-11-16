@@ -306,5 +306,9 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
 export { ABILITIES, abilityModifier, toAbility } from './abilities.js';
 export { SKILLS, SKILL_ABILITY, toSkill } from './skills.js';
 export { computeHitPoints } from './hitPoints.js';
+export { computeCompanion, COMPANION_PROFICIENCY, COMPANION_NATURES } from './companion.js';
+export type {
+  RawCompanion, CompanionSheet, CompanionNature, CompanionAbility, CompanionSkill,
+} from './companion.js';
 export type { HitPointsResult, HitDiceGroup } from './hitPoints.js';
 export type { AbilityName, SkillName };

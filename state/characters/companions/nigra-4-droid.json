@@ -1,0 +1,26 @@
+{
+  "_інструкція": "ЛИСТ КОМПАНЬЙОНА. Це дроїд Нигри 4. Формат наш власний, бо на sw5e.com листа компаньйона немає взагалі. Правила: розділ Companions у документі Customization Options (Expanded Content) — застосунок читає їх із компендіуму. ЩО ВПИСАТИ: (1) name — як дроїда звати; (2) abilityScores — розподіли стандартний масив 15/14/13/12/10/8 по шести характеристиках, зараз там null; (3) skills — рівно дві навички на вибір; (4) tool — один інструмент, вбудований у дроїда; (5) abilityScoreImprovement — приріст 4 рівня: одна характеристика на +2 або дві по +1; (6) companionClass — клас компаньйона з 3 рівня; (7) traits — риси дроїда, на 4 рівні їх дві, плюс дві від архетипу Saboteur Practice. ЩО НЕ ВПИСУВАТИ: рівень, бонус майстерності, КБ, максимум ХП — усе це рахується (ADR 0003). Рівень дроїда завжди дорівнює рівню Нигри. УВАГА: за книгою Tracker Droid Companion дається на 9 рівні архетипу, а Нигра на 4 — тобто дроїд у вас раніше за правила, і це рішення майстра. Застосунок у це не втручається.",
+  "holotableCompanionVersion": 1,
+  "name": "?",
+  "owner": "nigra-4",
+  "nature": "tracker-droid",
+  "abilityScores": {
+    "Strength": null,
+    "Dexterity": null,
+    "Constitution": null,
+    "Intelligence": null,
+    "Wisdom": null,
+    "Charisma": null
+  },
+  "abilityScoreImprovement": {},
+  "skills": [],
+  "tool": null,
+  "companionClass": null,
+  "traits": [],
+  "hitPointRolls": [],
+  "currentStats": {
+    "hitPointsLost": 0,
+    "temporaryHitPoints": 0,
+    "conditions": []
+  }
+}
