@@ -10,13 +10,13 @@
 // without touching a single file in state/.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import type { SheetSummary } from '@holotable/protocol';
+import type { CharacterState, SheetSummary } from '@holotable/protocol';
 import { loadCompendium } from '@holotable/compendium';
 // The engine and the schema are plain source folders, not workspace packages, so they
 // are imported by path. Giving them a package.json would mean a new link in
 // node_modules, which means the owner has to run ВСТАНОВИТИ.bat again before the app
 // starts — and "double-click to run" is a hard requirement, not a nicety.
-import { computeSheet } from '../../../packages/engine/src/index.js';
+import { computeSheet, restPlan, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 
 const ABILITIES = [
@@ -91,4 +91,50 @@ function summarize(
     powers,
     warnings: sheet.warnings,
   };
+}
+
+/**
+ * What a short and a long rest give each character, worked out once at startup.
+ *
+ * The plans are per character because the books are: force points come back only on a
+ * long rest, tech points and superiority dice on a short one too, and which applies is
+ * stated in that character's own class or archetype text.
+ */
+export function computeRestPlans(
+  root: string,
+  charactersDir: string,
+): Record<string, Record<RestKind, RestPlan>> {
+  const plans: Record<string, Record<RestKind, RestPlan>> = {};
+  if (!existsSync(charactersDir)) return plans;
+  const compendium = loadCompendium({ root });
+  for (const file of readdirSync(charactersDir).filter((f) => f.endsWith('.json'))) {
+    const raw = JSON.parse(readFileSync(join(charactersDir, file), 'utf8')) as RawCharacter;
+    const sheet = computeSheet(raw, compendium);
+    plans[basename(file, '.json')] = {
+      short: restPlan(sheet, compendium, 'short'),
+      long: restPlan(sheet, compendium, 'long'),
+    };
+  }
+  return plans;
+}
+
+/**
+ * The plan turned into an actual change for this character, right now.
+ *
+ * Only fields that would really change are returned: resting when nothing was spent is
+ * not an event, and the GM's feed should not fill up with lines that did nothing.
+ */
+export function applyRest(plan: RestPlan, current: CharacterState): CharacterState {
+  const changes: CharacterState = {};
+  for (const field of plan.zeroed) {
+    const now = current[field as keyof CharacterState];
+    if (typeof now === 'number' && now !== 0) changes[field as 'hitPointsLost'] = 0;
+  }
+  if (plan.exhaustionDown > 0) {
+    const now = current.exhaustion;
+    if (typeof now === 'number' && now > 0) {
+      changes.exhaustion = Math.max(0, now - plan.exhaustionDown);
+    }
+  }
+  return changes;
 }

@@ -204,3 +204,14 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
   font: inherit; font-size: .72rem; cursor: pointer;
 }
 .feed .undo:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── Rest buttons (F-023) ──────────────────────────────────────────────── */
+.rests .buttons { display: flex; gap: .6rem; flex-wrap: wrap; }
+.rests button {
+  flex: 1 1 12rem; display: flex; flex-direction: column; gap: .2rem; align-items: flex-start;
+  background: var(--panel); border: 1px solid var(--border); border-radius: .5rem;
+  padding: .6rem .8rem; color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+}
+.rests button:hover { border-color: var(--accent); }
+.rests button small { font-weight: 400; font-size: .7rem; color: var(--muted); }
+.rests .hint { margin: .5rem 0 0; }

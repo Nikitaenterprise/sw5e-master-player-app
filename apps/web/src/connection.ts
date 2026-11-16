@@ -50,6 +50,8 @@ export function backoff(attempt: number): number {
 export interface Controls {
   /** Send an intent to change state. The server decides whether it is allowed. */
   sendChange: (character: string, changes: CharacterState, note?: string) => void;
+  /** Announce a rest for the whole party. The server refuses it from a player. */
+  sendRest: (kind: 'short' | 'long') => void;
   disconnect: () => void;
 }
 
@@ -143,6 +145,11 @@ export function connect(
         ...(note === undefined ? {} : { note }),
       };
       socket.send(JSON.stringify(intent));
+    },
+    sendRest: (kind) => {
+      if (socket?.readyState !== 1) return;
+      const rest: ToServer = { type: 'rest', kind };
+      socket.send(JSON.stringify(rest));
     },
     disconnect: () => {
       closed = true;

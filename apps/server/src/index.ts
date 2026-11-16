@@ -13,13 +13,14 @@ import {
   DEFAULT_PORT,
   parseHello,
   parseIntent,
+  parseRest,
   type Author,
   type Client,
   type FromServer,
 } from '@holotable/protocol';
 import { Log } from './log.js';
 import { State } from './state.js';
-import { computeSummaries } from './sheets.js';
+import { computeSummaries, computeRestPlans, applyRest } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 
@@ -72,6 +73,7 @@ export async function start(
   // Computed once at startup, never written anywhere (ADR 0003). An engine change shows
   // up on the next restart without touching a file in state/.
   const sheets = computeSummaries(ROOT, charactersDir);
+  const restPlans = computeRestPlans(ROOT, charactersDir);
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -131,6 +133,34 @@ export async function start(
       const who = connected.get(id);
       if (who === undefined) return;
 
+      // A rest is one announcement at the table, so it is one message for the whole
+      // party — and only the GM gets to make it.
+      if ((data as { type?: unknown }).type === 'rest') {
+        const rest = parseRest(data);
+        if (typeof rest === 'string') {
+          send(socket, { type: 'refused', reason: rest });
+          return;
+        }
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'відпочинок оголошує майстер' });
+          return;
+        }
+        const author: Author = { kind: 'gm', id: who.id };
+        const word = rest.kind === 'short' ? 'короткий відпочинок' : 'довгий відпочинок';
+        for (const [slug, current] of Object.entries(state.all())) {
+          const plan = restPlans[slug]?.[rest.kind];
+          if (plan === undefined) continue;
+          const changes = applyRest(plan, current);
+          // Someone who spent nothing and lost nothing needs no event. A log line that
+          // changes nothing is noise in the GM's feed.
+          if (Object.keys(changes).length === 0) continue;
+          const result = state.apply(slug, changes, author, word);
+          if (typeof result === 'string') continue;
+          broadcastAll({ type: 'event', event: result, state: state.one(slug) ?? {} });
+        }
+        return;
+      }
+
       const intent = parseIntent(data);
       if (typeof intent === 'string') {
         send(socket, { type: 'refused', reason: intent });
@@ -184,7 +214,7 @@ export async function start(
 
   await new Promise<void>((done) => http.listen(port, done));
 
-  // Якщо передали 0, ядро саме вибрало вільний порт — тестам потрібен справжній
+  // Port 0 means the kernel picked a free port; the tests need the real number.
   const address = http.address();
   const actualPort = typeof address === 'object' && address !== null ? address.port : port;
 
@@ -207,8 +237,8 @@ async function serveFile(
   connectedCount: number,
 ): Promise<void> {
   const rawText = (req.url ?? '/').split('?')[0] ?? '/';
-  // Кириличні шляхи приходять у відсотковому кодуванні (%D0%B7…), тому декодуємо.
-  // Сам службовий маршрут лишаємо латиницею: це протокол, а не інтерфейс.
+  // Cyrillic paths arrive percent-encoded (%D0%B7...), so decode before matching.
+  // The health route itself stays Latin: it is protocol, not interface.
   let path: string;
   try {
     path = decodeURIComponent(rawText);
@@ -223,7 +253,7 @@ async function serveFile(
     return;
   }
 
-  // normalize прибирає ../, щоб запит не виліз за межі теки сайту
+  // normalize strips ../ so a request cannot climb out of the site folder.
   const relative = normalize(path === '/' ? 'index.html' : path.replace(/^\/+/, ''));
   if (relative.startsWith('..')) {
     response.writeHead(403).end('не можна');
@@ -247,7 +277,7 @@ async function serveFile(
   }
 }
 
-/** Запуск із командного рядка: підняти сервер і надрукувати, як підключитись. */
+/** Command-line entry: start the server and print how to connect to it. */
 export async function main(): Promise<void> {
   const port = Number(process.env['HOLOTABLE_PORT'] ?? DEFAULT_PORT);
   const server = await start(port);

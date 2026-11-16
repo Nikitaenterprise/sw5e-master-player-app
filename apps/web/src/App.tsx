@@ -50,6 +50,8 @@ export function App(): JSX.Element {
         <PlayerSheet character={character} snapshot={snapshot} controls={controls} />
       )}
 
+      {gm && <Rests rest={(kind) => controls.current?.sendRest(kind)} />}
+
       {gm && (
         <Feed
           events={snapshot.events}
@@ -71,7 +73,7 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-022. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 1 · F-023. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
@@ -118,7 +120,7 @@ function PlayerSheet({
   );
 }
 
-/** Числові поля стану з кроками, якими за столом справді користуються. */
+/** Numeric state fields, with the steps people actually use at the table. */
 const STEPS: Array<{ field: 'hitPointsLost' | 'temporaryHitPoints' | 'forcePointsUsed' | 'techPointsUsed' | 'superiorityDiceUsed' | 'exhaustion'; steps: number[] }> = [
   { field: 'hitPointsLost', steps: [-5, -1, 1, 5] },
   { field: 'temporaryHitPoints', steps: [-1, 1] },
@@ -217,6 +219,34 @@ function Managed({
         </form>
       </div>
     </div>
+  );
+}
+
+/**
+ * The rest buttons. One announcement at the table is one button here, for everyone.
+ *
+ * What a rest gives back is not the same for everyone, and the app does not guess: the
+ * server reads each character's own class text. Hit dice are deliberately left alone —
+ * spending them is the player's choice and the player's roll.
+ */
+function Rests({ rest }: { rest: (kind: 'short' | 'long') => void }): JSX.Element {
+  return (
+    <section className="rests">
+      <h2>Відпочинок</h2>
+      <div className="buttons">
+        <button type="button" onClick={() => rest('short')}>
+          Короткий
+          <small>повертає те, що повертає короткий: техніку, суперіориті</small>
+        </button>
+        <button type="button" onClick={() => rest('long')}>
+          Довгий
+          <small>ХП, усі пули, виснаження −1</small>
+        </button>
+      </div>
+      <p className="hint">
+        Кубики здоровʼя лишаються гравцям: скільки витратити й що випало — вирішують вони.
+      </p>
+    </section>
   );
 }
 

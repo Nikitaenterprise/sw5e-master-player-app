@@ -22,7 +22,16 @@ export interface Hello {
   character?: string;
 }
 
-export type ToServer = Hello | Intent;
+/**
+ * GM → server: the party takes a rest. One message, the whole table, because at the
+ * table it is one announcement — not five people each pressing a button.
+ */
+export interface Rest {
+  type: 'rest';
+  kind: 'short' | 'long';
+}
+
+export type ToServer = Hello | Intent | Rest;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -229,4 +238,14 @@ export function parseIntent(data: unknown): Intent | string {
   return note === undefined || note === ''
     ? { type: 'intent', character, changes: checked }
     : { type: 'intent', character, changes: checked, note: String(note) };
+}
+
+/** Server-side check of a rest message. Returns the message or why it was refused. */
+export function parseRest(data: unknown): Rest | string {
+  if (typeof data !== 'object' || data === null) return 'відпочинок не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'rest') return 'не відпочинок';
+  const kind = o['kind'];
+  if (kind !== 'short' && kind !== 'long') return 'відпочинок буває коротким або довгим';
+  return { type: 'rest', kind };
 }
