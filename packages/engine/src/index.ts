@@ -13,6 +13,7 @@ import type {
 } from '../../schema/src/rawCharacter.js';
 import type { Compendium, SpeciesDoc } from '../../compendium/src/index.js';
 import { ABILITIES, abilityModifier, toAbility } from './abilities.js';
+import { computeHitPoints, type HitPointsResult } from './hitPoints.js';
 import { SKILLS, SKILL_ABILITY } from './skills.js';
 
 /** Where an ability score came from. The owner asks "why is this 18"; this answers. */
@@ -45,6 +46,9 @@ export interface ComputedSheet {
   abilities: Record<AbilityName, AbilityBreakdown>;
   savingThrows: Record<AbilityName, SavingThrow>;
   skills: Record<SkillName, SkillValue>;
+  hitPoints: HitPointsResult;
+  /** Initiative is the Dexterity modifier; nothing in the five sheets changes it yet. */
+  initiative: number;
   passivePerception: number;
   /**
    * Things the engine could not work out and is not pretending to. The owner must be
@@ -276,6 +280,10 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     );
   }
 
+  const hitPoints = computeHitPoints(
+    raw, compendium, abilities.Constitution.modifier, warnings,
+  );
+
   return {
     name: raw.name,
     level,
@@ -288,6 +296,8 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     abilities,
     savingThrows,
     skills,
+    hitPoints,
+    initiative: abilities.Dexterity.modifier,
     passivePerception: 10 + skills.Perception.modifier,
     warnings,
   };
@@ -295,4 +305,6 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
 
 export { ABILITIES, abilityModifier, toAbility } from './abilities.js';
 export { SKILLS, SKILL_ABILITY, toSkill } from './skills.js';
+export { computeHitPoints } from './hitPoints.js';
+export type { HitPointsResult, HitDiceGroup } from './hitPoints.js';
 export type { AbilityName, SkillName };

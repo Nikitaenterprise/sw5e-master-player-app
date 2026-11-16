@@ -193,6 +193,8 @@ describe('F-012 · рушій: базові характеристики', () =>
       const golden = JSON.parse(readFileSync(goldenPath, 'utf8')) as {
         proficiencyBonus: number | null;
         passivePerception: number | null;
+        maxHitPoints: number | null;
+        initiative: number | null;
         abilityScores: Record<string, number | null>;
         savingThrows: Record<string, number | null>;
         skillModifiers: Record<string, number | null>;
@@ -205,6 +207,8 @@ describe('F-012 · рушій: базові характеристики', () =>
         }
       };
       compare('бонус майстерності', golden.proficiencyBonus, computed.proficiencyBonus);
+      compare('максимум ХП', golden.maxHitPoints, computed.hitPoints.maximum);
+      compare('ініціатива', golden.initiative, computed.initiative);
       compare('пасивна увага', golden.passivePerception, computed.passivePerception);
       for (const ability of ABILITIES) {
         compare(ability, golden.abilityScores[ability] ?? null, computed.abilities[ability].score);
