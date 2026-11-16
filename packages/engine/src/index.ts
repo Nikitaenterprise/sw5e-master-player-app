@@ -21,6 +21,7 @@ export interface AbilityBreakdown {
   base: number;
   species: number;
   improvements: number;
+  feats: number;
   tweakBonus: number;
   tweakOverride: number | null;
   score: number;
@@ -133,13 +134,9 @@ function improvementIncrease(
   warnings: string[],
 ): Record<AbilityName, number> {
   const out = emptyAbilityMap();
-  const feats: string[] = [];
   for (const cls of raw.classes) {
     for (const improvement of cls.abilityScoreImprovements ?? []) {
-      if (improvement.type === 'Feat') {
-        if (improvement.name !== undefined) feats.push(improvement.name);
-        continue;
-      }
+      if (improvement.type === 'Feat') continue;
       for (const increase of improvement.abilitiesIncreased ?? []) {
         const ability = toAbility(increase.name);
         if (ability === undefined) {
@@ -150,10 +147,64 @@ function improvementIncrease(
       }
     }
   }
-  if (feats.length > 0) {
+  return out;
+}
+
+/** Every feat the character has: from the background, and taken in place of an increase. */
+export function listFeats(raw: RawCharacter): string[] {
+  const names: string[] = [];
+  const fromBackground = raw.background.feat?.name;
+  if (fromBackground !== undefined && fromBackground !== '') names.push(fromBackground);
+  for (const cls of raw.classes) {
+    for (const improvement of cls.abilityScoreImprovements ?? []) {
+      if (improvement.type === 'Feat' && improvement.name !== undefined) {
+        names.push(improvement.name);
+      }
+    }
+  }
+  for (const custom of raw.customFeats ?? []) names.push(custom);
+  return names;
+}
+
+/**
+ * Ability increases granted by feats.
+ *
+ * Feats were the engine's blind spot: it read only the level-4 improvement and never
+ * looked at `background.feat`, so Крінж-Дор's Linguist (+1 Intelligence) and Нигра's
+ * Quick-Fingered (+1 Dexterity) went missing, and every number built on those two
+ * abilities was one too low. The owner's own Ukrainian sheet is what caught it.
+ *
+ * The compendium states this structurally: a feat carries `abilityScoreIncreases`, a
+ * list of abilities. One entry means a fixed +1. Several entries, or "any", mean the
+ * player chooses, and that choice is nowhere in the sheet — so we warn instead of
+ * guessing, the same as for a species choice.
+ */
+function featIncrease(
+  raw: RawCharacter,
+  compendium: Compendium,
+  warnings: string[],
+): Record<AbilityName, number> {
+  const out = emptyAbilityMap();
+  for (const name of listFeats(raw)) {
+    const feat = compendium.get('feat', name);
+    if (feat === undefined) {
+      warnings.push(`рису «${name}» не знайдено в компендіумі — її приріст не враховано`);
+      continue;
+    }
+    const options = feat['abilityScoreIncreases'];
+    if (!Array.isArray(options) || options.length === 0) continue;
+    if (options.length === 1 && options[0] !== 'any') {
+      const ability = toAbility(String(options[0]));
+      if (ability === undefined) {
+        warnings.push(`риса «${name}» дає приріст до «${String(options[0])}» — не розпізнано`);
+        continue;
+      }
+      out[ability] += 1;
+      continue;
+    }
+    const where = options.includes('any') ? 'будь-якої характеристики' : options.join(' / ');
     warnings.push(
-      `риси ще не враховуються рушієм: ${feats.join(', ')}. `
-      + 'Якщо риса щось дає до чисел, його тут немає',
+      `риса «${name}» дає +1 на вибір (${where}), і в листі цього вибору немає`,
     );
   }
   return out;
@@ -192,6 +243,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
 
   const fromSpecies = speciesIncrease(raw, compendium, warnings);
   const fromLevels = improvementIncrease(raw, warnings);
+  const fromFeats = featIncrease(raw, compendium, warnings);
   const tweaks = raw.tweaks?.abilityScores ?? {};
 
   const abilities = {} as Record<AbilityName, AbilityBreakdown>;
@@ -199,13 +251,14 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     const base = raw.baseAbilityScores[ability] ?? 0;
     const species = fromSpecies[ability];
     const improvements = fromLevels[ability];
+    const feats = fromFeats[ability];
     const tweak = tweaks[ability]?.score;
     const override = tweak?.override ?? null;
     const tweakBonus = tweak?.bonus ?? 0;
     // Hand edits last: override replaces the computed total, bonus adds on top.
-    const score = (override ?? base + species + improvements) + tweakBonus;
+    const score = (override ?? base + species + improvements + feats) + tweakBonus;
     abilities[ability] = {
-      base, species, improvements, tweakBonus, tweakOverride: override,
+      base, species, improvements, feats, tweakBonus, tweakOverride: override,
       score, modifier: abilityModifier(score),
     };
   }

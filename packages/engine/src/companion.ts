@@ -34,6 +34,18 @@ export interface RawCompanion {
   traits?: string[];
   /** Rolled hit points for levels after the first. Empty means take the average. */
   hitPointRolls?: number[];
+  /** Languages the droid knows. Recorded, not computed. */
+  languages?: string[];
+  /** Feats. Recorded; their effects are not applied yet. */
+  feats?: string[];
+  /**
+   * The rules say a companion's level equals its owner's. When the owner's sheet says
+   * otherwise — as Нигра's droid does, with one hit die rather than four — we follow
+   * the sheet and say so out loud. The table is the authority at the table.
+   */
+  levelOverride?: number | null;
+  /** Maximum hit points straight off the owner's sheet, when it disagrees with ours. */
+  hitPointsMaximumOverride?: number | null;
   currentStats?: {
     hitPointsLost?: number;
     temporaryHitPoints?: number;
@@ -116,6 +128,10 @@ export interface CompanionSheet {
   immunities: string[];
   vulnerabilities: string[];
   traits: string[];
+  languages: string[];
+  feats: string[];
+  /** The one tool, integrated into the droid. */
+  tool: string | null;
   companionClass: string | null;
   warnings: string[];
 }
@@ -127,7 +143,14 @@ export function computeCompanion(
 ): CompanionSheet {
   const warnings: string[] = [];
   const rules = NATURES[raw.nature];
-  const level = ownerLevel;
+  const level = raw.levelOverride ?? ownerLevel;
+  if (raw.levelOverride !== null && raw.levelOverride !== undefined
+      && raw.levelOverride !== ownerLevel) {
+    warnings.push(
+      `у листі компаньйона рівень ${raw.levelOverride}, а за правилами він дорівнює `
+      + `рівню господаря (${ownerLevel}). Рахую за листом`,
+    );
+  }
   const bonus = COMPANION_PROFICIENCY[level - 1] ?? 2;
   if (COMPANION_PROFICIENCY[level - 1] === undefined) {
     warnings.push(`рівень ${level} поза таблицею компаньйонів — бонус майстерності взято +2`);
@@ -178,14 +201,24 @@ export function computeCompanion(
   for (let i = 0; i < level - 1; i += 1) {
     maximum += (rolls[i] ?? rules.hitPointsPerLevelAverage) + constitution;
   }
+  const hpOverride = raw.hitPointsMaximumOverride ?? null;
+  if (hpOverride !== null && hpOverride !== maximum) {
+    warnings.push(
+      `у листі максимум ХП ${hpOverride}, а за правилами вийшло ${maximum}. Беру з листа`,
+    );
+  }
+  if (hpOverride !== null) maximum = hpOverride;
 
   // Finesse: the attack uses the better of Strength and Dexterity.
   const weaponAbility = rules.weapon.finesse
     ? Math.max(abilities.Strength.modifier, abilities.Dexterity.modifier)
     : abilities.Strength.modifier;
 
-  if (raw.companionClass === null || raw.companionClass === undefined) {
+  if (level >= 3 && (raw.companionClass === null || raw.companionClass === undefined)) {
     warnings.push('клас компаньйона (з 3 рівня) не вибраний — його особливості не враховані');
+  }
+  if ((raw.feats ?? []).length > 0) {
+    warnings.push(`риси компаньйона ще не враховуються: ${(raw.feats ?? []).join(', ')}`);
   }
   warnings.push('володіння сейвами компаньйона дає клас компаньйона, і він ще не враховується');
 
@@ -219,6 +252,9 @@ export function computeCompanion(
     immunities: rules.immunities,
     vulnerabilities: rules.vulnerabilities,
     traits: raw.traits ?? [],
+    languages: raw.languages ?? [],
+    feats: raw.feats ?? [],
+    tool: raw.tool ?? null,
     companionClass: raw.companionClass ?? null,
     warnings: [`господар: ${ownerName}`, ...warnings],
   };
