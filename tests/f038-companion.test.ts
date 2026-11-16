@@ -77,15 +77,23 @@ describe('F-038 · лист компаньйона', () => {
     expect(nature.vulnerabilities).toEqual(['ion']);
   });
 
-  it('рівень дроїда дорівнює рівню господаря, і це не зберігається', () => {
-    const sheet = computeCompanion(droid, ownerSheet.level, ownerSheet.name);
+  it('без override рівень компаньйона дорівнює рівню господаря', () => {
+    const byTheBook: RawCompanion = { ...droid, levelOverride: null, hitPointsMaximumOverride: null };
+    const sheet = computeCompanion(byTheBook, ownerSheet.level, ownerSheet.name);
     expect(sheet.level, 'рівень компаньйона = рівень господаря').toBe(ownerSheet.level);
-    expect(sheet.proficiencyBonus).toBe(2);
-    expect(JSON.stringify(droid), 'рівень не має лежати у файлі').not.toContain('"level"');
+    expect(sheet.hitPoints.hitDice, 'і кубиків стільки ж, скільки рівнів').toBe('4d4');
   });
 
   it('поки характеристики не призначені, рушій каже про це вголос', () => {
-    const sheet = computeCompanion(droid, ownerSheet.level, ownerSheet.name);
+    const blank: RawCompanion = {
+      ...droid,
+      abilityScores: {
+        Strength: null, Dexterity: null, Constitution: null,
+        Intelligence: null, Wisdom: null, Charisma: null,
+      },
+      skills: [],
+    };
+    const sheet = computeCompanion(blank, ownerSheet.level, ownerSheet.name);
     expect(sheet.warnings.join('\n'), 'мовчить про непризначені характеристики')
       .toContain('характеристики не призначені');
     expect(sheet.warnings.join('\n'), 'мовчить про дві навички на вибір')
@@ -96,6 +104,9 @@ describe('F-038 · лист компаньйона', () => {
     // The standard array, assigned as a tracker droid would want it: dexterity highest.
     const filled: RawCompanion = {
       ...droid,
+      levelOverride: null,
+      hitPointsMaximumOverride: null,
+      feats: [],
       name: 'Болт',
       abilityScores: {
         Strength: 8, Dexterity: 15, Constitution: 13,
@@ -143,5 +154,43 @@ describe('F-038 · лист компаньйона', () => {
     // Strength +4 beats dexterity -1, so the attack is +6 while AC stays 9.
     expect(sheet.attacks[0]?.toHit).toBe(6);
     expect(sheet.armorClass).toBe(9);
+  });
+
+  // The owner's own sheet, Дроїд.pdf, is the independent source here: every number
+  // below was read off it, and the engine has to reproduce all of them. This is the
+  // droid's golden test, and unlike the characters' one it is already filled in.
+  it('числа сходяться з листом власника — це золота звірка дроїда', () => {
+    const sheet = computeCompanion(droid, ownerSheet.level, ownerSheet.name);
+    expect(sheet.name).toBe('BOBR-1488');
+    expect(sheet.abilities.Strength.score).toBe(6);
+    expect(sheet.abilities.Dexterity.score).toBe(14);
+    expect(sheet.abilities.Constitution.score).toBe(12);
+    expect(sheet.abilities.Intelligence.score).toBe(16);
+    expect(sheet.abilities.Wisdom.score).toBe(8);
+    expect(sheet.abilities.Charisma.score).toBe(10);
+    expect(sheet.proficiencyBonus, 'бонус майстерності з листа').toBe(2);
+    expect(sheet.armorClass, 'КБ з листа').toBe(12);
+    expect(sheet.initiative, 'ініціатива з листа').toBe(2);
+    expect(sheet.hitPoints.maximum, 'максимум ХП з листа').toBe(6);
+    expect(sheet.hitPoints.hitDice, 'кубик здоровʼя з листа').toBe('1d4');
+    expect(sheet.passivePerception, 'пасивна увага з листа').toBe(9);
+    expect(sheet.skills.Stealth.modifier, 'Stealth з листа').toBe(4);
+    expect(sheet.skills.Technology.modifier, 'Technology з листа').toBe(5);
+    expect(sheet.attacks[0]?.toHit, 'влучання shockprod з листа').toBe(4);
+    expect(sheet.tool).toBe("Splicer's Kit");
+    expect(sheet.traits).toEqual(['Camouflage Module', 'Ranged Interface Protocol']);
+    expect(sheet.languages).toEqual(['Binary', 'Galactic Basic', 'Mon Cal']);
+  });
+
+  it('розбіжності з правилами названі вголос, а не заховані', () => {
+    const sheet = computeCompanion(droid, ownerSheet.level, ownerSheet.name);
+    const text = sheet.warnings.join('\n');
+    // The sheet says level 1; the rules say the owner's level, which is 4.
+    expect(text, 'мовчить про рівень').toContain('за правилами він дорівнює');
+    expect(sheet.level, 'рахуємо за листом').toBe(1);
+    // The sheet says 6 HP; by the rules, Constitution 12 at level 1 would give 5.
+    expect(text, 'мовчить про ХП').toContain('максимум ХП 6');
+    // The droid's feat is recorded but its effect is not applied, and that is said.
+    expect(text).toContain('Medium Armor Master');
   });
 });
