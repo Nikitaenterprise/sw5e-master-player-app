@@ -8,6 +8,14 @@ if not exist "node_modules" (
   pause
   exit /b 1
 )
+if not exist "node_modules\@holotable\protocol" (
+  echo.
+  echo   Внутрішні пакети не підключені, і сервер не стартує.
+  echo   Лікується одним: запусти ВСТАНОВИТИ.bat, тоді спробуй ще раз.
+  echo.
+  pause
+  exit /b 1
+)
 set HOLOTABLE_OPEN=/?as=gm
 call npm start
 pause
