@@ -1,5 +1,5 @@
 {
-  "_інструкція": "ЗАПОВНЕНО З sw5e.com 2026-11-16. Вхідні дані на сайті й у state/characters/source-exports/alister.json ІДЕНТИЧНІ (changedAt 2026-02-25 11:30), тому ці числа — чиста перевірка рушія. Усі 34 числа збіглися з рушієм. Решта полів (атаки, поінти, DC) чекають на фічі F-015 і F-016. ЯК ЗАПОВНИТИ ЦЕЙ ФАЙЛ. Персонаж: Алістер — Cathar, Sentinel 4 рівень, архетип «Path of Ethereality». Відкрий sw5e.com, увійди у свій акаунт, Characters → «Алістер» → вкладка Sheet. Далі переписуй числа з листа сюди, замінюючи кожен null: maxHitPoints і armorClass — великі числа вгорі листа; proficiencyBonus, initiative, passivePerception — там само біля них; abilityScores і savingThrows — ліва колонка листа (шість характеристик і шість сейвів); skillModifiers — список вмінь під ними, усі 18, зі знаком (+3, -1); attacks — блок Attacks: на кожну вдягнену зброю додай рядок з її назвою, бонусом влучання і шкодою ('1d8+3 kinetic'); forcePointsMax, techPointsMax, forceDC, techDC — блок Casting; superiorityDiceCount і superiorityDieSize — блок Superiority (size пиши числом: 8 замість d8); maneuversKnown і powersKnown — списки назв точно як на sw5e.com; carryingCapacity — Encumbrance / ліміт ваги. Чого немає на листі — лишай null і скажи мені, НЕ вигадуй і не рахуй у голові. Окремо перевір: сил Сили має бути 17 — 13 вибраних класом плюс 4 власних (Sever Force, Force Suppression, Telekinetic Storm, Resistance). Маневрів немає, superiorityDiceCount має бути 0. На 4 рівні взято рису War Caster, а не +2 до характеристик. У листі є нерозподілений рівень (unspentLevels: 1) — числа переписуй як для 4 рівня.",
+  "_інструкція": "ЗАПОВНЕНО З sw5e.com 2026-11-16. Вхідні дані на сайті й у state/characters/source-exports/alister.json ІДЕНТИЧНІ (changedAt 2026-02-25 11:30), тому ці числа — чиста перевірка рушія. Усі 34 числа збіглися з рушієм. Решта полів (атаки, поінти, DC) чекають на фічі F-015 і F-016. ЯК ЗАПОВНИТИ ЦЕЙ ФАЙЛ. Персонаж: Алістер — Cathar, Sentinel 4 рівень, архетип «Path of Ethereality». Відкрий sw5e.com, увійди у свій акаунт, Characters → «Алістер» → вкладка Sheet. Далі переписуй числа з листа сюди, замінюючи кожен null: maxHitPoints і armorClass — великі числа вгорі листа; proficiencyBonus, initiative, passivePerception — там само біля них; abilityScores і savingThrows — ліва колонка листа (шість характеристик і шість сейвів); skillModifiers — список вмінь під ними, усі 18, зі знаком (+3, -1); attacks — блок Attacks: на кожну вдягнену зброю додай рядок з її назвою, бонусом влучання і шкодою ('1d8+3 kinetic'); forcePointsMax, techPointsMax, forceDC, techDC — блок Casting; superiorityDiceCount і superiorityDieSize — блок Superiority (size пиши числом: 8 замість d8); maneuversKnown і powersKnown — списки назв точно як на sw5e.com; carryingCapacity — Encumbrance / ліміт ваги. Чого немає на листі — лишай null і скажи мені, НЕ вигадуй і не рахуй у голові. Окремо перевір: сил Сили має бути 17 — 13 вибраних класом плюс 4 власних (Sever Force, Force Suppression, Telekinetic Storm, Resistance). Маневрів немає, superiorityDiceCount має бути 0. На 4 рівні взято рису War Caster, а не +2 до характеристик. У листі є нерозподілений рівень (unspentLevels: 1) — числа переписуй як для 4 рівня. МАНЕВРІВ НЕМАЄ (2026-11-16, F-017): ні клас, ні архетип цього персонажа маневрів не дають, тому нулі й порожній список — це не «не заповнено», а правильна відповідь.",
   "maxHitPoints": 26,
   "armorClass": 14,
   "proficiencyBonus": 2,
@@ -53,11 +53,9 @@
   "techPointsMax": null,
   "forceDC": null,
   "techDC": null,
-  "superiorityDiceCount": null,
-  "superiorityDieSize": null,
-  "maneuversKnown": [
-    null
-  ],
+  "superiorityDiceCount": 0,
+  "superiorityDieSize": 0,
+  "maneuversKnown": [],
   "powersKnown": [
     null
   ]

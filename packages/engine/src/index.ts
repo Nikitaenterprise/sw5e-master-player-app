@@ -17,6 +17,7 @@ import { computeHitPoints, type HitPointsResult } from './hitPoints.js';
 import { computeArmorClass, type ArmorClassResult } from './armorClass.js';
 import { computeWeapons, type WeaponAttack } from './weapons.js';
 import { computeCasting, type CastingResult } from './casting.js';
+import { computeManeuvers, type SuperiorityResult } from './maneuvers.js';
 import { SKILLS, SKILL_ABILITY } from './skills.js';
 
 /** Where an ability score came from. The owner asks "why is this 18"; this answers. */
@@ -54,6 +55,8 @@ export interface ComputedSheet {
   armorClass: ArmorClassResult;
   weapons: WeaponAttack[];
   casting: CastingResult[];
+  /** Superiority dice and maneuvers, per class that grants them. */
+  superiority: SuperiorityResult[];
   /** Initiative is the Dexterity modifier; nothing in the five sheets changes it yet. */
   initiative: number;
   passivePerception: number;
@@ -353,6 +356,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
   ) as Record<AbilityName, number>;
   const weapons = computeWeapons(raw, compendium, modifiers, scores, bonus, warnings);
   const casting = computeCasting(raw, compendium, modifiers, bonus, warnings);
+  const superiority = computeManeuvers(raw, compendium, modifiers, bonus, warnings);
 
   return {
     name: raw.name,
@@ -370,6 +374,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     armorClass,
     weapons,
     casting,
+    superiority,
     initiative: abilities.Dexterity.modifier,
     passivePerception: 10 + skills.Perception.modifier,
     warnings,
@@ -386,6 +391,9 @@ export {
 export type { WeaponAttack } from './weapons.js';
 export { computeCasting, parseCastingTable } from './casting.js';
 export type { CastingResult } from './casting.js';
+export { computeManeuvers } from './maneuvers.js';
+export type { SuperiorityResult, KnownManeuver, ManeuverAbility, ManeuverType } from './maneuvers.js';
+export { parseLevelTable, levelFromCell, numberFrom } from './levelTable.js';
 export type { ArmorClassResult, ArmorPiece } from './armorClass.js';
 export { computeCompanion, COMPANION_PROFICIENCY, COMPANION_NATURES } from './companion.js';
 export type {

@@ -1,5 +1,5 @@
 {
-  "_інструкція": "РІШЕННЯ МАЙСТРА 2026-11-16: риси з фону ДАЮТЬ +1 до характеристики, за правилами. Тому сім чисел нижче — Інтелект 18, сейв Інтелекту +6, Investigation +6, Lore +6, Nature +4, Piloting +4, Technology +4 — взяті НЕ з sw5e.com (він дає 17 і не застосовує риси Linguist), а з рішення майстра плюс структурне поле abilityScoreIncreases у компендіумі. Решта 29 чисел звірені зі sw5e.com на ідентичних вхідних даних. Не переглядати це рішення без майстра. ЗАПОВНЕНО З sw5e.com 2026-11-16. Вхідні дані ІДЕНТИЧНІ (changedAt 2026-02-21 15:40), тому це чиста перевірка рушія. УВАГА: Інтелект і шість чисел від нього лишені null, бо рушій і sw5e.com розходяться: сайт НЕ застосовує +1 інтелекту від риси Linguist (дає 17), а правила й компендіум кажуть, що застосовує (дає 18). Поки майстер не вирішив, хто правий, цих чисел у тесті немає. Решта 27 чисел збіглися. ЯК ЗАПОВНИТИ ЦЕЙ ФАЙЛ. Персонаж: Крінж-Дор — Kel Dor, Scholar 4 рівень, архетип «Politician Pursuit». Відкрий sw5e.com, увійди у свій акаунт, Characters → «Крінж-Дор» → вкладка Sheet. Далі переписуй числа з листа сюди, замінюючи кожен null: maxHitPoints і armorClass — великі числа вгорі листа; proficiencyBonus, initiative, passivePerception — там само біля них; abilityScores і savingThrows — ліва колонка листа (шість характеристик і шість сейвів); skillModifiers — список вмінь під ними, усі 18, зі знаком (+3, -1); attacks — блок Attacks: на кожну вдягнену зброю додай рядок з її назвою, бонусом влучання і шкодою ('1d8+3 kinetic'); forcePointsMax, techPointsMax, forceDC, techDC — блок Casting; superiorityDiceCount і superiorityDieSize — блок Superiority (size пиши числом: 8 замість d8); maneuversKnown і powersKnown — списки назв точно як на sw5e.com; carryingCapacity — Encumbrance / ліміт ваги. Чого немає на листі — лишай null і скажи мені, НЕ вигадуй і не рахуй у голові. Окремо перевір: до максимуму ХП стоїть ручна надбавка +7, і ХП не кидались, а брались середні (isFixedHitPoints) — maxHitPoints мусить це враховувати. Маневрів п'ять: Rally, Disarming Blow, Parry, Return Fire, Parry (Improved). Сил Сили і технологій немає — там мають бути нулі. На 4 рівні взято +1 Силу і +1 Інтелект.",
+  "_інструкція": "РІШЕННЯ МАЙСТРА 2026-11-16: риси з фону ДАЮТЬ +1 до характеристики, за правилами. Тому сім чисел нижче — Інтелект 18, сейв Інтелекту +6, Investigation +6, Lore +6, Nature +4, Piloting +4, Technology +4 — взяті НЕ з sw5e.com (він дає 17 і не застосовує риси Linguist), а з рішення майстра плюс структурне поле abilityScoreIncreases у компендіумі. Решта 29 чисел звірені зі sw5e.com на ідентичних вхідних даних. Не переглядати це рішення без майстра. ЗАПОВНЕНО З sw5e.com 2026-11-16. Вхідні дані ІДЕНТИЧНІ (changedAt 2026-02-21 15:40), тому це чиста перевірка рушія. УВАГА: Інтелект і шість чисел від нього лишені null, бо рушій і sw5e.com розходяться: сайт НЕ застосовує +1 інтелекту від риси Linguist (дає 17), а правила й компендіум кажуть, що застосовує (дає 18). Поки майстер не вирішив, хто правий, цих чисел у тесті немає. Решта 27 чисел збіглися. ЯК ЗАПОВНИТИ ЦЕЙ ФАЙЛ. Персонаж: Крінж-Дор — Kel Dor, Scholar 4 рівень, архетип «Politician Pursuit». Відкрий sw5e.com, увійди у свій акаунт, Characters → «Крінж-Дор» → вкладка Sheet. Далі переписуй числа з листа сюди, замінюючи кожен null: maxHitPoints і armorClass — великі числа вгорі листа; proficiencyBonus, initiative, passivePerception — там само біля них; abilityScores і savingThrows — ліва колонка листа (шість характеристик і шість сейвів); skillModifiers — список вмінь під ними, усі 18, зі знаком (+3, -1); attacks — блок Attacks: на кожну вдягнену зброю додай рядок з її назвою, бонусом влучання і шкодою ('1d8+3 kinetic'); forcePointsMax, techPointsMax, forceDC, techDC — блок Casting; superiorityDiceCount і superiorityDieSize — блок Superiority (size пиши числом: 8 замість d8); maneuversKnown і powersKnown — списки назв точно як на sw5e.com; carryingCapacity — Encumbrance / ліміт ваги. Чого немає на листі — лишай null і скажи мені, НЕ вигадуй і не рахуй у голові. Окремо перевір: до максимуму ХП стоїть ручна надбавка +7, і ХП не кидались, а брались середні (isFixedHitPoints) — maxHitPoints мусить це враховувати. Маневрів п'ять: Rally, Disarming Blow, Parry, Return Fire, Parry (Improved). Сил Сили і технологій немає — там мають бути нулі. На 4 рівні взято +1 Силу і +1 Інтелект. ЧИСЛА МАНЕВРІВ (2026-11-16, F-017) взяті НЕ зі sw5e.com, а з таблиці класу Scholar у книзі: на 4 рівні Maneuvers Known 5, Superiority Dice Quantity 4, Superiority Dice Size d4. Сайт маневрів на листі не показує взагалі — саме цей баг лікує F-017, тому звіряти з ним тут нічого. DC маневрів три, бо характеристика залежить від типу маневра і її обирає гравець: фізичні 12 (Спритність +2), ментальні 14 (Інтелект +4), загальні 14. Parry у книзі фізичний, але Parry (Improved) переводить його в загальні, тому його DC 14, а не 12.",
   "maxHitPoints": 34,
   "armorClass": 13,
   "proficiencyBonus": 2,
@@ -53,12 +53,21 @@
   "techPointsMax": null,
   "forceDC": null,
   "techDC": null,
-  "superiorityDiceCount": null,
-  "superiorityDieSize": null,
+  "superiorityDiceCount": 4,
+  "superiorityDieSize": 4,
   "maneuversKnown": [
-    null
+    "Rally",
+    "Disarming Blow",
+    "Parry",
+    "Return Fire",
+    "Parry (Improved)"
   ],
   "powersKnown": [
     null
-  ]
+  ],
+  "maneuverSaveDC": {
+    "physical": 12,
+    "mental": 14,
+    "general": 14
+  }
 }

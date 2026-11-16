@@ -1,5 +1,5 @@
 {
-  "_інструкція": "ЗАПОВНЕНО 2026-11-16. ПОВНИЙ ЗБІГ із рушієм sw5e.com на ЦИХ САМИХ свіжих даних (поданих рушієві сайту в пам'яті браузера, без запису в акаунт). Усі 36 чисел. ЯК ЗАПОВНИТИ ЦЕЙ ФАЙЛ. Персонаж: Анам Мелех (Асаг Намтар) — Devaronian, Berserker 4 рівень, архетип «Marauder Approach». Відкрий sw5e.com, увійди у свій акаунт, Characters → «Анам Мелех (Асаг Намтар)» → вкладка Sheet. Далі переписуй числа з листа сюди, замінюючи кожен null: maxHitPoints і armorClass — великі числа вгорі листа; proficiencyBonus, initiative, passivePerception — там само біля них; abilityScores і savingThrows — ліва колонка листа (шість характеристик і шість сейвів); skillModifiers — список вмінь під ними, усі 18, зі знаком (+3, -1); attacks — блок Attacks: на кожну вдягнену зброю додай рядок з її назвою, бонусом влучання і шкодою ('1d8+3 kinetic'); forcePointsMax, techPointsMax, forceDC, techDC — блок Casting; superiorityDiceCount і superiorityDieSize — блок Superiority (size пиши числом: 8 замість d8); maneuversKnown і powersKnown — списки назв точно як на sw5e.com; carryingCapacity — Encumbrance / ліміт ваги. Чого немає на листі — лишай null і скажи мені, НЕ вигадуй і не рахуй у голові. Окремо перевір: КБ — у листі стоїть ручна надбавка +4 до броні, тому armorClass мусить бути на 4 більше, ніж дає сам комбінезон. Силу (Strength) вручну виставлено на 16. Шість сил Сили дає архетип Marauder Approach — вони теж мають бути в powersKnown. На 4 рівні взято рису Fighting Stylist. У листі є нерозподілений рівень — пиши числа 4 рівня.",
+  "_інструкція": "ЗАПОВНЕНО 2026-11-16. ПОВНИЙ ЗБІГ із рушієм sw5e.com на ЦИХ САМИХ свіжих даних (поданих рушієві сайту в пам'яті браузера, без запису в акаунт). Усі 36 чисел. ЯК ЗАПОВНИТИ ЦЕЙ ФАЙЛ. Персонаж: Анам Мелех (Асаг Намтар) — Devaronian, Berserker 4 рівень, архетип «Marauder Approach». Відкрий sw5e.com, увійди у свій акаунт, Characters → «Анам Мелех (Асаг Намтар)» → вкладка Sheet. Далі переписуй числа з листа сюди, замінюючи кожен null: maxHitPoints і armorClass — великі числа вгорі листа; proficiencyBonus, initiative, passivePerception — там само біля них; abilityScores і savingThrows — ліва колонка листа (шість характеристик і шість сейвів); skillModifiers — список вмінь під ними, усі 18, зі знаком (+3, -1); attacks — блок Attacks: на кожну вдягнену зброю додай рядок з її назвою, бонусом влучання і шкодою ('1d8+3 kinetic'); forcePointsMax, techPointsMax, forceDC, techDC — блок Casting; superiorityDiceCount і superiorityDieSize — блок Superiority (size пиши числом: 8 замість d8); maneuversKnown і powersKnown — списки назв точно як на sw5e.com; carryingCapacity — Encumbrance / ліміт ваги. Чого немає на листі — лишай null і скажи мені, НЕ вигадуй і не рахуй у голові. Окремо перевір: КБ — у листі стоїть ручна надбавка +4 до броні, тому armorClass мусить бути на 4 більше, ніж дає сам комбінезон. Силу (Strength) вручну виставлено на 16. Шість сил Сили дає архетип Marauder Approach — вони теж мають бути в powersKnown. На 4 рівні взято рису Fighting Stylist. У листі є нерозподілений рівень — пиши числа 4 рівня. МАНЕВРІВ НЕМАЄ (2026-11-16, F-017): ні клас, ні архетип цього персонажа маневрів не дають, тому нулі й порожній список — це не «не заповнено», а правильна відповідь.",
   "maxHitPoints": 51,
   "armorClass": 16,
   "proficiencyBonus": 2,
@@ -53,11 +53,9 @@
   "techPointsMax": null,
   "forceDC": null,
   "techDC": null,
-  "superiorityDiceCount": null,
-  "superiorityDieSize": null,
-  "maneuversKnown": [
-    null
-  ],
+  "superiorityDiceCount": 0,
+  "superiorityDieSize": 0,
+  "maneuversKnown": [],
   "powersKnown": [
     null
   ]
