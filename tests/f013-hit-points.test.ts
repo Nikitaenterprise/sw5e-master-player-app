@@ -62,7 +62,7 @@ describe("F-013 · рушій: ХП і кубики здоровʼя", () => {
     expect(h.rolls.every((r) => r === average), 'усі рівні мусять дати середнє').toBe(true);
 
     expect(h.tweakBonus, 'правка +7 мусить бути видимою').toBe(7);
-    // Без правки було б 27. Якщо хтось застосує її не останньою — число поїде.
+    // Without the tweak it would be 27. Apply it anywhere but last and the number drifts.
     const withoutTweak = h.maximum - h.tweakBonus;
     expect(withoutTweak, 'ХП без правки').toBe(27);
     expect(h.maximum, 'ХП із правкою').toBe(34);
@@ -85,8 +85,8 @@ describe("F-013 · рушій: ХП і кубики здоровʼя", () => {
   });
 
   it('якщо кидків у листі бракує, рушій каже про це', () => {
-    // Беремо справжній лист і прибираємо один кидок — рушій мусить попередити,
-    // а не тихо порахувати менше ХП.
+    // Take a real sheet and remove one roll — the engine must warn about it instead of
+    // quietly computing fewer hit points.
     const { raw } = byFile('alister.json');
     const broken = JSON.parse(JSON.stringify(raw)) as RawCharacter;
     const cls = broken.classes[0];

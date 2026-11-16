@@ -46,7 +46,7 @@ describe('F-040 · рушій враховує риси', () => {
     expect(computed.abilities.Intelligence.feats, 'приріст від рис').toBe(1);
     expect(computed.abilities.Intelligence.score, 'інтелект із рисою').toBe(18);
     expect(computed.abilities.Intelligence.modifier).toBe(4);
-    // Усе, що від інтелекту, підросло разом із ним.
+    // Everything that comes from Intelligence grew along with it.
     expect(computed.savingThrows.Intelligence.modifier, 'сейв інтелекту').toBe(6);
     expect(computed.skills.Lore.modifier, 'Lore').toBe(6);
     expect(computed.skills.Nature.modifier, 'Nature без володіння').toBe(4);
@@ -61,8 +61,8 @@ describe('F-040 · рушій враховує риси', () => {
   });
 
   it('риса з вибором не вгадується, а виноситься в попередження', () => {
-    // Weapon Expert і Fighting Stylist дають +1 до сили, спритності АБО статури,
-    // і в листі цього вибору немає. Crafter дає +1 до будь-якої.
+    // Weapon Expert and Fighting Stylist give +1 to Strength, Dexterity OR Constitution,
+    // and the sheet holds no such choice. Crafter gives +1 to any ability.
     const anam = byFile('anam-melekh.json').computed;
     const text = anam.warnings.join('\n');
     expect(text).toContain('Weapon Expert');
@@ -74,7 +74,7 @@ describe('F-040 · рушій враховує риси', () => {
   });
 
   it('риса без приросту нічого не додає і не бреше про це', () => {
-    // Алістер: Force-Sensitive і War Caster характеристик не дають.
+    // Alister: Force-Sensitive and War Caster give no ability scores at all.
     const { computed } = byFile('alister.json');
     for (const ability of ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'] as const) {
       expect(computed.abilities[ability].feats, `${ability}`).toBe(0);

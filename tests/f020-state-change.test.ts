@@ -107,7 +107,8 @@ describe('F-020 · гравець міняє свій стан', () => {
     await sandra.waitFor(() => sandra.state['krinzh-dor']?.hitPointsLost === 5);
     await krinzh.waitFor(() => krinzh.state['krinzh-dor']?.hitPointsLost === 5);
 
-    // Саме це власник перевіряє очима в демо — а тест доводить, що дійшло до ВСІХ
+    // This is what the owner checks with his own eyes in the demo — the test proves it
+    // reached EVERYONE
     expect(gm.events[0]?.author.kind).toBe('player');
     expect(gm.events[0]?.author.character).toBe('krinzh-dor');
   });
@@ -117,12 +118,12 @@ describe('F-020 · гравець міняє свій стан', () => {
     const gm = await connectClient(server.port, 'gm');
     const player = await connectClient(server.port, 'player', 'alister');
 
-    // Гравець нервово тисне +1 десять разів підряд, не чекаючи відповіді
+    // The player nervously taps +1 ten times in a row without waiting for an answer
     for (let i = 1; i <= 10; i += 1) player.sendChange('alister', { hitPointsLost: i });
     await gm.waitFor(() => gm.events.length === 10);
 
     expect(server.state.one('alister')?.hitPointsLost).toBe(10);
-    // Кожне натискання лишило слід, і порядок збережений
+    // Every tap left a trace, and the order is preserved
     const lines = log();
     expect(lines).toHaveLength(10);
     expect(lines.map((p) => p.changes[0]?.to)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
@@ -157,7 +158,7 @@ describe('F-020 · гравець міняє свій стан', () => {
     await gm.waitFor(() => gm.events.length === 2);
 
     expect(server.state.one('sandra-vong')?.conditions).toEqual([]);
-    // Обидві зміни в журналі, тому відкат можливий у будь-який бік
+    // Both changes are in the log, so an undo is possible in either direction
     expect(log()[1]?.changes[0]).toEqual({
       field: 'conditions', from: ['Приголомшена'], to: [],
     });
@@ -173,7 +174,7 @@ describe('F-020 · гравець міняє свій стан', () => {
     player.sendChange('alister', { hitPointsLost: 2 });
     await new Promise((g) => setTimeout(g, 200));
 
-    // Інакше журнал за сесію розпухав би від порожніх подій
+    // Otherwise a session's log would swell with empty events
     expect(gm.events).toHaveLength(1);
     expect(log()).toHaveLength(1);
   });

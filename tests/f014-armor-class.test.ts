@@ -56,8 +56,8 @@ describe('F-014 · рушій: КБ і спорядження', () => {
   });
 
   it('легка броня замінює базу й лишає всю спритність', () => {
-    // Крінж-Дор носить Combat suit: «11 + Dex modifier». Саме через нього його КБ
-    // на одиницю більший, ніж дала б гола формула 10 + спритність.
+    // Krinzh-Dor wears a Combat suit: «11 + Dex modifier». That is exactly why his AC is
+    // one higher than the bare 10 + Dexterity formula would give.
     const { computed } = byFile('krinzh-dor.json');
     const ac = computed.armorClass;
     expect(ac.armor?.name).toBe('Combat suit');
@@ -69,7 +69,7 @@ describe('F-014 · рушій: КБ і спорядження', () => {
   });
 
   it('ручна правка КБ застосовується останньою', () => {
-    // Анам: +4 до КБ у tweaks. Без правки було б 12.
+    // Anam: +4 to AC in tweaks. Without the tweak it would be 12.
     const { computed } = byFile('anam-melekh.json');
     const ac = computed.armorClass;
     expect(ac.tweakBonus).toBe(4);
@@ -78,8 +78,9 @@ describe('F-014 · рушій: КБ і спорядження', () => {
   });
 
   it('власна броня без КБ не впливає ні на що, але про неї сказано', () => {
-    // Пастка 10: «Ситська уніформа» вдягнена й позначена як Armor, але свого КБ не
-    // має. sw5e.com її для КБ ігнорує, і рушій робить так само.
+    // Trap 10: the homebrew Sith uniform (its name in the sheet is Ukrainian) is equipped
+    // and marked as Armor, but has no AC of its own. sw5e.com ignores it for AC, and the
+    // engine does the same.
     for (const file of ['nigra-4.json', 'sandra-vong.json']) {
       const { computed } = byFile(file);
       const ac = computed.armorClass;
@@ -104,7 +105,7 @@ describe('F-014 · рушій: КБ і спорядження', () => {
     expect(medium.dexterityApplied, 'середня броня обмежує спритність двійкою').toBe(2);
     expect(medium.value).toBe(15);
 
-    const heavy = wear('Battle armor');           // «16», без спритності
+    const heavy = wear('Battle armor');           // «16», no Dexterity
     expect(heavy.dexterityApplied, 'важка броня не дає спритності').toBe(0);
     expect(heavy.value).toBe(16);
 

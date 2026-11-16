@@ -48,38 +48,40 @@ describe('F-016 · рушій: сила й техніка', () => {
   });
 
   it('Сандра: повний кастер читається з таблиці класу', () => {
-    // Consular 4: у таблиці 15 відомих сил, 16 поінтів, максимум 2 рівень.
+    // Consular 4: the table gives 15 powers known, 16 points, 2nd level at most.
     const k = casting('sandra-vong.json');
     expect(k.kind).toBe('force');
     expect(k.source).toBe('Consular');
     expect(k.powersKnown).toBe(15);
     expect(k.pointsFromTable).toBe(16);
     expect(k.maxPowerLevel).toBe('2nd');
-    // Поінти = таблиця + модифікатор. У неї Мудрість і Харизма однакові (+3),
-    // тому вибір гравця ні на що не впливає і попередження бути не мусить.
+    // Points = table + modifier. Her Wisdom and Charisma are equal (+3), so the player's
+    // choice changes nothing and there must be no warning.
     expect(k.points).toBe(19);
     expect(byFile('sandra-vong.json').computed.warnings.join('\n'))
       .not.toContain('Consular: поінти сили додають');
-    // DC = 8 + майстерність + модифікатор; атака = майстерність + модифікатор.
+    // DC = 8 + proficiency + modifier; the attack = proficiency + modifier.
     expect(k.saveDC.light).toBe(13);
     expect(k.saveDC.dark).toBe(13);
     expect(k.attackModifier.light).toBe(5);
   });
 
   it('Анам: кастинг від архетипу, а не від класу', () => {
-    // Berserker сам не кастує; сили дає Marauder Approach із таблицею в тексті.
+    // A Berserker does not cast on its own; powers come from Marauder Approach, whose
+    // table sits inside the text.
     const k = casting('anam-melekh.json');
     expect(compendium.get('class', 'Berserker')?.['casterType'], 'клас не кастує').toBe('none');
     expect(k.source).toBe('Marauder Approach');
     expect(k.powersKnown).toBe(6);
     expect(k.pointsFromTable).toBe(4);
     expect(k.maxPowerLevel).toBe('1st');
-    // Його Харизма (+2) краща за Мудрість (+1), тому поінтів 6, і про вибір сказано.
+    // His Charisma (+2) beats his Wisdom (+1), so there are 6 points, and the choice is
+    // stated out loud.
     expect(k.pointsAbility).toBe('Charisma');
     expect(k.points).toBe(6);
     expect(byFile('anam-melekh.json').computed.warnings.join('\n'))
       .toContain('Marauder Approach: поінти сили додають');
-    // Сторона Сили міняє DC: світла від Мудрості, темна від Харизми.
+    // The side of the Force changes the DC: light from Wisdom, dark from Charisma.
     expect(k.saveDC.light).toBe(11);
     expect(k.saveDC.dark).toBe(12);
   });
@@ -103,8 +105,8 @@ describe('F-016 · рушій: сила й техніка', () => {
   });
 
   it('сили від класу рахуються проти книги, а вписані руками — окремо', () => {
-    // Алістер має рівно 13 класових сил, як у таблиці, плюс 4 власних. Якщо рахувати
-    // їх разом, виходить фальшива тривога «17 замість 13».
+    // Alister has exactly 13 class powers, as in the table, plus 4 of his own. Counting them
+    // together produces a false alarm, «17 instead of 13».
     const k = casting('alister.json');
     expect(k.powersKnown).toBe(13);
     expect(k.powersOnSheet.length, 'класових рівно стільки, скільки дозволено').toBe(13);
@@ -115,7 +117,7 @@ describe('F-016 · рушій: сила й техніка', () => {
   });
 
   it('недобір сил проти книги названий вголос', () => {
-    // У Нигри від архетипу 3 техніки, а книга дає 4; у Сандри 14 проти 15.
+    // Nigra has 3 techniques from the archetype where the book gives 4; Sandra has 14 to 15.
     expect(byFile('nigra-4.json').computed.warnings.join('\n'))
       .toContain('за книгою відомих технік 4');
     expect(byFile('sandra-vong.json').computed.warnings.join('\n'))

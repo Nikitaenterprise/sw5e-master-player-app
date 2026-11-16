@@ -34,7 +34,7 @@ const krinzh = () => {
 
 describe('F-017 · суперіориті й маневри', () => {
   it('баг sw5e.com вилікуваний: маневри Scholar видно', () => {
-    // На сайті цей список зберігається і не показується. Рушій мусить його віддати.
+    // The site stores this list and never shows it. The engine has to hand it over.
     expect(krinzh().maneuversOnSheet.map((m) => m.name)).toEqual([
       'Rally', 'Disarming Blow', 'Parry', 'Return Fire', 'Parry (Improved)',
     ]);
@@ -53,8 +53,8 @@ describe('F-017 · суперіориті й маневри', () => {
   });
 
   it('DC не один, а три: характеристика залежить від типу маневра', () => {
-    // Книга: фізичні — Сила, Спритність або Статура; ментальні — Інтелект, Мудрість
-    // або Харизма; загальні — будь-яка. Вибір гравця, тому беремо найкращу.
+    // The book: physical — Strength, Dexterity or Constitution; mental — Intelligence,
+    // Wisdom or Charisma; general — any of them. It is the player's choice, so take the best.
     const k = krinzh();
     expect(k.abilities.physical.ability, 'Спритність +2 краща за Силу й Статуру').toBe('Dexterity');
     expect(k.abilities.physical.saveDC).toBe(12);
@@ -68,8 +68,8 @@ describe('F-017 · суперіориті й маневри', () => {
   });
 
   it('Parry (Improved) переводить Parry у загальні — і це міняє його DC', () => {
-    // Текст маневра: "Parry becomes a general maneuver for you". Тобто фізичний Parry
-    // перестає бути фізичним, і його DC рахується від загальної групи: 14, а не 12.
+    // The maneuver's text: "Parry becomes a general maneuver for you". So the physical Parry
+    // stops being physical, and its DC comes from the general group: 14, not 12.
     const parry = krinzh().maneuversOnSheet.find((m) => m.name === 'Parry');
     expect(parry?.bookType, 'у книзі він фізичний').toBe('physical');
     expect(parry?.maneuverType, 'а в цього персонажа — загальний').toBe('general');
@@ -101,8 +101,8 @@ describe('F-017 · суперіориті й маневри', () => {
   });
 
   it('markdown-таблиця архетипу читається навіть коли вона кривa', () => {
-    // Champion Superiority написана правильно, а Tactical Superiority — ні: у заголовку
-    // три колонки, у роздільнику чотири, і рядок не починається з риски.
+    // Champion Superiority is written correctly, Tactical Superiority is not: three columns
+    // in the header, four in the separator, and the row does not start with a dash.
     const feature = (key: string): string => {
       const found = compendium.all('feature').find((f) => f.key === key);
       const text = found?.['description'];

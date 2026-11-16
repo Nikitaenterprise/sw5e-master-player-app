@@ -99,7 +99,7 @@ export class State {
     return event;
   }
 
-  /** Накладає подію на памʼять. Використовується і при відтворенні журналу. */
+  /** Applies an event to the in-memory state. Also used when replaying the log. */
   private applyChange(event: GameEvent): void {
     const state = this.characters.get(event.character);
     if (state === undefined) return;

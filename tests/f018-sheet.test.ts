@@ -41,7 +41,7 @@ describe('F-018 · лист персонажа', () => {
     }
     expect(name('krinzh-dor')).toBe('Крінж-Дор');
     expect(name(undefined)).toBe('без персонажа');
-    // Невідомий слаг не ламає інтерфейс, а показується як є
+    // An unknown slug does not break the interface, it is shown as it is
     expect(name('невідомий')).toBe('невідомий');
   });
 

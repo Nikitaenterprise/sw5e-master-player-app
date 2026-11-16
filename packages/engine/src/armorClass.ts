@@ -100,7 +100,7 @@ export function computeArmorClass(
   }
 
   // Custom armour the owner invented. sw5e.com ignores it for armour class unless it
-  // states one, and so do we: Нигра's «Ситська уніформа» is worn, is marked Armor,
+  // states one, and so do we: Nigra's homemade uniform is worn, is marked Armor,
   // and leaves his AC at 10 + Dexterity (docs/ПАСТКИ-ДАНИХ.md, trap 10).
   for (const item of raw.customEquipment ?? []) {
     if (item.equipped !== true) continue;

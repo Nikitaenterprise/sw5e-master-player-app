@@ -95,7 +95,7 @@ describe('F-019 · журнал подій і збереження стану', 
     expect(Object.keys(state).sort()).toEqual([
       'alister', 'anam-melekh', 'krinzh-dor', 'nigra-4', 'sandra-vong',
     ]);
-    // Анам у вихідному експорті вже поранений — база береться з листа, не з нуля
+    // Anam is already wounded in the source export — the base comes from the sheet, not zero
     expect(state['anam-melekh']?.hitPointsLost).toBe(15);
   });
 
@@ -118,7 +118,7 @@ describe('F-019 · журнал подій і збереження стану', 
     expect(event.note).toBe('від бластера пірата');
     expect(event.changes).toEqual([{ field: 'hitPointsLost', from: 0, to: 7 }]);
 
-    // Головне: подія вже на диску, а не лише в памʼяті
+    // The point: the event is already on disk, not only in memory
     const lines = logLines();
     expect(lines).toHaveLength(1);
     expect((JSON.parse(lines[0] as string) as GameEvent).id).toBe(event.id);
@@ -167,7 +167,7 @@ describe('F-019 · журнал подій і збереження стану', 
     for (const p of badLines) gm.socket.send(JSON.stringify(p));
     await gm.waitFor(() => gm.refusals.length === badLines.length);
 
-    // Найважливіше: обчислюване поле змінити не можна навіть майстру (ADR 0003)
+    // Most important: a computed field cannot be changed even by the GM (ADR 0003)
     expect(gm.refusals[0]).toContain('maxHitPoints');
     expect(gm.events).toHaveLength(0);
     expect(logLines()).toHaveLength(0);
@@ -187,7 +187,7 @@ describe('F-019 · журнал подій і збереження стану', 
     const lines = logLines();
     expect(lines).toHaveLength(2);
     expect(lines[0], 'перший рядок журналу змінився — журнал мусить лише дописуватись').toBe(first);
-    // Друга подія знає, що було до неї: звідси безкоштовний відкат
+    // The second event knows what came before it: that is where free undo comes from
     expect((JSON.parse(lines[1] as string) as GameEvent).changes[0]).toEqual({
       field: 'hitPointsLost', from: 3, to: 9,
     });
@@ -203,13 +203,13 @@ describe('F-019 · журнал подій і збереження стану', 
     }));
     await gm.waitFor(() => gm.events.length === 1);
 
-    // Імітуємо раптове вимкнення: закриваємо сервер і піднімаємо новий на тій самій теці
+    // Imitate a sudden power cut: close the server and start a new one on the same folder
     await server.close();
     server = await start(0, { eventsDir: t, charactersDir: CHARACTERS, sessionNumber: 1 });
 
     expect(server.state.one('nigra-4')?.hitPointsLost).toBe(21);
     expect(server.state.one('nigra-4')?.conditions).toEqual(['Stunned']);
-    // Решта персонажів лишились як у вихідних листах
+    // The other characters stayed as they are in the source sheets
     expect(server.state.one('alister')?.hitPointsLost).toBe(0);
   });
 
@@ -221,7 +221,7 @@ describe('F-019 · журнал подій і збереження стану', 
     await gm.waitFor(() => gm.events.length === 1);
     await server.close();
 
-    // Дописуємо піврядка, як це зробило б вимкнення живлення посеред запису
+    // Append half a line, the way a power cut in the middle of a write would
     const file = join(t, 'session-01.jsonl');
     writeFileSync(file, `${readFileSync(file, 'utf8')}{"id":"обір`, 'utf8');
 

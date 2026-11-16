@@ -18,7 +18,7 @@ export class Log {
     this.file = join(dir, `session-${String(this.sessionNumber).padStart(2, '0')}.jsonl`);
   }
 
-  /** Номер останньої сесії в теці, або 1, якщо журналів ще немає. */
+  /** Number of the latest session in the folder, or 1 when there are no logs yet. */
   static last(dir: string): number {
     if (!existsSync(dir)) return 1;
     const numbers = readdirSync(dir)
@@ -29,9 +29,9 @@ export class Log {
   }
 
   /**
-   * Дописує подію й чекає, доки вона фізично ляже на диск.
-   * Синхронно і з fsync — свідомо: кілька подій на секунду за столом, тому ціна
-   * нульова, а гарантія того варта.
+   * Appends an event and waits until it is physically on disk.
+   * Synchronous, with fsync, on purpose: a few events per second at the table, so the
+   * cost is nil and the guarantee is worth it.
    */
   append(event: GameEvent): void {
     appendFileSync(this.file, `${JSON.stringify(event)}\n`, 'utf8');
@@ -44,8 +44,8 @@ export class Log {
   }
 
   /**
-   * Читає журнал. Пошкоджений останній рядок (обірваний на вимкненні живлення)
-   * пропускається — це і є та «максимум одна втрачена подія».
+   * Reads the log. A corrupt last line (cut off by a power outage) is skipped — that
+   * is exactly the "at most one lost event" promised above.
    */
   read(): { events: GameEvent[]; corruptLines: number } {
     if (!existsSync(this.file)) return { events: [], corruptLines: 0 };

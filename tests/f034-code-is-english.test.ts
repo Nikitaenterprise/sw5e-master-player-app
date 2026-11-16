@@ -41,6 +41,32 @@ const files = CODE_DIRS.flatMap((d) => walk(join(root, d)));
 const sources = files.filter((f) => ['.ts', '.tsx', '.mjs'].includes(extname(f)));
 
 /** Strips what may legitimately be Cyrillic, leaving only suspect prose. */
+/**
+ * Every comment in a file, wherever it sits.
+ *
+ * The first version of this walked the scanner and quietly lost almost everything
+ * except the file header, so Ukrainian comments inside function bodies sailed through
+ * for several features. The parser knows where every comment is attached, so ask it.
+ */
+function commentRanges(text: string): ts.CommentRange[] {
+  const src = ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const seen = new Map<number, ts.CommentRange>();
+  const add = (ranges: ts.CommentRange[] | undefined): void => {
+    for (const range of ranges ?? []) seen.set(range.pos, range);
+  };
+  const visit = (node: ts.Node): void => {
+    if (node.pos !== node.end || ts.isSourceFile(node)) {
+      add(ts.getLeadingCommentRanges(text, node.pos));
+      add(ts.getTrailingCommentRanges(text, node.end));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(src);
+  // The very end of the file is attached to nothing, so look there too.
+  add(ts.getLeadingCommentRanges(text, src.endOfFileToken.pos));
+  return [...seen.values()].sort((a, b) => a.pos - b.pos);
+}
+
 function stripAllowed(text: string): string {
   let rest = text.replace(FILE_REFERENCE, ' ');
   for (const noun of PROPER_NOUNS) rest = rest.split(noun).join(' ');
@@ -78,21 +104,31 @@ describe('F-034 · код англійською', () => {
     const bad: string[] = [];
     for (const file of sources) {
       const text = readFileSync(file, 'utf8');
-      const scanner = ts.createScanner(
-        ts.ScriptTarget.Latest, false, ts.LanguageVariant.JSX, text,
-      );
-      let kind: ts.SyntaxKind;
-      while ((kind = scanner.scan()) !== ts.SyntaxKind.EndOfFileToken) {
-        const isComment = kind === ts.SyntaxKind.SingleLineCommentTrivia
-          || kind === ts.SyntaxKind.MultiLineCommentTrivia;
-        if (!isComment) continue;
-        const comment = scanner.getTokenText();
+      for (const { pos, end } of commentRanges(text)) {
+        const comment = text.slice(pos, end);
         if (!CYRILLIC.test(stripAllowed(comment))) continue;
-        const line = text.slice(0, scanner.getTokenStart()).split('\n').length;
+        const line = text.slice(0, pos).split('\n').length;
         bad.push(`${relative(root, file)}:${line} — ${comment.split('\n')[0]?.trim() ?? ''}`);
       }
     }
     expect(bad, `коментарі мусять бути англійськими:\n${bad.join('\n')}`).toEqual([]);
+  });
+
+  it('сторож справді бачить коментар усередині функції', () => {
+    // The first guard did not see this: it walked the scanner and quietly lost almost
+    // everything but the file header. A test that checks nothing is worse than no test at
+    // all — it reassures.
+    const sample = [
+      'export function a(): void {',
+      '  if (true) {',
+      '    // це український коментар усередині двох блоків',
+      '    return;',
+      '  }',
+      '}',
+    ].join('\n');
+    const found = commentRanges(sample).map(({ pos, end }) => sample.slice(pos, end));
+    expect(found.some((c) => CYRILLIC.test(c)), 'коментар у вкладеному блоці мусить знайтись')
+      .toBe(true);
   });
 
   it('вбудований JavaScript у HTML теж англійською', () => {

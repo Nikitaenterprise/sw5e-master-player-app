@@ -21,8 +21,9 @@ describe("F-002 · п'ять вихідних експортів цілі", () =
       expect(existsSync(path), `бракує ${file}`).toBe(true);
       const rawText = readFileSync(path, 'utf8');
 
-      // Пошкоджений експорт — це той, що не парситься. Лапки « » у прозі легальні:
-      // у Сандри в бекстори є «Клинки Силы». Див. docs/ПАСТКИ-ДАНИХ.md, пункт 11.
+      // A corrupt export is one that does not parse. Guillemets « » inside the prose
+      // are legal: Sandra's backstory quotes a title in them.
+      // See docs/ПАСТКИ-ДАНИХ.md, item 11.
       let d: Record<string, unknown>;
       try {
         d = JSON.parse(rawText) as Record<string, unknown>;

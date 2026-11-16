@@ -37,7 +37,7 @@ describe('F-005 · золотий тест цілий', () => {
       const d = JSON.parse(readFileSync(join(dir, `${s}.expected.json`), 'utf8')) as Record<string, unknown>;
       return d['maxHitPoints'] !== null;
     });
-    // Не падає, коли ще нічого не заповнено — лише повідомляє стан у виводі.
+    // Does not fail while nothing is filled in yet — it only reports the state in the output.
     console.log(`  золотий тест заповнено: ${filled.length} з ${slugs.length}`);
     expect(filled.length).toBeGreaterThanOrEqual(0);
   });

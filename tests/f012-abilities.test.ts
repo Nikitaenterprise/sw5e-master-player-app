@@ -30,7 +30,7 @@ const byFile = (name: string): (typeof sheets)[number] => {
 
 describe('F-012 · рушій: базові характеристики', () => {
   it('навичка належить тій характеристиці, яку називає книга правил', () => {
-    // Канонічний перелік лежить у компендіумі, у правилі phb-using-ability-scores.
+    // The canonical list lives in the compendium, in the phb-using-ability-scores rule.
     const rule = compendium.get('rule', 'phb-using-ability-scores');
     const text = String(rule?.['body'] ?? rule?.['description'] ?? '');
     expect(text.length, 'правило про характеристики зникло з компендіуму')
@@ -55,7 +55,7 @@ describe('F-012 · рушій: базові характеристики', () =>
   });
 
   it('карта навичок збігається з тим, як їх розкладено у справжніх листах', () => {
-    // Лист зберігає навичку під характеристикою — це незалежний свідок карти.
+    // The sheet stores each skill under its ability — an independent witness for the map.
     let witnessed = 0;
     for (const { file, raw } of sheets) {
       for (const [ability, tweak] of Object.entries(raw.tweaks?.abilityScores ?? {})) {
@@ -83,7 +83,7 @@ describe('F-012 · рушій: базові характеристики', () =>
   });
 
   it('пастка 1: приріст виду взято з компендіуму, бо в листі його немає', () => {
-    // Алістер — Cathar: +2 Dexterity, +1 Charisma. У листі приріст порожній.
+    // Alister is a Cathar: +2 Dexterity, +1 Charisma. In the sheet the increase is empty.
     const { raw, computed } = byFile('alister.json');
     expect(Object.keys(raw.species.abilityScoreImprovement ?? {})).toEqual([]);
     expect(computed.abilities.Dexterity.species, 'Cathar мусить дати +2 спритності').toBe(2);
@@ -92,13 +92,13 @@ describe('F-012 · рушій: базові характеристики', () =>
   });
 
   it('пастка 2: ручні правки застосовуються ОСТАННІМИ', () => {
-    // Анам: сила порахувалась би як 15, але в листі стоїть override 16.
+    // Anam: Strength would compute as 15, but the sheet carries an override of 16.
     const anam = byFile('anam-melekh.json').computed;
     expect(anam.abilities.Strength.base).toBe(15);
     expect(anam.abilities.Strength.tweakOverride).toBe(16);
     expect(anam.abilities.Strength.score, 'override мусить перебити обчислене').toBe(16);
 
-    // Нигра: харизма override 18, мудрість — bonus +1 поверх бази 11.
+    // Nigra: Charisma override 18, Wisdom a bonus of +1 on top of a base of 11.
     const nigra = byFile('nigra-4.json').computed;
     expect(nigra.abilities.Charisma.score).toBe(18);
     expect(nigra.abilities.Wisdom.tweakBonus).toBe(1);
@@ -106,7 +106,7 @@ describe('F-012 · рушій: базові характеристики', () =>
   });
 
   it('пастка 3: порожній обʼєкт навички — це НЕ володіння', () => {
-    // У листі Крінж-Дора Acrobatics записана як {} — без рівня володіння.
+    // In Krinzh-Dor's sheet Acrobatics is written as {} — with no proficiency level.
     const { raw, computed } = byFile('krinzh-dor.json');
     const stored = raw.tweaks?.abilityScores?.Dexterity?.skills?.Acrobatics;
     expect(stored, 'у листі мусить бути порожній запис Acrobatics').toEqual({});
@@ -169,12 +169,13 @@ describe('F-012 · рушій: базові характеристики', () =>
   });
 
   it('рушій каже вголос про те, чого не знає', () => {
-    // Mon Calamari дає +1 на вибір між інтелектом і мудрістю, і в листі вибору немає.
-    // Якщо рушій промовчить, число буде тихо занижене — саме цього ми не хочемо.
+    // Mon Calamari gives +1 to a choice of Intelligence or Wisdom, and the sheet holds no
+    // choice. If the engine keeps quiet, the number is silently too low — the one thing we
+    // do not want.
     const nigra = byFile('nigra-4.json').computed;
     expect(nigra.warnings.join('\n'), 'про невідомий вибір виду мусить бути попередження')
       .toContain('Mon Calamari');
-    // Троє мають нерозподілений рівень — про це теж треба сказати.
+    // Three of them have an unspent level — that has to be said out loud too.
     const unspent = sheets.filter(
       (s) => (s.raw.currentStats.unspentLevels ?? 0) > 0,
     );

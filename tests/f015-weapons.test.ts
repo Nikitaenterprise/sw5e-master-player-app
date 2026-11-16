@@ -67,15 +67,15 @@ describe('F-015 · рушій: зброя й модифікатори атак',
   });
 
   it('Алістер: витончена зброя бере спритність, і володіння діє', () => {
-    // Sentinel володіє «martial vibroweapons with the finesse property», а Vibrorapier
-    // саме такий. sw5e.com цього не застосовує й показує +4 — це баг сайту.
+    // A Sentinel is proficient with «martial vibroweapons with the finesse property», and a
+    // Vibrorapier is one. sw5e.com does not apply that and shows +4 — a bug on the site.
     const rapier = weapon('alister.json', 'Vibrorapier');
     expect(rapier.ability, 'finesse бере краще зі сили й спритності').toBe('Dexterity');
     expect(rapier.proficient, 'martial vibroweapon із finesse — володіння є').toBe(true);
     expect(rapier.attackBonus, 'спритність +4 плюс майстерність +2').toBe(6);
     expect(rapier.damage).toBe('1d8 + 4');
 
-    // Vibroshield — той самий клас зброї, але без finesse, тому володіння немає.
+    // A Vibroshield is the same weapon class, but without finesse, so there is no proficiency.
     const shield = weapon('alister.json', 'Vibroshield');
     expect(shield.proficient).toBe(false);
     expect(shield.ability).toBe('Strength');
@@ -90,7 +90,7 @@ describe('F-015 · рушій: зброя й модифікатори атак',
   });
 
   it('Нигра: ручна правка на предметі додається до влучання', () => {
-    // Пастка 6: +1 до влучання стоїть на двох предметах окремо.
+    // Trap 6: the +1 to hit sits on two items separately.
     for (const name of ['Blaster pistol', 'Bowcaster']) {
       const w = weapon('nigra-4.json', name);
       expect(w.tweakToHit, `${name}: правка`).toBe(1);
@@ -102,13 +102,14 @@ describe('F-015 · рушій: зброя й модифікатори атак',
   });
 
   it('невиконана вимога зброї названа вголос', () => {
-    // Bowcaster вимагає силу 13, у Нигри 11. Рушій не чіпає число, але попереджає.
+    // A Bowcaster requires Strength 13, Nigra has 11. The engine leaves the number alone
+    // but warns about it.
     const { computed } = byFile('nigra-4.json');
     expect(computed.warnings.join('\n')).toContain('«Bowcaster» вимагає силу 13');
   });
 
   it('володіння конкретною зброєю за імʼям не плутається з категорією', () => {
-    // У Сандри власне володіння «Hidden blade» — це назва зброї, не категорія.
+    // Sandra's own proficiency «Hidden blade» is a weapon name, not a category.
     const { computed } = byFile('sandra-vong.json');
     expect(computed.warnings.join('\n'), 'імʼя зброї не мусить лишати попередження')
       .not.toContain('Hidden blade');

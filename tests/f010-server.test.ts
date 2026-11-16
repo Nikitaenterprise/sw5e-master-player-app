@@ -144,7 +144,7 @@ describe('F-010 · сервер і підключення', () => {
       undefined, 'krinzh-dor', 'sandra-vong', 'nigra-4',
     ]);
 
-    // Головне у фічі: однаковий список у всіх, а не лише в майстра
+    // The point of the feature: the same list for everyone, not just for the GM
     for (const player of [player1, player2, player3]) {
       const atPlayer = await player.waitFor((k) => k.length === 4);
       expect(atPlayer.map((k) => k.id)).toEqual(atGm.map((k) => k.id));
@@ -157,8 +157,8 @@ describe('F-010 · сервер і підключення', () => {
     const player = await connectClient(server.port, 'player', 'alister');
     await gm.waitFor((k) => k.length === 2);
 
-    // Позначка перед дією: інакше умова зійдеться на найпершому повідомленні,
-    // коли майстер справді був один — і тест пройде, нічого не перевіривши
+    // A mark before the action: otherwise the condition matches the very first message,
+    // when the GM really was alone — and the test passes without checking anything
     const mark = gm.history.length;
     player.socket.close();
     const afterDrop = await gm.waitFor((k) => k.length === 1, {

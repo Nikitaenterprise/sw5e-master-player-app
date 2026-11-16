@@ -60,7 +60,7 @@ describe('F-006 · компендіум правил', () => {
   });
 
   it('імʼя з доважком у кінці все одно знаходиться', () => {
-    // У справжньому листі предмет записаний як «Cigarettes » із пробілом у кінці.
+    // In a real sheet the item is written as «Cigarettes », with a trailing space.
     const direct = compendium.get('equipment', 'Vibrosword');
     expect(direct).toBeDefined();
     expect(compendium.get('equipment', 'Vibrosword ')).toBe(direct);
@@ -101,9 +101,9 @@ describe('F-006 · компендіум правил', () => {
   });
 
   it('приріст характеристик від виду береться з компендіуму, бо в листі його немає', () => {
-    // Пастка 1 (docs/ПАСТКИ-ДАНИХ.md): у видів із фіксованим приростом лист зберігає
-    // порожній обʼєкт. Якщо компендіум цього не дасть, усі характеристики будуть
-    // занижені, і помітить це тільки той, хто звірить із sw5e.com вручну.
+    // Trap 1 (docs/ПАСТКИ-ДАНИХ.md): for species with a fixed increase the sheet stores
+    // an empty object. If the compendium does not supply it, every ability score comes
+    // out too low, and only someone checking against sw5e.com by hand would notice.
     const fixed = ['Cathar', 'Devaronian', 'Kel Dor', 'Mon Calamari'];
     for (const name of fixed) {
       const species = compendium.get('species', name) as SpeciesDoc | undefined;
@@ -116,7 +116,7 @@ describe('F-006 · компендіум правил', () => {
         expect(inc.amount, `${name}: приріст без величини`).toBeGreaterThan(0);
       }
     }
-    // Human дає вільний вибір, і саме тому лист Сандри його зберігає.
+    // Human gives a free choice, and that is exactly why Sandra's sheet does store it.
     const human = compendium.get('species', 'Human') as SpeciesDoc | undefined;
     const anyCount = (human?.abilityScoreIncreaseOptions ?? [])
       .flatMap((o) => o.increases)
@@ -149,8 +149,8 @@ describe('F-006 · компендіум правил', () => {
   });
 
   it('одна назва може бути кількома речами — find показує всі', () => {
-    // «Makashi Form» — і архетип класу, і форма світлового меча. Якщо довідник
-    // показуватиме лише одне з двох, майстер за столом прочитає не ту сторінку.
+    // «Makashi Form» is both a class archetype and a lightsaber form. If the reference
+    // shows only one of the two, the GM at the table will read the wrong page.
     const all = compendium.find('Makashi Form');
     const types = all.map((d) => d.type);
     expect(types, 'Makashi Form мусить знайтись як форма').toContain('lightsaber-form');
@@ -158,8 +158,8 @@ describe('F-006 · компендіум правил', () => {
   });
 
   it('службові документи сайту-джерела не засмічують пошук', () => {
-    // У архіві 685 документів, які не є правилами: подяки, посилання на соцмережі,
-    // тексти сторінок сайту. Вони лишаються в даних, але в пошуку їм не місце.
+    // The archive holds 685 documents that are not rules: credits, links to social
+    // networks, website page texts. They stay in the data, but they do not belong in search.
     for (const query of ['facebook', 'personal thanks']) {
       for (const hit of compendium.search(query)) {
         expect(
@@ -168,7 +168,7 @@ describe('F-006 · компендіум правил', () => {
         ).not.toContain(hit.type);
       }
     }
-    // Але самі документи нікуди не поділись — рахунок сходиться з маніфестом.
+    // But the documents themselves are still there — the count matches the manifest.
     expect(compendium.all('credit').length).toBeGreaterThan(0);
   });
 });
