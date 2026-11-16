@@ -3,14 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import type {
-  Client,
-  Role,
-  ToServer,
-  FromServer,
-  GameEvent,
-  CharacterState,
-} from '@holotable/protocol';
+import type { CharacterState, Client, FromServer, GameEvent, Role, SheetSummary, ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -23,6 +16,8 @@ export interface Snapshot {
   me: string;
   clients: Client[];
   characters: Record<string, CharacterState>;
+  /** Computed sheets, sent by the server on connect. Never stored (ADR 0003). */
+  sheets: Record<string, SheetSummary>;
   /** Latest events, newest first. The basis of the GM's notification feed (F-022). */
   events: GameEvent[];
   /** The server's last refusal — so the player can see why it did not work. */
@@ -34,6 +29,7 @@ export const EMPTY: Snapshot = {
   me: '',
   clients: [],
   characters: {},
+  sheets: {},
   events: [],
   refusal: null,
 };
@@ -106,6 +102,9 @@ export function connect(
           break;
         case 'state':
           update({ characters: m.characters });
+          break;
+        case 'sheets':
+          update({ sheets: m.sheets });
           break;
         case 'event':
           update({

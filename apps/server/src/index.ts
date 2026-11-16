@@ -19,6 +19,7 @@ import {
 } from '@holotable/protocol';
 import { Log } from './log.js';
 import { State } from './state.js';
+import { computeSummaries } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 
@@ -66,10 +67,11 @@ export async function start(
     options.eventsDir ?? join(ROOT, 'state', 'events'),
     options.sessionNumber,
   );
-  const state = new State(
-    log,
-    options.charactersDir ?? join(ROOT, 'state', 'characters', 'source-exports'),
-  );
+  const charactersDir = options.charactersDir ?? join(ROOT, 'state', 'characters', 'source-exports');
+  const state = new State(log, charactersDir);
+  // Computed once at startup, never written anywhere (ADR 0003). An engine change shows
+  // up on the next restart without touching a file in state/.
+  const sheets = computeSummaries(ROOT, charactersDir);
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -121,6 +123,7 @@ export async function start(
         });
         send(socket, { type: 'welcome', me: id, clients: list() });
         send(socket, { type: 'state', characters: state.all() });
+        send(socket, { type: 'sheets', sheets });
         broadcastClients();
         return;
       }

@@ -49,6 +49,7 @@ export type FromServer =
   | ErrorMessage
   | FullState
   | EventHappened
+  | Sheets
   | Refusal;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +114,46 @@ export interface EventHappened {
   type: 'event';
   event: GameEvent;
   state: CharacterState;
+}
+
+/**
+ * A character boiled down to what fits on a GM card. Every number here is computed by
+ * the engine on load and never stored (ADR 0003) — it travels over the wire, not to
+ * disk. What the players spend during the session lives in CharacterState instead.
+ */
+export interface SheetSummary {
+  slug: string;
+  name: string;
+  /** One line under the name: "Kel Dor · Scholar 4 · Politician Pursuit". */
+  line: string;
+  maxHitPoints: number;
+  armorClass: number;
+  initiative: number;
+  passivePerception: number;
+  proficiencyBonus: number;
+  abilityModifiers: Record<string, number>;
+  savingThrows: Record<string, number>;
+  /** Pools the GM watches. Absent when the character has none. */
+  forcePoints?: { max: number; dcLight: number; dcDark: number };
+  techPoints?: { max: number; dc: number };
+  superiority?: { quantity: number; size: string };
+  /** Attacks, so the GM can call for a roll without opening the sheet. */
+  attacks: { name: string; toHit: number; damage: string }[];
+  /** Maneuvers the character knows, with the DC each one actually uses. */
+  maneuvers: { name: string; cost: number; saveDC: number | null }[];
+  /** How many powers are on the sheet — a count, not a list. */
+  powers: number;
+  /**
+   * What the engine could not work out on its own, verbatim. The GM card shows a
+   * marker, because a number nobody can explain is the thing that costs a session.
+   */
+  warnings: string[];
+}
+
+/** Server → client: the computed sheets. Sent once, on connect. */
+export interface Sheets {
+  type: 'sheets';
+  sheets: Record<string, SheetSummary>;
 }
 
 /** Server → client: the full state of every character, on connect. */

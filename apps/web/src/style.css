@@ -65,7 +65,8 @@ li.is-me { border-color: var(--accent); }
 
 footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .6rem; }
+/* Five cards side by side on a laptop; they stack when the window is narrow. */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .6rem; align-items: start; }
 
 .card {
   background: var(--panel); border: 1px solid var(--border);
@@ -77,6 +78,51 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 .number { display: flex; flex-direction: column; line-height: 1.15; }
 .number b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .number small { font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+
+/* ── The GM card (F-021) ───────────────────────────────────────────────── */
+.card h3 { display: flex; align-items: baseline; gap: .4rem; }
+.card .line { margin: -.35rem 0 .6rem; font-size: .72rem; color: var(--muted); }
+.card.is-down { border-color: var(--bad); }
+.inspiration { color: var(--waiting); font-size: .9rem; }
+.warn {
+  margin-left: auto; font-size: .7rem; color: var(--waiting);
+  background: color-mix(in srgb, var(--waiting) 15%, transparent);
+  border-radius: .3rem; padding: .05rem .3rem; cursor: help; flex: none;
+}
+
+/* Four numbers the GM asks for most often. */
+.big { display: flex; gap: .85rem; flex-wrap: wrap; margin-bottom: .55rem; }
+.big span { display: flex; flex-direction: column; line-height: 1.1; }
+.big b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.big small { font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.hp.half b { color: var(--waiting); }
+.hp.low b, .hp.down b { color: var(--bad); }
+
+.abilities { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-bottom: .55rem; }
+.abilities th { font-size: .58rem; font-weight: 600; color: var(--muted); letter-spacing: .03em; padding-bottom: .1rem; }
+.abilities td { font-size: .82rem; text-align: center; padding: .05rem 0; }
+.abilities tr.saves td { font-size: .7rem; color: var(--muted); }
+
+.pools { display: flex; flex-wrap: wrap; gap: .5rem .8rem; margin-bottom: .55rem; }
+.pool { display: flex; flex-direction: column; line-height: 1.15; }
+.pool b { font-size: 1rem; font-variant-numeric: tabular-nums; color: var(--accent); }
+.pool b i { font-style: normal; font-size: .75rem; color: var(--muted); }
+.pool.empty b { color: var(--bad); }
+.pool small { font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.pool small.note { text-transform: none; letter-spacing: 0; }
+
+.attacks, .maneuvers { list-style: none; margin: 0 0 .5rem; padding: 0; display: flex; flex-direction: column; gap: .15rem; }
+/* These lists sit inside a card, so they must not inherit the panel look that the
+   "who is at the table" list gives every li. */
+.attacks li, .maneuvers li {
+  display: flex; gap: .4rem; font-size: .74rem; align-items: baseline;
+  background: none; border: none; border-radius: 0; padding: 0; margin: 0;
+}
+.attacks .what, .maneuvers .what { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attacks .hit { font-variant-numeric: tabular-nums; color: var(--accent); }
+.attacks .dmg, .maneuvers .cost { color: var(--muted); }
+.maneuvers .dc { font-variant-numeric: tabular-nums; color: var(--accent); }
+.maneuvers { border-top: 1px solid var(--border); padding-top: .4rem; }
 
 .conditions { margin: .6rem 0 0; font-size: .8rem; color: var(--waiting); }
 

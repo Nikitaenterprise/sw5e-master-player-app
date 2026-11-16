@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CharacterState } from '@holotable/protocol';
+import type { CharacterState, SheetSummary } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -39,7 +39,7 @@ export function App(): JSX.Element {
             {Object.entries(snapshot.characters)
               .sort(([a], [b]) => name(a).localeCompare(name(b), 'uk'))
               .map(([slug, state]) => (
-                <Card key={slug} slug={slug} state={state} />
+                <Card key={slug} slug={slug} state={state} sheet={snapshot.sheets[slug]} />
               ))}
           </div>
         </section>
@@ -61,8 +61,8 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-020. Обчислюваних чисел — максимуму ХП, КБ, сейвів — тут ще немає:
-        вони зʼявляться з рушієм правил.
+        Фаза 1 · F-021. Числа на карточках рахує рушій при старті сервера, на диску
+        їх немає (ADR 0003). ⚠ на карточці — те, чого рушій не зміг вивести сам.
       </footer>
     </main>
   );
@@ -209,34 +209,189 @@ function Managed({
   );
 }
 
-function Card({ slug, state }: { slug: string; state: CharacterState }): JSX.Element {
-  const conditions = state.conditions;
+const ABILITY_SHORT: { key: string; label: string }[] = [
+  { key: 'Strength', label: 'СИЛ' },
+  { key: 'Dexterity', label: 'СПР' },
+  { key: 'Constitution', label: 'СТА' },
+  { key: 'Intelligence', label: 'ІНТ' },
+  { key: 'Wisdom', label: 'МУД' },
+  { key: 'Charisma', label: 'ХАР' },
+];
+
+const signed = (n: number): string => (n >= 0 ? `+${n}` : String(n));
+
+const asNumber = (value: unknown): number => (typeof value === 'number' ? value : 0);
+
+/**
+ * One character, as the GM needs them at the table: how much they can still take, what
+ * they roll, what they have left to spend. The computed numbers come from the server,
+ * the spent ones from live state, and the two are kept visibly apart — a pool always
+ * reads "left of max", never a bare number nobody can check.
+ */
+export function Card({
+  slug,
+  state,
+  sheet,
+}: {
+  slug: string;
+  state: CharacterState;
+  sheet: SheetSummary | undefined;
+}): JSX.Element {
+  const conditions = Array.isArray(state.conditions) ? state.conditions : [];
+  const lost = asNumber(state.hitPointsLost);
+  const temporary = asNumber(state.temporaryHitPoints);
+  const exhaustion = asNumber(state.exhaustion);
+
+  if (sheet === undefined) {
+    // The server has not sent the sheets yet, or there is no source export for this
+    // character. Say so rather than drawing an empty card.
+    return (
+      <article className="card">
+        <h3>{name(slug)}</h3>
+        <p className="hint">Обчислені числа ще не прийшли від сервера…</p>
+      </article>
+    );
+  }
+
+  const left = Math.max(0, sheet.maxHitPoints - lost);
+  const share = sheet.maxHitPoints === 0 ? 0 : left / sheet.maxHitPoints;
+  const hpClass = left === 0 ? 'hp down' : share <= 0.25 ? 'hp low' : share <= 0.5 ? 'hp half' : 'hp';
+
   return (
-    <article className="card">
-      <h3>{name(slug)}</h3>
-      <div className="numbers">
-        <NumberControl label="−ХП" value={state.hitPointsLost} />
-        <NumberControl label="тимч." value={state.temporaryHitPoints} />
-        <NumberControl label="Сила" value={state.forcePointsUsed} />
-        <NumberControl label="Техн." value={state.techPointsUsed} />
-        <NumberControl label="Суп." value={state.superiorityDiceUsed} />
-        <NumberControl label="Висн." value={state.exhaustion} />
+    <article className={`card${left === 0 ? ' is-down' : ''}`}>
+      <h3>
+        {name(slug)}
+        {state.hasInspiration === true && <span className="inspiration" title="Натхнення">★</span>}
+        {sheet.warnings.length > 0 && (
+          <span className="warn" title={sheet.warnings.join('\n')}>
+            ⚠ {sheet.warnings.length}
+          </span>
+        )}
+      </h3>
+      <p className="line">{sheet.line}</p>
+
+      <div className="big">
+        <span className={hpClass}>
+          <b>{left}</b>
+          <small>з {sheet.maxHitPoints} ХП{temporary > 0 ? ` +${temporary}` : ''}</small>
+        </span>
+        <span>
+          <b>{sheet.armorClass}</b>
+          <small>КБ</small>
+        </span>
+        <span>
+          <b>{signed(sheet.initiative)}</b>
+          <small>ініціатива</small>
+        </span>
+        <span>
+          <b>{sheet.passivePerception}</b>
+          <small>пас. увага</small>
+        </span>
       </div>
-      {Array.isArray(conditions) && conditions.length > 0 && (
-        <p className="conditions">{conditions.join(', ')}</p>
+
+      <table className="abilities">
+        <tbody>
+          <tr>
+            {ABILITY_SHORT.map(({ key, label }) => (
+              <th key={key}>{label}</th>
+            ))}
+          </tr>
+          <tr>
+            {ABILITY_SHORT.map(({ key }) => (
+              <td key={key}>{signed(sheet.abilityModifiers[key] ?? 0)}</td>
+            ))}
+          </tr>
+          <tr className="saves">
+            {ABILITY_SHORT.map(({ key }) => (
+              <td key={key} title="сейв">{signed(sheet.savingThrows[key] ?? 0)}</td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="pools">
+        {sheet.forcePoints !== undefined && (
+          <Pool
+            label="Сила"
+            left={Math.max(0, sheet.forcePoints.max - asNumber(state.forcePointsUsed))}
+            max={sheet.forcePoints.max}
+            note={
+              sheet.forcePoints.dcLight === sheet.forcePoints.dcDark
+                ? `DC ${sheet.forcePoints.dcLight}`
+                : `DC ${sheet.forcePoints.dcLight}/${sheet.forcePoints.dcDark}`
+            }
+          />
+        )}
+        {sheet.techPoints !== undefined && (
+          <Pool
+            label="Техніка"
+            left={Math.max(0, sheet.techPoints.max - asNumber(state.techPointsUsed))}
+            max={sheet.techPoints.max}
+            note={`DC ${sheet.techPoints.dc}`}
+          />
+        )}
+        {sheet.superiority !== undefined && (
+          <Pool
+            label="Суперіориті"
+            left={Math.max(0, sheet.superiority.quantity - asNumber(state.superiorityDiceUsed))}
+            max={sheet.superiority.quantity}
+            note={sheet.superiority.size}
+          />
+        )}
+        {exhaustion > 0 && <Pool label="Виснаження" left={exhaustion} max={6} note="рівнів" />}
+      </div>
+
+      {sheet.attacks.length > 0 && (
+        <ul className="attacks">
+          {sheet.attacks.map((a) => (
+            <li key={a.name}>
+              <span className="what">{a.name}</span>
+              <span className="hit">{signed(a.toHit)}</span>
+              <span className="dmg">{a.damage}</span>
+            </li>
+          ))}
+        </ul>
       )}
+
+      {sheet.maneuvers.length > 0 && (
+        <ul className="maneuvers">
+          {sheet.maneuvers.map((m) => (
+            <li key={m.name}>
+              <span className="what">{m.name}</span>
+              <span className="cost">{m.cost === 0 ? '—' : `${m.cost} куб.`}</span>
+              {m.saveDC !== null && <span className="dc">DC {m.saveDC}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {conditions.length > 0 && <p className="conditions">{conditions.join(', ')}</p>}
     </article>
   );
 }
 
-function NumberControl({ label, value }: { label: string; value: unknown }): JSX.Element {
+function Pool({
+  label,
+  left,
+  max,
+  note,
+}: {
+  label: string;
+  left: number;
+  max: number;
+  note: string;
+}): JSX.Element {
   return (
-    <span className="number">
-      <b>{typeof value === 'number' ? value : 0}</b>
+    <span className={`pool${left === 0 ? ' empty' : ''}`}>
       <small>{label}</small>
+      <b>
+        {left}<i>/{max}</i>
+      </b>
+      <small className="note">{note}</small>
     </span>
   );
 }
+
 
 function Fields({ state }: { state: CharacterState }): JSX.Element {
   return (
