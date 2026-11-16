@@ -10,9 +10,9 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        // Головна: екран майстра або гравця, залежно від ?as=
+        // Main page: GM screen or player screen, depending on ?as=
         index: resolve(import.meta.dirname, 'index.html'),
-        // Демо на чотирьох екранах — інструмент приймання власника (F-011)
+        // Four-screen demo — the owner's acceptance tool (F-011)
         demo: resolve(import.meta.dirname, 'demo.html'),
       },
     },

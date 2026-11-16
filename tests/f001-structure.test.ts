@@ -1,12 +1,12 @@
-// Тест фічі F-001. Падає, якщо репозиторій перестав бути самодостатнім:
-// зник обов'язковий документ або в документ заліз шлях із машини власника.
+// Test for F-001. Fails when the repository stops being self-contained:
+// a required document is gone, or a path from the owner's machine crept into one.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = join(import.meta.dirname, '..');
 
-const обовязкові = [
+const required = [
   'CLAUDE.md',
   'README.md',
   'package.json',
@@ -29,16 +29,16 @@ const обовязкові = [
 ];
 
 describe('F-001 · репозиторій самодостатній', () => {
-  for (const шлях of обовязкові) {
-    it(`є ${шлях}`, () => {
-      expect(existsSync(join(root, шлях)), `бракує ${шлях}`).toBe(true);
+  for (const path of required) {
+    it(`є ${path}`, () => {
+      expect(existsSync(join(root, path)), `бракує ${path}`).toBe(true);
     });
   }
 
   it('у документах немає шляхів із машини власника', () => {
-    for (const шлях of обовязкові.filter((f) => f.endsWith('.md'))) {
-      const знайдено = readFileSync(join(root, шлях), 'utf8').match(/C:\\Users\\[A-Za-z]+\\/);
-      expect(знайдено, `${шлях} містить шлях ${знайдено?.[0]}`).toBeNull();
+    for (const path of required.filter((f) => f.endsWith('.md'))) {
+      const found = readFileSync(join(root, path), 'utf8').match(/C:\\Users\\[A-Za-z]+\\/);
+      expect(found, `${path} містить шлях ${found?.[0]}`).toBeNull();
     }
   });
 
@@ -47,10 +47,10 @@ describe('F-001 · репозиторій самодостатній', () => {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
     };
-    const заборонені = ['better-sqlite3', 'sqlite3', 'node-gyp', 'canvas', 'sharp', 'bcrypt'];
-    const усі = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
-    for (const назва of усі) {
-      expect(заборонені, `${назва} компілює нативний код — див. ADR 0004`).not.toContain(назва);
+    const forbidden = ['better-sqlite3', 'sqlite3', 'node-gyp', 'canvas', 'sharp', 'bcrypt'];
+    const all = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+    for (const name of all) {
+      expect(forbidden, `${name} компілює нативний код — див. ADR 0004`).not.toContain(name);
     }
   });
 });

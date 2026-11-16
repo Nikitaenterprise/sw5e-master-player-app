@@ -1,62 +1,62 @@
-// Повідомлення між сервером і клієнтами.
-// Поки лише підключення: ролі, хто онлайн. Ігровий стан прийде з журналом подій
-// (F-019) — тоді тут з'являться типи подій, і вони теж будуть спільні для обох боків.
+// Messages between the server and the clients.
+// For now only connection: roles, who is online. Game state arrives with the event
+// log (F-019) — event types will appear here then, shared by both sides too.
 
-/** Роль, із якою клієнт підключився. Беремо з адреси: ?as=gm або ?as=player */
-export type Роль = 'gm' | 'player';
+/** The role a client connected with. Taken from the URL: ?as=gm or ?as=player */
+export type Role = 'gm' | 'player';
 
-/** Хто зараз підключений — це бачать усі, і майстер, і гравці. */
-export interface Клієнт {
+/** Who is connected right now — everyone sees this, GM and players alike. */
+export interface Client {
   id: string;
-  роль: Роль;
-  /** Слаг персонажа для гравця: krinzh-dor, sandra-vong… Майстер його не має. */
-  персонаж?: string;
-  /** Коли підключився, мс. Потрібно, щоб список був стабільно відсортований. */
-  зПідключення: number;
+  role: Role;
+  /** Character slug for a player: krinzh-dor, sandra-vong… The GM has none. */
+  character?: string;
+  /** When they connected, ms. Needed to keep the list stably sorted. */
+  since: number;
 }
 
-/** Клієнт → сервер. Перше, що надсилає клієнт після відкриття сокета. */
-export interface Привітання {
-  тип: 'привітання';
-  роль: Роль;
-  персонаж?: string;
+/** Client → server. The first thing a client sends after opening the socket. */
+export interface Hello {
+  type: 'hello';
+  role: Role;
+  character?: string;
 }
 
-export type ДоСервера = Привітання | Намір;
+export type ToServer = Hello | Intent;
 
-/** Сервер → клієнт. Відповідь на привітання: твій id і повний список підключених. */
-export interface Вітаємо {
-  тип: 'вітаємо';
-  я: string;
-  клієнти: Клієнт[];
+/** Server → client. Answer to a greeting: your id and the full list of connected clients. */
+export interface Welcome {
+  type: 'welcome';
+  me: string;
+  clients: Client[];
 }
 
-/** Сервер → усі. Хтось підключився або відпав — ось новий список. */
-export interface СписокКлієнтів {
-  тип: 'клієнти';
-  клієнти: Клієнт[];
+/** Server → everyone. Someone connected or dropped — here is the new list. */
+export interface ClientList {
+  type: 'clients';
+  clients: Client[];
 }
 
-/** Сервер → клієнт. Привітання не зрозуміле або роль невідома. */
-export interface Помилка {
-  тип: 'помилка';
-  текст: string;
+/** Server → client. The greeting made no sense, or the role is unknown. */
+export interface ErrorMessage {
+  type: 'error';
+  text: string;
 }
 
-export type ВідСервера =
-  | Вітаємо
-  | СписокКлієнтів
-  | Помилка
-  | ПовнийСтан
-  | ПодіяСталася
-  | Відмова;
+export type FromServer =
+  | Welcome
+  | ClientList
+  | ErrorMessage
+  | FullState
+  | EventHappened
+  | Refusal;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Події (ADR 0002). Журнал подій — єдине джерело правди. Рядки лише дописуються.
+// Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Поля стану персонажа, які можна міняти за столом. Решта — через підняття рівня. */
-export const ПОЛЯ_СТАНУ = [
+/** Character state fields changeable at the table. The rest go through level-up. */
+export const STATE_FIELDS = [
   'hitPointsLost',
   'temporaryHitPoints',
   'forcePointsUsed',
@@ -67,125 +67,125 @@ export const ПОЛЯ_СТАНУ = [
   'conditions',
 ] as const;
 
-export type ПолеСтану = (typeof ПОЛЯ_СТАНУ)[number];
+export type StateField = (typeof STATE_FIELDS)[number];
 
-/** Значення, яких можуть набувати ці поля. */
-export type ЗначенняСтану = number | boolean | string[];
+/** The values these fields can take. */
+export type StateValue = number | boolean | string[];
 
-/** Стан персонажа — підмножина currentStats формату sw5e.com (ADR 0001). */
-export type СтанПерсонажа = Partial<Record<ПолеСтану, ЗначенняСтану>>;
+/** Character state — a subset of currentStats in the sw5e.com format (ADR 0001). */
+export type CharacterState = Partial<Record<StateField, StateValue>>;
 
-/** Хто зробив зміну. Саме це дає майстру потік сповіщень без окремого механізму. */
-export interface Автор {
-  вид: 'гравець' | 'майстер' | 'система';
+/** Who made the change. This is what gives the GM a notification feed with no extra machinery. */
+export interface Author {
+  kind: 'player' | 'gm' | 'system';
   id: string;
-  персонаж?: string;
+  character?: string;
 }
 
-/** Одна зміна одного поля: було → стало. Пара from/to робить відкат безкоштовним. */
-export interface Зміна {
-  поле: ПолеСтану;
-  було: ЗначенняСтану | undefined;
-  стало: ЗначенняСтану;
+/** One change to one field: from → to. The from/to pair makes undo free. */
+export interface Change {
+  field: StateField;
+  from: StateValue | undefined;
+  to: StateValue;
 }
 
-/** Рядок журналу. Ніколи не переписується і не видаляється. */
-export interface Подія {
+/** A line of the log. Never rewritten, never deleted. */
+export interface GameEvent {
   id: string;
-  коли: number;
-  автор: Автор;
-  тип: 'стан.змінено';
-  персонаж: string;
-  зміни: Зміна[];
-  нотатка?: string;
+  at: number;
+  author: Author;
+  type: 'state.changed';
+  character: string;
+  changes: Change[];
+  note?: string;
 }
 
-/** Клієнт → сервер: намір змінити стан. Сервер вирішує, чи можна. */
-export interface Намір {
-  тип: 'намір';
-  персонаж: string;
-  зміни: СтанПерсонажа;
-  нотатка?: string;
+/** Client → server: an intent to change state. The server decides whether it is allowed. */
+export interface Intent {
+  type: 'intent';
+  character: string;
+  changes: CharacterState;
+  note?: string;
 }
 
-/** Сервер → усі: подія сталася. */
-export interface ПодіяСталася {
-  тип: 'подія';
-  подія: Подія;
-  стан: СтанПерсонажа;
+/** Server → everyone: an event happened. */
+export interface EventHappened {
+  type: 'event';
+  event: GameEvent;
+  state: CharacterState;
 }
 
-/** Сервер → клієнт: повний стан усіх персонажів при підключенні. */
-export interface ПовнийСтан {
-  тип: 'стан';
-  персонажі: Record<string, СтанПерсонажа>;
+/** Server → client: the full state of every character, on connect. */
+export interface FullState {
+  type: 'state';
+  characters: Record<string, CharacterState>;
 }
 
-/** Сервер → клієнт: намір відхилено, і чому. */
-export interface Відмова {
-  тип: 'відмова';
-  причина: string;
+/** Server → client: the intent was refused, and why. */
+export interface Refusal {
+  type: 'refused';
+  reason: string;
 }
 
-/** Порт за замовчуванням. Змінюється через HOLOTABLE_PORT. */
-export const ПОРТ_ЗА_ЗАМОВЧУВАННЯМ = 7777;
+/** Default port. Changed through HOLOTABLE_PORT. */
+export const DEFAULT_PORT = 7777;
 
-/** Розбирає привітання з довільного JSON. Повертає null, якщо це не привітання. */
-export function розібратиПривітання(дані: unknown): Привітання | null {
-  if (typeof дані !== 'object' || дані === null) return null;
-  const о = дані as Record<string, unknown>;
-  if (о['тип'] !== 'привітання') return null;
-  const роль = о['роль'];
-  if (роль !== 'gm' && роль !== 'player') return null;
-  const персонаж = о['персонаж'];
-  if (персонаж !== undefined && typeof персонаж !== 'string') return null;
-  return персонаж === undefined
-    ? { тип: 'привітання', роль }
-    : { тип: 'привітання', роль, персонаж };
+/** Parses a greeting from arbitrary JSON. Returns null when it is not a greeting. */
+export function parseHello(data: unknown): Hello | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'hello') return null;
+  const role = o['role'];
+  if (role !== 'gm' && role !== 'player') return null;
+  const character = o['character'];
+  if (character !== undefined && typeof character !== 'string') return null;
+  return character === undefined
+    ? { type: 'hello', role }
+    : { type: 'hello', role, character };
 }
 
 
-/** Чи це одне з полів стану, які можна міняти. */
-export function цеПолеСтану(що: string): що is ПолеСтану {
-  return (ПОЛЯ_СТАНУ as readonly string[]).includes(що);
+/** Whether this is one of the state fields that can be changed. */
+export function isStateField(what: string): what is StateField {
+  return (STATE_FIELDS as readonly string[]).includes(what);
 }
 
 /**
- * Розбирає намір. Повертає рядок із причиною, якщо намір негодящий.
- * Валідація тут, у спільному пакеті, щоб клієнт і сервер судили однаково.
+ * Parses an intent. Returns a string with the reason when the intent is no good.
+ * Validation lives here, in the shared package, so client and server judge alike.
  */
-export function розібратиНамір(дані: unknown): Намір | string {
-  if (typeof дані !== 'object' || дані === null) return "намір не обʼєкт";
-  const о = дані as Record<string, unknown>;
-  if (о['тип'] !== 'намір') return 'не намір';
-  const персонаж = о['персонаж'];
-  if (typeof персонаж !== 'string' || персонаж === '') return 'не вказано персонажа';
-  const зміни = о['зміни'];
-  if (typeof зміни !== 'object' || зміни === null) return 'немає змін';
+export function parseIntent(data: unknown): Intent | string {
+  if (typeof data !== 'object' || data === null) return "намір не обʼєкт";
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'intent') return 'не намір';
+  const character = o['character'];
+  if (typeof character !== 'string' || character === '') return 'не вказано персонажа';
+  const changes = o['changes'];
+  if (typeof changes !== 'object' || changes === null) return 'немає змін';
 
-  const перевірені: СтанПерсонажа = {};
-  for (const [поле, значення] of Object.entries(зміни as Record<string, unknown>)) {
-    if (!цеПолеСтану(поле)) return `поле «${поле}» не можна міняти за столом`;
-    if (поле === 'conditions') {
-      if (!Array.isArray(значення) || значення.some((з) => typeof з !== 'string')) {
+  const checked: CharacterState = {};
+  for (const [field, value] of Object.entries(changes as Record<string, unknown>)) {
+    if (!isStateField(field)) return `поле «${field}» не можна міняти за столом`;
+    if (field === 'conditions') {
+      if (!Array.isArray(value) || value.some((z) => typeof z !== 'string')) {
         return 'умови мусять бути списком рядків';
       }
-      перевірені[поле] = значення as string[];
-    } else if (поле === 'hasInspiration') {
-      if (typeof значення !== 'boolean') return 'натхнення мусить бути так або ні';
-      перевірені[поле] = значення;
+      checked[field] = value as string[];
+    } else if (field === 'hasInspiration') {
+      if (typeof value !== 'boolean') return 'натхнення мусить бути так або ні';
+      checked[field] = value;
     } else {
-      if (typeof значення !== 'number' || !Number.isFinite(значення)) {
-        return `«${поле}» мусить бути числом`;
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return `«${field}» мусить бути числом`;
       }
-      if (значення < 0) return `«${поле}» не може бути відʼємним`;
-      перевірені[поле] = значення;
+      if (value < 0) return `«${field}» не може бути відʼємним`;
+      checked[field] = value;
     }
   }
-  if (Object.keys(перевірені).length === 0) return 'порожній намір';
+  if (Object.keys(checked).length === 0) return 'порожній намір';
 
-  const нотатка = о['нотатка'];
-  return нотатка === undefined || нотатка === ''
-    ? { тип: 'намір', персонаж, зміни: перевірені }
-    : { тип: 'намір', персонаж, зміни: перевірені, нотатка: String(нотатка) };
+  const note = o['note'];
+  return note === undefined || note === ''
+    ? { type: 'intent', character, changes: checked }
+    : { type: 'intent', character, changes: checked, note: String(note) };
 }

@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
     "build": "vite build --config apps/web/vite.config.ts",
-    "start": "npm run build && tsx apps/server/src/запустити.ts",
+    "start": "npm run build && tsx apps/server/src/run.ts",
     "demo": "npm run start"
   },
   "devDependencies": {

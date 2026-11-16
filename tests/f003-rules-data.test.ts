@@ -1,0 +1,66 @@
+// Test for F-003. Watches that the rules data neither disappears nor gets swapped.
+// The data lives as a single archive (vendor/sw5e-database.tar.gz), so we check the
+// archive checksum and the document counts from the manifest — without unpacking,
+// to keep the test fast. The numbers are the actual ones at import time: growing is
+// allowed, shrinking is not.
+import { describe, it, expect } from 'vitest';
+import { readFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { join } from 'node:path';
+
+const vendor = join(import.meta.dirname, '..', 'vendor');
+const archive = join(vendor, 'sw5e-database.tar.gz');
+
+// Keys are Ukrainian because this is the on-disk format of vendor/МАНІФЕСТ.json,
+// i.e. data, not our code. Renaming them means changing the data file and its
+// generator together — see docs/ДАНІ.md.
+type Manifest = {
+  'архів': string;
+  sha256: string;
+  'байт': number;
+  'джерело': { 'репозиторій': string; 'коміт': string; 'ліцензія': string };
+  'усього_документів': number;
+  'за_типами': Record<string, number>;
+};
+
+const minimum: Record<string, number> = {
+  feature: 2682, 'enhanced-item': 1918, equipment: 505, power: 465, monster: 271,
+  'starship-modification': 257, species: 141, archetype: 137, maneuver: 119, feat: 118,
+  'starship-equipment': 104, rule: 75, 'starship-venture': 67, background: 61,
+  'weapon-property': 46, 'fighting-style': 32, 'fighting-mastery': 32,
+  'reference-table': 30, 'class-improvement': 30, 'armor-property': 30,
+  'lightsaber-form': 20, 'starship-rule': 13, class: 10,
+  'weapon-supremacy': 8, 'weapon-focus': 8,
+  'starship-deployment': 6, 'starship-base-size': 6,
+};
+
+describe('F-003 · дані правил на місці, цілі й не зменшились', () => {
+  it('архів і маніфест у репозиторії', () => {
+    expect(existsSync(archive), 'бракує vendor/sw5e-database.tar.gz').toBe(true);
+    expect(existsSync(join(vendor, 'МАНІФЕСТ.json')), 'бракує vendor/МАНІФЕСТ.json').toBe(true);
+    expect(existsSync(join(vendor, 'SOURCES.md')), 'бракує vendor/SOURCES.md').toBe(true);
+  });
+
+  const m = JSON.parse(readFileSync(join(vendor, 'МАНІФЕСТ.json'), 'utf8')) as Manifest;
+
+  it('контрольна сума архіву збігається з маніфестом', () => {
+    const sha = createHash('sha256').update(readFileSync(archive)).digest('hex');
+    expect(sha, 'архів пошкоджений або підмінений').toBe(m.sha256);
+  });
+
+  it('джерело задокументоване з хешем коміту', () => {
+    expect(m['джерело']['репозиторій']).toContain('sw5e-database');
+    expect(m['джерело']['коміт']).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('усього щонайменше 7800 документів правил', () => {
+    expect(m['усього_документів']).toBeGreaterThanOrEqual(7800);
+  });
+
+  for (const [type, min] of Object.entries(minimum)) {
+    it(`${type}: щонайменше ${min}`, () => {
+      const has = m['за_типами'][type] ?? 0;
+      expect(has, `${type}: було ${min}, стало ${has} — документи зникли`).toBeGreaterThanOrEqual(min);
+    });
+  }
+});

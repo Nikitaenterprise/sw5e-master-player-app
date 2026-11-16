@@ -1,30 +1,30 @@
-// Сервер застосунку: роздає сторінку в локальну мережу й тримає всіх підключених
-// в курсі, хто ще онлайн.
+// Application server: serves the page to the local network and keeps everyone
+// connected aware of who else is online.
 //
-// Один процес, один порт, жодної бази даних. Ігрового стану тут поки немає —
-// він прийде з журналом подій (F-019). Зараз сервер доводить головне: кілька
-// пристроїв у локальній мережі бачать одне й те саме в реальному часі.
+// One process, one port, no database. Game state is not here yet — it arrives
+// with the event log (F-019). For now the server proves the main thing: several
+// devices on the local network see the same thing in real time.
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { join, normalize, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
-  ПОРТ_ЗА_ЗАМОВЧУВАННЯМ,
-  розібратиПривітання,
-  розібратиНамір,
-  type Автор,
-  type Клієнт,
-  type ВідСервера,
+  DEFAULT_PORT,
+  parseHello,
+  parseIntent,
+  type Author,
+  type Client,
+  type FromServer,
 } from '@holotable/protocol';
-import { Журнал } from './журнал.js';
-import { Стан } from './стан.js';
-import { локальнаАдреса, qrДляТерміналу } from './мережа.js';
-import { відкритиВБраузері } from './відкрити.js';
+import { Log } from './log.js';
+import { State } from './state.js';
+import { localAddress, qrForTerminal } from './network.js';
+import { openInBrowser } from './open-browser.js';
 
-const КОРІНЬ_САЙТУ = join(import.meta.dirname, '..', '..', 'web', 'dist');
+const SITE_ROOT = join(import.meta.dirname, '..', '..', 'web', 'dist');
 
-const ТИПИ: Record<string, string> = {
+const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -34,210 +34,210 @@ const ТИПИ: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-interface Підключений extends Клієнт {
-  сокет: WebSocket;
+interface Connected extends Client {
+  socket: WebSocket;
 }
 
-export interface Сервер {
-  порт: number;
-  скількиПідключених: () => number;
-  стан: Стан;
-  номерСесії: number;
-  закрити: () => Promise<void>;
+export interface Server {
+  port: number;
+  connectedCount: () => number;
+  state: State;
+  sessionNumber: number;
+  close: () => Promise<void>;
 }
 
-export interface Опції {
-  /** Тека журналів. За замовчуванням state/events у корені репозиторію. */
-  текаПодій?: string;
-  /** Тека вихідних експортів персонажів. */
-  текаПерсонажів?: string;
-  /** Номер сесії. За замовчуванням — останній наявний журнал. */
-  номерСесії?: number;
+export interface Options {
+  /** Event log directory. Defaults to state/events in the repository root. */
+  eventsDir?: string;
+  /** Directory of source character exports. */
+  charactersDir?: string;
+  /** Session number. Defaults to the latest existing log. */
+  sessionNumber?: number;
 }
 
-const КОРІНЬ = join(import.meta.dirname, '..', '..', '..');
+const ROOT = join(import.meta.dirname, '..', '..', '..');
 
-export async function підняти(
-  порт = ПОРТ_ЗА_ЗАМОВЧУВАННЯМ,
-  опції: Опції = {},
-): Promise<Сервер> {
-  const підключені = new Map<string, Підключений>();
-  const журнал = new Журнал(
-    опції.текаПодій ?? join(КОРІНЬ, 'state', 'events'),
-    опції.номерСесії,
+export async function start(
+  port = DEFAULT_PORT,
+  options: Options = {},
+): Promise<Server> {
+  const connected = new Map<string, Connected>();
+  const log = new Log(
+    options.eventsDir ?? join(ROOT, 'state', 'events'),
+    options.sessionNumber,
   );
-  const стан = new Стан(
-    журнал,
-    опції.текаПерсонажів ?? join(КОРІНЬ, 'state', 'characters', 'source-exports'),
+  const state = new State(
+    log,
+    options.charactersDir ?? join(ROOT, 'state', 'characters', 'source-exports'),
   );
 
-  const список = (): Клієнт[] =>
-    [...підключені.values()]
-      .map(({ сокет: _сокет, ...решта }) => решта)
-      .sort((а, б) => а.зПідключення - б.зПідключення);
+  const list = (): Client[] =>
+    [...connected.values()]
+      .map(({ socket: _socket, ...rest }) => rest)
+      .sort((a, b) => a.since - b.since);
 
-  const надіслати = (сокет: WebSocket, м: ВідСервера): void => {
-    if (сокет.readyState === 1) сокет.send(JSON.stringify(м));
+  const send = (socket: WebSocket, m: FromServer): void => {
+    if (socket.readyState === 1) socket.send(JSON.stringify(m));
   };
 
-  const розіслатиВсім = (м: ВідСервера): void => {
-    for (const { сокет } of підключені.values()) надіслати(сокет, м);
+  const broadcastAll = (m: FromServer): void => {
+    for (const { socket } of connected.values()) send(socket, m);
   };
 
-  const розіслатиСписок = (): void => розіслатиВсім({ тип: 'клієнти', клієнти: список() });
+  const broadcastClients = (): void => broadcastAll({ type: 'clients', clients: list() });
 
-  const http = createServer((запит, відповідь) => {
-    void віддатиФайл(запит, відповідь, підключені.size);
+  const http = createServer((req, response) => {
+    void serveFile(req, response, connected.size);
   });
 
   const ws = new WebSocketServer({ server: http });
 
-  ws.on('connection', (сокет: WebSocket) => {
+  ws.on('connection', (socket: WebSocket) => {
     let id: string | null = null;
 
-    сокет.on('message', (сире: Buffer) => {
-      let дані: unknown;
+    socket.on('message', (raw: Buffer) => {
+      let data: unknown;
       try {
-        дані = JSON.parse(сире.toString('utf8'));
+        data = JSON.parse(raw.toString('utf8'));
       } catch {
-        надіслати(сокет, { тип: 'помилка', текст: 'не JSON' });
+        send(socket, { type: 'error', text: 'не JSON' });
         return;
       }
 
-      // Поки не привітався — приймаємо лише привітання
+      // Until a client has said hello, only a greeting is accepted
       if (id === null) {
-        const привітання = розібратиПривітання(дані);
-        if (привітання === null) {
-          надіслати(сокет, { тип: 'помилка', текст: 'не зрозумів привітання' });
+        const hello = parseHello(data);
+        if (hello === null) {
+          send(socket, { type: 'error', text: 'не зрозумів привітання' });
           return;
         }
         id = randomUUID();
-        підключені.set(id, {
+        connected.set(id, {
           id,
-          роль: привітання.роль,
-          ...(привітання.персонаж === undefined ? {} : { персонаж: привітання.персонаж }),
-          зПідключення: Date.now(),
-          сокет,
+          role: hello.role,
+          ...(hello.character === undefined ? {} : { character: hello.character }),
+          since: Date.now(),
+          socket,
         });
-        надіслати(сокет, { тип: 'вітаємо', я: id, клієнти: список() });
-        надіслати(сокет, { тип: 'стан', персонажі: стан.усе() });
-        розіслатиСписок();
+        send(socket, { type: 'welcome', me: id, clients: list() });
+        send(socket, { type: 'state', characters: state.all() });
+        broadcastClients();
         return;
       }
 
-      const хто = підключені.get(id);
-      if (хто === undefined) return;
+      const who = connected.get(id);
+      if (who === undefined) return;
 
-      const намір = розібратиНамір(дані);
-      if (typeof намір === 'string') {
-        надіслати(сокет, { тип: 'відмова', причина: намір });
+      const intent = parseIntent(data);
+      if (typeof intent === 'string') {
+        send(socket, { type: 'refused', reason: intent });
         return;
       }
 
-      // Права: гравець міняє лише свого персонажа, майстер — будь-якого.
-      // Перевірка на сервері, бо клієнту вірити не можна навіть серед друзів.
-      if (хто.роль === 'player') {
-        if (хто.персонаж === undefined) {
-          надіслати(сокет, { тип: 'відмова', причина: 'ти підключився без персонажа' });
+      // Rights: a player changes only their own character, the GM changes any.
+      // Checked on the server, because the client cannot be trusted even among friends.
+      if (who.role === 'player') {
+        if (who.character === undefined) {
+          send(socket, { type: 'refused', reason: 'ти підключився без персонажа' });
           return;
         }
-        if (хто.персонаж !== намір.персонаж) {
-          надіслати(сокет, {
-            тип: 'відмова',
-            причина: `це не твій персонаж: ти ${хто.персонаж}, а зміна для ${намір.персонаж}`,
+        if (who.character !== intent.character) {
+          send(socket, {
+            type: 'refused',
+            reason: `це не твій персонаж: ти ${who.character}, а зміна для ${intent.character}`,
           });
           return;
         }
       }
 
-      const автор: Автор = {
-        вид: хто.роль === 'gm' ? 'майстер' : 'гравець',
-        id: хто.id,
-        ...(хто.персонаж === undefined ? {} : { персонаж: хто.персонаж }),
+      const author: Author = {
+        kind: who.role === 'gm' ? 'gm' : 'player',
+        id: who.id,
+        ...(who.character === undefined ? {} : { character: who.character }),
       };
 
-      const наслідок = стан.застосувати(
-        намір.персонаж,
-        намір.зміни,
-        автор,
-        намір.нотатка,
+      const result = state.apply(
+        intent.character,
+        intent.changes,
+        author,
+        intent.note,
       );
-      if (typeof наслідок === 'string') {
-        надіслати(сокет, { тип: 'відмова', причина: наслідок });
+      if (typeof result === 'string') {
+        send(socket, { type: 'refused', reason: result });
         return;
       }
 
-      розіслатиВсім({
-        тип: 'подія',
-        подія: наслідок,
-        стан: стан.один(намір.персонаж) ?? {},
+      broadcastAll({
+        type: 'event',
+        event: result,
+        state: state.one(intent.character) ?? {},
       });
     });
 
-    сокет.on('close', () => {
-      if (id !== null && підключені.delete(id)) розіслатиСписок();
+    socket.on('close', () => {
+      if (id !== null && connected.delete(id)) broadcastClients();
     });
   });
 
-  await new Promise<void>((готово) => http.listen(порт, готово));
+  await new Promise<void>((done) => http.listen(port, done));
 
   // Якщо передали 0, ядро саме вибрало вільний порт — тестам потрібен справжній
-  const адреса = http.address();
-  const справжнійПорт = typeof адреса === 'object' && адреса !== null ? адреса.port : порт;
+  const address = http.address();
+  const actualPort = typeof address === 'object' && address !== null ? address.port : port;
 
   return {
-    порт: справжнійПорт,
-    скількиПідключених: () => підключені.size,
-    стан,
-    номерСесії: журнал.номерСесії,
-    закрити: () =>
-      new Promise<void>((готово) => {
-        for (const { сокет } of підключені.values()) сокет.terminate();
-        ws.close(() => http.close(() => готово()));
+    port: actualPort,
+    connectedCount: () => connected.size,
+    state,
+    sessionNumber: log.sessionNumber,
+    close: () =>
+      new Promise<void>((done) => {
+        for (const { socket } of connected.values()) socket.terminate();
+        ws.close(() => http.close(() => done()));
       }),
   };
 }
 
-async function віддатиФайл(
-  запит: IncomingMessage,
-  відповідь: ServerResponse,
-  скількиПідключених: number,
+async function serveFile(
+  req: IncomingMessage,
+  response: ServerResponse,
+  connectedCount: number,
 ): Promise<void> {
-  const сирий = (запит.url ?? '/').split('?')[0] ?? '/';
+  const rawText = (req.url ?? '/').split('?')[0] ?? '/';
   // Кириличні шляхи приходять у відсотковому кодуванні (%D0%B7…), тому декодуємо.
   // Сам службовий маршрут лишаємо латиницею: це протокол, а не інтерфейс.
-  let шлях: string;
+  let path: string;
   try {
-    шлях = decodeURIComponent(сирий);
+    path = decodeURIComponent(rawText);
   } catch {
-    відповідь.writeHead(400).end('погана адреса');
+    response.writeHead(400).end('погана адреса');
     return;
   }
 
-  if (шлях === '/health') {
-    відповідь.writeHead(200, { 'content-type': ТИПИ['.json'] as string });
-    відповідь.end(JSON.stringify({ живий: true, підключених: скількиПідключених }));
+  if (path === '/health') {
+    response.writeHead(200, { 'content-type': TYPES['.json'] as string });
+    response.end(JSON.stringify({ alive: true, connectedNow: connectedCount }));
     return;
   }
 
   // normalize прибирає ../, щоб запит не виліз за межі теки сайту
-  const відносний = normalize(шлях === '/' ? 'index.html' : шлях.replace(/^\/+/, ''));
-  if (відносний.startsWith('..')) {
-    відповідь.writeHead(403).end('не можна');
+  const relative = normalize(path === '/' ? 'index.html' : path.replace(/^\/+/, ''));
+  if (relative.startsWith('..')) {
+    response.writeHead(403).end('не можна');
     return;
   }
 
-  const файл = join(КОРІНЬ_САЙТУ, відносний);
+  const file = join(SITE_ROOT, relative);
   try {
-    const і = await stat(файл);
-    if (!і.isFile()) throw new Error('не файл');
-    відповідь.writeHead(200, {
-      'content-type': ТИПИ[extname(файл)] ?? 'application/octet-stream',
+    const i = await stat(file);
+    if (!i.isFile()) throw new Error('не файл');
+    response.writeHead(200, {
+      'content-type': TYPES[extname(file)] ?? 'application/octet-stream',
     });
-    відповідь.end(await readFile(файл));
+    response.end(await readFile(file));
   } catch {
-    відповідь.writeHead(404, { 'content-type': ТИПИ['.html'] as string });
-    відповідь.end(
+    response.writeHead(404, { 'content-type': TYPES['.html'] as string });
+    response.end(
       '<meta charset="utf-8"><p style="font:16px system-ui;padding:2rem">' +
         'Сторінку не збудовано. Запусти ВСТАНОВИТИ.bat, потім ЗАПУСТИТИ.bat.</p>',
     );
@@ -245,29 +245,29 @@ async function віддатиФайл(
 }
 
 /** Запуск із командного рядка: підняти сервер і надрукувати, як підключитись. */
-export async function головна(): Promise<void> {
-  const порт = Number(process.env['HOLOTABLE_PORT'] ?? ПОРТ_ЗА_ЗАМОВЧУВАННЯМ);
-  const сервер = await підняти(порт);
-  const адреса = локальнаАдреса();
+export async function main(): Promise<void> {
+  const port = Number(process.env['HOLOTABLE_PORT'] ?? DEFAULT_PORT);
+  const server = await start(port);
+  const address = localAddress();
 
   console.log('');
   console.log('  Сервер працює.');
   console.log('');
-  console.log(`  Екран майстра:   http://localhost:${сервер.порт}/?as=gm`);
-  if (адреса === null) {
+  console.log(`  Екран майстра:   http://localhost:${server.port}/?as=gm`);
+  if (address === null) {
     console.log('');
     console.log('  Ноутбук не підключений до мережі, тому телефони сервер не побачать.');
     console.log('  Увімкни wifi або роздай точку доступу й запусти ще раз.');
   } else {
-    const посилання = `http://${адреса}:${сервер.порт}/`;
-    console.log(`  Для телефонів:   ${посилання}`);
+    const url = `http://${address}:${server.port}/`;
+    console.log(`  Для телефонів:   ${url}`);
     console.log('');
-    console.log(await qrДляТерміналу(посилання));
+    console.log(await qrForTerminal(url));
     console.log('  Гравці сканують QR. Той самий wifi, що й ноутбук.');
   }
-  const що = process.env['HOLOTABLE_OPEN'];
-  if (що !== undefined && що !== '') {
-    відкритиВБраузері(`http://localhost:${сервер.порт}${що}`);
+  const what = process.env['HOLOTABLE_OPEN'];
+  if (what !== undefined && what !== '') {
+    openInBrowser(`http://localhost:${server.port}${what}`);
   }
 
   console.log('');

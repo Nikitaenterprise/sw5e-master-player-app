@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
-import { Застосунок } from './Застосунок.js';
-import './стиль.css';
+import { App } from './App.js';
+import './style.css';
 
-const корінь = document.getElementById('корінь');
-if (корінь === null) throw new Error('немає #корінь у index.html');
-createRoot(корінь).render(<Застосунок />);
+const root = document.getElementById('root');
+if (root === null) throw new Error('немає #корінь у index.html');
+createRoot(root).render(<App />);

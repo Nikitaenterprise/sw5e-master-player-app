@@ -1,22 +1,22 @@
-// Типи «сирого персонажа» — формату експорту персонажа зі sw5e.com, builderVersion 0.7.6.
+// Types for the "raw character" — the sw5e.com character export format, builderVersion 0.7.6.
 //
-// Це НАШ рідний формат зберігання (ADR 0001). Поля не перейменовуємо, не «причісуємо»
-// і не додаємо — крім namespace `holotable` у самому кінці файлу.
+// This is OUR native storage format (ADR 0001). We never rename fields, never tidy them
+// up and never add our own — except the `holotable` namespace at the very end.
 //
-// Типи виведені з об'єднання полів, фактично присутніх у п'яти реальних листах
-// 4 рівня (Алістер, Анам Мелех, Крінж-Дор, Нигра 4, Сандра Вонг), а не з документації.
-// Там, де поле є лише в частини файлів, воно необов'язкове (`?`).
+// The types are derived from the union of fields actually present in five real
+// level-4 sheets (Алістер, Анам Мелех, Крінж-Дор, Нигра 4, Сандра Вонг), not from docs.
+// Where a field appears in only some of the files, it is optional (`?`).
 //
-// ГОЛОВНЕ ПРАВИЛО (ADR 0003): тут лежать ЛИШЕ вибори людини.
-// Максимум ХП, КБ, сейви, бонуси атак, DC сил і технологій, кубики перевершення,
-// модифікатори вмінь, список маневрів від класу — НІКОЛИ не зберігаються.
-// Усе це перераховує рушій правил при завантаженні.
+// THE MAIN RULE (ADR 0003): only human choices live here.
+// Max HP, AC, saves, attack bonuses, force and tech DCs, superiority dice and the
+// class-granted maneuver list are NEVER stored.
+// The rules engine recomputes all of it on load.
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ДОПОМІЖНІ ТИПИ
+// HELPER TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Шість характеристик. Ключі англійською — так їх пише sw5e.com. */
+/** The six ability scores. Keys are English because that is how sw5e.com writes them. */
 export type AbilityName =
   | 'Strength'
   | 'Dexterity'
@@ -25,7 +25,7 @@ export type AbilityName =
   | 'Wisdom'
   | 'Charisma';
 
-/** Вісімнадцять вмінь SW5e. Пробіли в ключах — як у sw5e.com («Sleight of Hand»). */
+/** The eighteen SW5e skills. Spaces in keys are as in sw5e.com ("Sleight of Hand"). */
 export type SkillName =
   | 'Acrobatics'
   | 'Animal Handling'
@@ -46,13 +46,13 @@ export type SkillName =
   | 'Survival'
   | 'Technology';
 
-/** Рівень володіння вмінням. У файлах зустрічались лише ці два значення. */
+/** Skill proficiency level. Only these two values occur in the files. */
 export type ProficiencyLevel = 'Proficient' | 'Expertise';
 
 /**
- * Число, яке власник міг вручну підкрутити в редакторі sw5e.com.
- * `override` замінює обчислене значення, `bonus` додається до нього.
- * `null` означає «не задано» і зберігається в файлах саме як `null`.
+ * A number the owner may have tweaked by hand in the sw5e.com editor.
+ * `override` replaces the computed value, `bonus` is added to it.
+ * `null` means "unset" and is stored in the files as exactly that.
  */
 export interface NumericTweak {
   bonus?: number | null;
@@ -60,84 +60,85 @@ export interface NumericTweak {
 }
 
 /**
- * Кількість / вага / ціна предмета. sw5e.com пише їх то числом, то рядком
- * (`1` і `"2"` в одному й тому ж файлі). Нормалізувати можна лише при читанні,
- * у файлі лишаємо як є.
+ * Item quantity / weight / cost. sw5e.com writes these sometimes as a number and
+ * sometimes as a string (`1` and `"2"` in one and the same file). Normalise on read
+ * only; in the file they stay as they are.
  */
 export type NumberOrString = number | string;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// СЕКЦІЯ 1. ДУРАБЕЛЬНІ ВИБОРИ — те, що вибрала людина. Змінюється рідко.
+// SECTION 1. DURABLE CHOICES — what the human picked. Changes rarely.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Вид (раса). */
+/** Species. */
 export interface RawSpecies {
   name: string;
   /**
-   * Приріст характеристик від виду, якщо вид дає ВИБІР (Human: +2/+1/+1).
-   * У видів із фіксованим приростом (Cathar, Devaronian, Kel Dor, Mon Calamari)
-   * об'єкт ПОРОЖНІЙ — приріст треба брати з компендіуму за назвою виду.
+   * Ability score increase from the species, when the species offers a CHOICE
+   * (Human: +2/+1/+1). For species with a fixed increase (Cathar, Devaronian,
+   * Kel Dor, Mon Calamari) this object is EMPTY — the increase must then be
+   * taken from the compendium by species name.
    */
   abilityScoreImprovement?: Partial<Record<AbilityName, number>>;
-  /** Індекс вибраного варіанта приросту (у всіх п'яти файлах — 0). */
+  /** Index of the chosen increase variant (0 in all five files). */
   abilityScoreImprovementSelectedOption?: number;
 }
 
-/** Риса (feat) — від фону або замість приросту характеристик. */
+/** A feat — from the background, or taken instead of an ability score increase. */
 export interface RawFeat {
   name: string;
   type: 'Feat';
 }
 
-/** Приріст характеристик на 4/8/12/16 рівнях: або дві характеристики, або риса. */
+/** Level 4/8/12/16 improvement: either two ability scores, or a feat. */
 export interface RawAbilityScoreImprovement {
   type: 'Ability Score Improvement' | 'Feat';
-  /** Є лише коли `type === 'Ability Score Improvement'`. */
+  /** Present only when `type === 'Ability Score Improvement'`. */
   abilitiesIncreased?: Array<{ name: AbilityName; value: number }>;
-  /** Є лише коли `type === 'Feat'` — назва взятої риси. */
+  /** Present only when `type === 'Feat'` — the name of the feat taken. */
   name?: string;
 }
 
-/** Архетип класу (підклас). Може сам давати сили — як Marauder Approach у Берсеркера. */
+/** Class archetype (subclass). May grant powers itself — as Marauder Approach does. */
 export interface RawArchetype {
   name: string;
-  /** Сили Сили (Force Powers), які дає сам архетип, а не ті, що вибрав клас. */
+  /** Force powers granted by the archetype itself, not those the class picked. */
   forcePowers?: string[];
-  /** Технологічні сили, які дає архетип (Saboteur Practice у Оперативника). */
+  /** Tech powers granted by the archetype (Saboteur Practice on the Operative). */
   techPowers?: string[];
 }
 
-/** Клас. Масив `classes` — мультиклас; у всіх п'ятьох поки один клас 4 рівня. */
+/** Class. The `classes` array means multiclassing; all five have one level-4 class. */
 export interface RawClass {
   name: string;
   levels: number;
   archetype?: RawArchetype;
   /**
-   * Кинуті кубики ХП за рівні 2..N (на 1 рівні ХП фіксоване).
-   * Це ВИБІР/КИДОК людини, тому зберігається. Сам максимум ХП — ні.
+   * Hit dice rolled for levels 2..N (level 1 HP is fixed).
+   * This is a human ROLL, so it is stored. Max HP itself is not.
    */
   hitPoints?: number[];
   abilityScoreImprovements?: RawAbilityScoreImprovement[];
-  /** Вибрані маневри (Scholar, Fighter тощо). */
+  /** Chosen maneuvers (Scholar, Fighter and so on). */
   maneuvers?: string[];
-  /** Вибрані сили Сили (Force Powers). */
+  /** Chosen force powers. */
   forcePowers?: string[];
-  /** Вибрані технологічні сили. */
+  /** Chosen tech powers. */
   techPowers?: string[];
 }
 
-/** Фон (background). */
+/** Background. */
 export interface RawBackground {
   name: string;
-  /** Риса від фону. */
+  /** Feat granted by the background. */
   feat?: RawFeat;
-  /** Текст особливості фону. У всіх п'яти файлах — порожній рядок. */
+  /** Background feature text. An empty string in all five files. */
   feature?: string;
 }
 
 /**
- * Опис і біографія. Ключі з пробілами — як у sw5e.com.
- * Значення завжди рядки, навіть вік, зріст і вага («35», «190», «85»).
+ * Description and biography. Keys contain spaces, as in sw5e.com.
+ * Values are always strings, even age, height and weight ("35", "190", "85").
  */
 export interface RawCharacteristics {
   Age?: string;
@@ -158,119 +159,119 @@ export interface RawCharacteristics {
   [key: string]: string | undefined;
 }
 
-/** Предмет із компендіуму. */
+/** An item from the compendium. */
 export interface RawEquipmentItem {
   name: string;
-  /** `Equipment` — звичайний предмет, `EnhancedItem` — покращений. */
+  /** `Equipment` is an ordinary item, `EnhancedItem` an enhanced one. */
   category?: string;
   quantity?: NumberOrString;
-  /** Чи вдягнуто/взято в руки. Відсутнє поле = не вдягнуто. */
+  /** Whether it is worn or held. A missing field means not equipped. */
   equipped?: boolean;
-  /** Ручна правка цього екземпляра предмета (Нигра: бластер із +1 до влучання). */
+  /** Hand edit of this item instance (Нигра: a blaster with +1 to hit). */
   tweaks?: RawItemTweaks;
 }
 
-/** Власний предмет, якого немає в компендіумі. */
+/** A custom item that is not in the compendium. */
 export interface RawCustomEquipmentItem {
   name: string;
-  /** `Gear` | `Armor` | `Weapon` — зустрічались у файлах. */
+  /** `Gear` | `Armor` | `Weapon` — the values seen in the files. */
   equipmentCategory?: string;
   quantity?: NumberOrString;
   cost?: NumberOrString;
   weight?: NumberOrString;
   description?: string;
   equipped?: boolean;
-  /** Для власної зброї: тип шкоди і кількість кубиків. */
+  /** For custom weapons: damage type and number of dice. */
   damageType?: string;
   damageNumberOfDice?: number;
   tweaks?: RawItemTweaks;
 }
 
-/** Правки конкретного предмета. */
+/** Edits to one specific item. */
 export interface RawItemTweaks {
   toHit?: NumericTweak;
   damage?: NumericTweak;
   damageDice?: { dieSize?: number | null };
 }
 
-/** Власна особливість (текст), написана власником вручну. */
+/** A custom feature (free text) written by the owner. */
 export interface RawCustomFeature {
   name: string;
   content: string;
 }
 
-/** Власне володіння інструментом чи зброєю. */
+/** A custom tool or weapon proficiency. */
 export interface RawCustomProficiency {
   name: string;
-  /** `tool` | `weapon` | `armor` | `language` — у файлах були `tool` і `weapon`. */
+  /** `tool` | `weapon` | `armor` | `language` — the files held `tool` and `weapon`. */
   type: string;
-  /** Нижній регістр, на відміну від `ProficiencyLevel` у tweaks. */
+  /** Lower case, unlike `ProficiencyLevel` in tweaks. */
   proficiencyLevel: string;
 }
 
-/** Налаштування редактора, які впливають на обчислення. */
+/** Editor settings that affect the computation. */
 export interface RawSettings {
-  /** Чи перевіряти передумови сил. */
+  /** Whether power prerequisites are enforced. */
   isEnforcingForcePrerequisites?: boolean;
-  /** `true` — ХП не кидають, беруть середнє (так у Крінж-Дора). */
+  /** `true` means HP is not rolled but averaged (as for Крінж-Дор). */
   isFixedHitPoints?: boolean;
-  /** `Manual` | `Roll` | `Standard Array` | `Point Buy`. У всіх п'яти — `Manual`. */
+  /** `Manual` | `Roll` | `Standard Array` | `Point Buy`. `Manual` in all five. */
   abilityScoreMethod?: string;
 }
 
 /**
- * Ручні правки всього листа. Найнебезпечніша частина формату: саме вона
- * перебиває обчислення рушія, тому рушій мусить застосовувати її ОСТАННЬОЮ.
+ * Hand edits to the whole sheet. The most dangerous part of the format: it
+ * overrides the engine's computation, so the engine must apply it LAST.
  */
 export interface RawTweaks {
   abilityScores?: Partial<
     Record<
       AbilityName,
       {
-        /** Пряме перевизначення фінального значення характеристики. */
+        /** A direct override of the final ability score. */
         score?: NumericTweak;
         /**
-         * Володіння вміннями. Саме тут, а не в класі, лежить фактичний
-         * список вмінь персонажа. Порожній об'єкт означає «немає володіння».
+         * Skill proficiencies. The character's actual skill list lives here,
+         * not in the class. An empty object means "no proficiency".
          */
         skills?: Partial<Record<SkillName, { proficiency?: ProficiencyLevel }>>;
       }
     >
   >;
-  /** Анам Мелех: +4 до КБ. */
+  /** Анам Мелех: +4 to AC. */
   armorClass?: NumericTweak;
-  /** Крінж-Дор: +7 до максимуму ХП. */
+  /** Крінж-Дор: +7 to max HP. */
   hitPoints?: { maximum?: NumericTweak };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// СЕКЦІЯ 2. СТАН СЕСІЇ (`currentStats`) — змінюється постійно, у кожному бою.
-// Єдина частина файлу, яку застосунок пише під час гри.
+// SECTION 2. SESSION STATE (`currentStats`) — changes constantly, every fight.
+// The only part of the file the application writes during play.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface RawCurrentStats {
-  /** Скільки ХП втрачено (а не скільки лишилось — максимум обчислюваний). */
+  /** How much HP was lost (not how much is left — the maximum is computed). */
   hitPointsLost: number;
   temporaryHitPoints: number;
   techPointsUsed: number;
   forcePointsUsed: number;
   superiorityDiceUsed: number;
-  /** Витрачені кубики ХП за розміром: `{ "d8": 0 }`, `{ "d12": 0 }`, `{}`. */
+  /** Hit dice spent, by die size: `{ "d8": 0 }`, `{ "d12": 0 }`, `{}`. */
   hitDiceUsed: Record<string, number>;
   deathSaves: { successes: number; failures: number };
   hasInspiration: boolean;
-  /** Скільки разів використано особливість: ключ — назва особливості. */
+  /** How many times a feature was used; the key is the feature name. */
   featuresTimesUsed: Record<string, number>;
-  /** Накладені стани. У всіх п'яти файлах порожній масив. */
+  /** Active conditions. An empty array in all five files. */
   conditions: string[];
   exhaustion: number;
   /**
-   * УВАГА: друкарська помилка в самому sw5e.com. Є у файлі Нигри 4 ПОРЯД
-   * із правильним `exhaustion`. Не виправляти — інакше зламаємо сумісність
-   * з експортом sw5e.com. Читати тільки `exhaustion`.
+   * CAREFUL: this typo is sw5e.com's own. It sits in the Нигра 4 file ALONGSIDE
+   * the correct `exhaustion`. Do not fix it, or we break compatibility with the
+   * sw5e.com export. Read `exhaustion` only.
    */
   exhausion?: number;
-  /** Чи витрачено слот високого рівня. */
+  /** Whether the high-level slot has been spent. */
   highLevelCasting: {
     level6: boolean;
     level7: boolean;
@@ -278,56 +279,56 @@ export interface RawCurrentStats {
     level9: boolean;
   };
   /**
-   * Нерозподілені рівні — персонаж отримав рівень, але власник ще не вибрав,
-   * що взяти. Є в трьох із п'яти файлів зі значенням 1.
+   * Unspent levels — the character gained a level but the owner has not yet
+   * chosen what to take. Present in three of the five files, with value 1.
    */
   unspentLevels?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// СЕКЦІЯ 3. МЕТАДАНІ — службові поля sw5e.com. Ми їх не тлумачимо, лише несемо.
+// SECTION 3. METADATA — sw5e.com's own bookkeeping. We do not interpret it, only carry it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface RawMetadata {
-  /** UUID персонажа на sw5e.com. Наш стабільний ключ. */
+  /** The character's UUID on sw5e.com. Our stable key. */
   id: string;
-  /** UUID акаунта власника на sw5e.com. */
+  /** UUID of the owner's sw5e.com account. */
   userId: string;
-  /** Логін власника. У всіх п'яти файлах — порожній рядок. */
+  /** The owner's login. An empty string in all five files. */
   user?: string;
-  /** Версія редактора. Поки що всюди `'0.7.6'`. Основа для міграцій. */
+  /** Editor version. `'0.7.6'` everywhere so far. The basis for migrations. */
   builderVersion: string;
-  /** Час у мілісекундах Unix. */
+  /** Time in Unix milliseconds. */
   createdAt: number;
   changedAt: number;
-  /** Тимчасовий локальний ідентифікатор редактора, напр. `'temp-wg3qy3wg3'`. */
+  /** A temporary local editor id, e.g. `'temp-wg3qy3wg3'`. */
   localId?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// НАШ NAMESPACE. Єдине місце, куди Holotable має право щось дописати (ADR 0001).
+// OUR NAMESPACE. The only place Holotable may add anything of its own (ADR 0001).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface HolotableExtension {
-  /** Версія нашої надбудови. Для майбутніх міграцій. */
+  /** Version of our own overlay. For future migrations. */
   version: number;
-  /** До якого гравця (телефона) прив'язаний цей лист. */
+  /** Which player (phone) this sheet is bound to. */
   playerId?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ПЕРСОНАЖ ЦІЛКОМ
+// THE WHOLE CHARACTER
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface RawCharacter extends RawMetadata {
-  // ── ДУРАБЕЛЬНІ ВИБОРИ ──
+  // ── DURABLE CHOICES ──
   name: string;
-  /** Base64 або URL портрета. У всіх п'яти файлах — порожній рядок. */
+  /** Base64 or URL of the portrait. An empty string in all five files. */
   image?: string;
   notes?: string;
   species: RawSpecies;
   classes: RawClass[];
-  /** Значення ДО приросту від виду та рівнів. Фінальні — обчислює рушій. */
+  /** Values BEFORE species and level increases. The engine computes the final ones. */
   baseAbilityScores: Record<AbilityName, number>;
   background: RawBackground;
   characteristics: RawCharacteristics;
@@ -344,9 +345,9 @@ export interface RawCharacter extends RawMetadata {
   settings: RawSettings;
   tweaks?: RawTweaks;
 
-  // ── СТАН СЕСІЇ ──
+  // ── SESSION STATE ──
   currentStats: RawCurrentStats;
 
-  // ── НАШЕ ──
+  // ── OURS ──
   holotable?: HolotableExtension;
 }
