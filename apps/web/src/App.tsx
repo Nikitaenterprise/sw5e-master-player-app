@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CharacterState, SheetSummary } from '@holotable/protocol';
+import type { CharacterState, GameEvent, SheetSummary } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -8,6 +8,9 @@ import {
   type Controls,
 } from './connection.js';
 import { name, LABELS } from './characters.js';
+import {
+  collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, type FeedRow,
+} from './feed.js';
 
 export function App(): JSX.Element {
   const { role, character } = roleFromUrl(location.search);
@@ -47,6 +50,13 @@ export function App(): JSX.Element {
         <PlayerSheet character={character} snapshot={snapshot} controls={controls} />
       )}
 
+      {gm && (
+        <Feed
+          events={snapshot.events}
+          undo={(row) => controls.current?.sendChange(row.character, undoOf(row), undoNote(row))}
+        />
+      )}
+
       <section>
         <h2>За столом — {snapshot.clients.length}</h2>
         <ul className="who-here">
@@ -61,8 +71,9 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-021. Числа на карточках рахує рушій при старті сервера, на диску
-        їх немає (ADR 0003). ⚠ на карточці — те, чого рушій не зміг вивести сам.
+        Фаза 1 · F-022. Числа на карточках рахує рушій при старті сервера, на диску
+        їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
+        в журнал (ADR 0002).
       </footer>
     </main>
   );
@@ -206,6 +217,52 @@ function Managed({
         </form>
       </div>
     </div>
+  );
+}
+
+/**
+ * What has happened, newest first — the GM's notification feed.
+ *
+ * It is not a separate mechanism: every line is already in the event log (ADR 0002),
+ * and undo is an ordinary change back to where the run started, written as a new line.
+ * Nothing in the log is ever rewritten.
+ */
+export function Feed({
+  events,
+  undo,
+}: {
+  events: GameEvent[];
+  undo: (row: FeedRow) => void;
+}): JSX.Element {
+  const now = Date.now();
+  const rows = collapse(events).slice(0, 12);
+  return (
+    <section className="feed">
+      <h2>Що сталося</h2>
+      {rows.length === 0 ? (
+        <p className="hint">Поки ніхто нічого не змінив.</p>
+      ) : (
+        <ul>
+          {rows.map((row) => (
+            <li key={`${row.id}-${row.field}`} className={row.isUndo ? 'undone' : undefined}>
+              <span className="who">{authorText(row.author, name)}</span>
+              <span className="what">
+                {subjectText(row, LABELS[row.field], name)}
+                {row.isUndo && <i className="mark"> ↩ відкат</i>}
+              </span>
+              <span className="change">
+                {valueText(row.from)} → <b>{valueText(row.to)}</b>
+                {row.count > 1 && <i className="times"> ×{row.count}</i>}
+              </span>
+              <span className="when">{whenText(row.at, now)}</span>
+              <button type="button" className="undo" onClick={() => undo(row)}>
+                відкотити
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
