@@ -15,6 +15,7 @@ import type { Compendium, SpeciesDoc } from '../../compendium/src/index.js';
 import { ABILITIES, abilityModifier, toAbility } from './abilities.js';
 import { computeHitPoints, type HitPointsResult } from './hitPoints.js';
 import { computeArmorClass, type ArmorClassResult } from './armorClass.js';
+import { computeWeapons, type WeaponAttack } from './weapons.js';
 import { SKILLS, SKILL_ABILITY } from './skills.js';
 
 /** Where an ability score came from. The owner asks "why is this 18"; this answers. */
@@ -50,6 +51,7 @@ export interface ComputedSheet {
   skills: Record<SkillName, SkillValue>;
   hitPoints: HitPointsResult;
   armorClass: ArmorClassResult;
+  weapons: WeaponAttack[];
   /** Initiative is the Dexterity modifier; nothing in the five sheets changes it yet. */
   initiative: number;
   passivePerception: number;
@@ -341,6 +343,13 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
   const armorClass = computeArmorClass(
     raw, compendium, abilities.Dexterity.modifier, warnings,
   );
+  const modifiers = Object.fromEntries(
+    ABILITIES.map((a) => [a, abilities[a].modifier]),
+  ) as Record<AbilityName, number>;
+  const scores = Object.fromEntries(
+    ABILITIES.map((a) => [a, abilities[a].score]),
+  ) as Record<AbilityName, number>;
+  const weapons = computeWeapons(raw, compendium, modifiers, scores, bonus, warnings);
 
   return {
     name: raw.name,
@@ -356,6 +365,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     skills,
     hitPoints,
     armorClass,
+    weapons,
     initiative: abilities.Dexterity.modifier,
     passivePerception: 10 + skills.Perception.modifier,
     warnings,
@@ -366,6 +376,10 @@ export { ABILITIES, abilityModifier, toAbility } from './abilities.js';
 export { SKILLS, SKILL_ABILITY, toSkill } from './skills.js';
 export { computeHitPoints } from './hitPoints.js';
 export { computeArmorClass, parseArmorFormula } from './armorClass.js';
+export {
+  computeWeapons, parseClassification, parseProficiencyClause, splitProficiencyClauses,
+} from './weapons.js';
+export type { WeaponAttack } from './weapons.js';
 export type { ArmorClassResult, ArmorPiece } from './armorClass.js';
 export { computeCompanion, COMPANION_PROFICIENCY, COMPANION_NATURES } from './companion.js';
 export type {
