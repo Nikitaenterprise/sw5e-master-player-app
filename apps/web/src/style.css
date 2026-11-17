@@ -278,3 +278,69 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 /* ── Changes not confirmed yet (F-046) ─────────────────────────────────── */
 .state-row.waiting { border-style: dashed; }
 .state-row.waiting .value { color: var(--muted); font-style: italic; }
+
+/* ── Print button on the GM screen (F-030) ─────────────────────────────── */
+.rests a.button-like {
+  flex: 1 1 12rem; display: flex; flex-direction: column; gap: .2rem; align-items: flex-start;
+  background: var(--panel); border: 1px solid var(--border); border-radius: .5rem;
+  padding: .6rem .8rem; color: var(--text); font-weight: 600; text-decoration: none;
+}
+.rests a.button-like:hover { border-color: var(--accent); }
+.rests a.button-like small { font-weight: 400; font-size: .7rem; color: var(--muted); }
+
+/* ── The A4 sheet (F-030). Paper colours on screen too: it previews the print. ── */
+@page { size: A4; margin: 0; }
+.print-root { background: #e9e9e9; color: #111; min-height: 100vh; padding: 1rem 0; }
+.print-message { padding: 2rem; font: 16px system-ui, sans-serif; }
+.print-toolbar { max-width: 210mm; margin: 0 auto 1rem; display: flex; gap: 1rem; align-items: center; font: 13px system-ui, sans-serif; color: #333; }
+.print-toolbar button { font: inherit; font-weight: 600; padding: .4rem 1rem; cursor: pointer; }
+.a4 {
+  box-sizing: border-box; width: 210mm; min-height: 297mm; margin: 0 auto 1rem; padding: 9mm 10mm;
+  background: #fff; color: #111; font: 9.5pt/1.3 "Segoe UI", system-ui, sans-serif;
+  display: flex; flex-direction: column; gap: 3mm; break-after: page;
+}
+.a4 h1 { margin: 0; font-size: 18pt; }
+.a4 h2 { margin: 0 0 1mm; font-size: 10pt; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid #999; }
+.a4 p { margin: .6mm 0; }
+.a4 small { font-size: 7.5pt; color: #444; }
+.p-head { display: flex; justify-content: space-between; gap: 4mm; border-bottom: 2px solid #111; padding-bottom: 2mm; }
+.p-head-right { display: flex; gap: 2mm; }
+.p-sub { color: #444; font-size: 8.5pt; }
+.p-vitals { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2mm; }
+.p-box { border: 1px solid #555; border-radius: 2mm; padding: 1.5mm; text-align: center; min-width: 16mm; }
+.p-value { font-size: 12pt; font-weight: 700; }
+.p-label { font-size: 7pt; text-transform: uppercase; color: #444; letter-spacing: .04em; }
+.p-abilities { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2mm; }
+.p-ability { border: 1px solid #555; border-radius: 2mm; padding: 1.5mm; text-align: center; }
+.p-mod { font-size: 15pt; font-weight: 700; }
+.p-score { display: inline-block; border: 1px solid #999; border-radius: 3mm; padding: 0 2mm; font-size: 9pt; }
+.p-save { font-size: 8pt; margin-top: .8mm; }
+.p-columns { display: grid; grid-template-columns: 62mm 1fr; gap: 4mm; flex: 1; }
+.p-skills ul, .p-maneuvers { list-style: none; margin: 0; padding: 0; }
+.p-skills li, .p-maneuvers li { display: flex; gap: 1.5mm; align-items: baseline; padding: .4mm 0; border-bottom: 1px dotted #bbb; }
+.p-skills .what, .p-maneuvers .what { flex: 1; }
+.p-skills .ab { font-size: 7pt; color: #666; }
+.p-right { display: flex; flex-direction: column; gap: 3mm; }
+.p-attacks { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+.p-attacks th { text-align: left; font-size: 7pt; text-transform: uppercase; color: #444; border-bottom: 1px solid #999; }
+.p-attacks td { padding: .5mm 1mm .5mm 0; border-bottom: 1px dotted #bbb; vertical-align: top; }
+.p-attacks .props { font-size: 7.5pt; color: #333; }
+.p-list { font-size: 8.5pt; }
+.p-legend { font-size: 7pt; color: #555; }
+.p-foot { border-top: 1px solid #999; padding-top: 1.5mm; font-size: 8pt; }
+
+/* The app's screen styles for lists, headings and bold text must not leak onto paper. */
+.a4 ul { display: block; gap: 0; }
+.a4 li { background: none; border: none; border-radius: 0; color: inherit; }
+.a4 .p-skills li, .a4 .p-maneuvers li { border-bottom: 1px dotted #bbb; padding: .4mm 0; }
+.a4 b, .a4 h1, .a4 h2 { color: inherit; }
+.a4 header, .a4 footer { color: #111; margin: 0; }
+.p-vitals .p-box.wide .p-value { font-size: 10pt; }
+
+@media print {
+  .print-root { background: none; padding: 0; }
+  .print-toolbar { display: none; }
+  /* Never cut: a sheet that does not fit spills onto a second page rather than losing
+     its end silently. 296mm, not 297, so rounding never adds a blank page. */
+  .a4 { margin: 0; min-height: 296mm; }
+}

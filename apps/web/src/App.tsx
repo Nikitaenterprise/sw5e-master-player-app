@@ -82,6 +82,18 @@ export function App(): JSX.Element {
       {gm && <Rests rest={(kind) => controls.current?.sendRest(kind)} />}
 
       {gm && (
+        <section className="rests">
+          <h2>Друк</h2>
+          <div className="buttons">
+            <a className="button-like" href="/?as=print" target="_blank" rel="noreferrer">
+              Роздрукувати всіх
+              <small>пʼять аркушів A4 українською; якщо ноутбук вимкнеться — гра йде на папері</small>
+            </a>
+          </div>
+        </section>
+      )}
+
+      {gm && (
         <Session
           session={snapshot.session}
           lastClosed={snapshot.lastClosed}
@@ -390,7 +402,7 @@ export function HitDice({
  * server reads each character's own class text. Hit dice are deliberately left alone —
  * spending them is the player's choice and the player's roll.
  */
-function Rests({ rest }: { rest: (kind: 'short' | 'long') => void }): JSX.Element {
+export function Rests({ rest }: { rest: (kind: 'short' | 'long') => void }): JSX.Element {
   return (
     <section className="rests">
       <h2>Відпочинок</h2>

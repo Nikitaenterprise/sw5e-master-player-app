@@ -16,8 +16,10 @@ import { loadCompendium } from '@holotable/compendium';
 // are imported by path. Giving them a package.json would mean a new link in
 // node_modules, which means the owner has to run ВСТАНОВИТИ.bat again before the app
 // starts — and "double-click to run" is a hard requirement, not a nicety.
-import { computeSheet, computeHandEdits, explainSheet, restPlan, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
+import { computeSheet, computeHandEdits, explainSheet, listFeats, restPlan, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
+
+const signedText = (n: number): string => (n >= 0 ? `+${n}` : String(n));
 
 const ABILITIES = [
   'Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma',
@@ -111,7 +113,33 @@ function summarize(
       damage: `${w.damage} ${w.damageType}`,
       damageDice: w.damage,
       damageType: w.damageType,
+      properties: w.properties,
     })),
+    details: {
+      level: sheet.level,
+      background: typeof raw.background?.name === 'string' && raw.background.name !== '' ? raw.background.name : null,
+      alignment: typeof raw.characteristics?.alignment === 'string' && raw.characteristics.alignment !== '' ? raw.characteristics.alignment : null,
+      speed: sheet.speed,
+      abilityScores: Object.fromEntries(ABILITIES.map((a) => [a, sheet.abilities[a].score])),
+      proficientSaves: ABILITIES.filter((a) => sheet.savingThrows[a].proficient),
+      casting: sheet.casting.map((c) => ({
+        kind: c.kind,
+        source: c.source,
+        points: c.points,
+        saveDC: c.saveDC.light !== undefined && c.saveDC.dark !== undefined && c.saveDC.light !== c.saveDC.dark
+          ? `${c.saveDC.light} / ${c.saveDC.dark}`
+          : String(c.saveDC.light ?? c.saveDC.universal),
+        attack: [c.attackModifier.light, c.attackModifier.dark].every((v) => v !== undefined) && c.attackModifier.light !== c.attackModifier.dark
+          ? `${signedText(c.attackModifier.light as number)} / ${signedText(c.attackModifier.dark as number)}`
+          : signedText(c.attackModifier.light ?? c.attackModifier.universal),
+        maxPowerLevel: c.maxPowerLevel,
+        powers: c.powersOnSheet,
+        customPowers: c.customPowers,
+      })),
+      feats: listFeats(raw),
+      customFeatures: (raw.customFeatures ?? []).map((f) => f.name.trim()),
+      languages: raw.customLanguages ?? [],
+    },
     species,
     classes: sheet.classes,
     maneuvers,

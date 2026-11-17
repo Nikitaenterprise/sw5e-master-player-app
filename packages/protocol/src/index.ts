@@ -220,7 +220,9 @@ export interface SheetSummary {
   techPoints?: { max: number; dc: number };
   superiority?: { quantity: number; size: string };
   /** Attacks, so the GM can call for a roll without opening the sheet. */
-  attacks: { name: string; toHit: number; damage: string; damageDice: string; damageType: string }[];
+  attacks: { name: string; toHit: number; damage: string; damageDice: string; damageType: string; properties: string[] }[];
+  /** What the A4 sheet needs on top of the card (F-030). Computed, never stored. */
+  details: SheetDetails;
   /** The parts of `line`, kept apart so each can be translated (F-025). */
   species: string | null;
   classes: { name: string; levels: number; archetype?: string }[];
@@ -260,6 +262,39 @@ export interface History {
 
 /** How many past events the GM gets on connect — the feed shows the latest few anyway. */
 export const HISTORY_LIMIT = 100;
+
+/** The rest of a character, for the printed sheet (F-030). */
+export interface SheetDetails {
+  level: number;
+  background: string | null;
+  alignment: string | null;
+  speed: { walk: number | null; other: { kind: string; feet: number }[] };
+  abilityScores: Record<string, number>;
+  /** Abilities whose saving throw the character is proficient in. */
+  proficientSaves: string[];
+  casting: {
+    kind: 'force' | 'tech';
+    source: string;
+    points: number;
+    saveDC: string;
+    attack: string;
+    maxPowerLevel: string;
+    powers: string[];
+    /** Added by hand beyond the book (F-016). */
+    customPowers: string[];
+  }[];
+  feats: string[];
+  customFeatures: string[];
+  languages: string[];
+}
+
+/** HTTP: everything the print page needs, in one read — GET /sheets.json (F-030). */
+export interface PrintData {
+  session: number;
+  sheets: Record<string, SheetSummary>;
+  characters: Record<string, CharacterState>;
+  glossary: Record<string, string>;
+}
 
 /** Server → client: the computed sheets. Sent once, on connect. */
 export interface Sheets {
@@ -302,7 +337,8 @@ export function plural(n: number, one: string, few: string, many: string): strin
 
 export type TermKind =
   | 'ability' | 'skill' | 'condition' | 'damage' | 'property'
-  | 'species' | 'class' | 'archetype' | 'weapon' | 'maneuver';
+  | 'species' | 'class' | 'archetype' | 'weapon' | 'maneuver'
+  | 'power' | 'feat' | 'background';
 
 /** Glossary key of a term: "skill.sleight-of-hand", "maneuver.parry-improved". */
 export function termKey(kind: TermKind, english: string): string {

@@ -18,6 +18,7 @@ import {
   type Author,
   type Client,
   type FromServer,
+  type PrintData,
   sessionCommitMessage,
   rebase,
   HISTORY_LIMIT,
@@ -135,6 +136,14 @@ export async function start(
   const broadcastClients = (): void => broadcastAll({ type: 'clients', clients: list() });
 
   const http = createServer((req, response) => {
+    // The print page reads everything at once over plain HTTP: it is not a screen at
+    // the table, so it must not show up in the list of who is connected.
+    if ((req.url ?? '').split('?')[0] === '/sheets.json') {
+      const data: PrintData = { session: log.sessionNumber, sheets, characters: state.all(), glossary: glossary.terms };
+      response.writeHead(200, { 'content-type': TYPES['.json'] as string, 'cache-control': 'no-store' });
+      response.end(JSON.stringify(data));
+      return;
+    }
     void serveFile(req, response, connected.size);
   });
 

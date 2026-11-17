@@ -8,6 +8,7 @@
 // applied LAST, because that is what sw5e.com does, and a sheet that disagrees with
 // sw5e.com is worse than useless: the owner would have to decide which of two numbers
 // to trust in the middle of a fight. See docs/ПАСТКИ-ДАНИХ.md, trap 2.
+import { speciesSpeed, type Speed } from './speed.js';
 import type {
   AbilityName, RawCharacter, SkillName, ProficiencyLevel,
 } from '../../schema/src/rawCharacter.js';
@@ -70,6 +71,8 @@ export interface ComputedSheet {
   superiority: SuperiorityResult[];
   /** Ability increases that are a choice nobody has made in the sheet. */
   pendingChoices: PendingChoice[];
+  /** Movement, read from the species traits. */
+  speed: Speed;
   /** Initiative is the Dexterity modifier; nothing in the five sheets changes it yet. */
   initiative: number;
   passivePerception: number;
@@ -405,6 +408,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     casting,
     superiority,
     pendingChoices,
+    speed: speciesSpeed(compendium, raw.species.name, warnings),
     initiative: abilities.Dexterity.modifier,
     passivePerception: 10 + skills.Perception.modifier,
     warnings,
@@ -435,3 +439,4 @@ export type { HitPointsResult, HitDiceGroup } from './hitPoints.js';
 export type { AbilityName, SkillName };
 export { explainSheet, ABILITY_UK, type Explanation, type Part, type SheetExplanations } from './explain.js';
 export { computeHandEdits, isDebt, type HandEdit, type HandEditVerdict } from './handEdits.js';
+export { speciesSpeed, type Speed } from './speed.js';

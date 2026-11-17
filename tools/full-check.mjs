@@ -25,6 +25,8 @@ try {
   ok('сторінка зібрана й роздається', /<script[^>]+assets\/index-/.test(page));
   const demo = await (await fetch(`http://localhost:${port}/demo.html`)).text();
   ok('демо 2×2 з кнопкою wifi', demo.includes('обірвати wifi'));
+  const printData = await (await fetch(`http://localhost:${port}/sheets.json`)).json();
+  ok('F-030 дані для друку: пʼять листів по HTTP', Object.keys(printData.sheets).length === 5 && printData.sheets['krinzh-dor'].details.speed.walk === 30);
   const asset = page.match(/assets\/index-[^"]+\.js/)?.[0];
   const js = await (await fetch(`http://localhost:${port}/${asset}`)).text();
   ok('клієнтський бандл роздається', js.length > 100000, `${Math.round(js.length / 1024)} КБ`);
