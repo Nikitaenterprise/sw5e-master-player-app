@@ -403,3 +403,4 @@ export type {
 } from './companion.js';
 export type { HitPointsResult, HitDiceGroup } from './hitPoints.js';
 export type { AbilityName, SkillName };
+export { explainSheet, ABILITY_UK, type Explanation, type Part, type SheetExplanations } from './explain.js';

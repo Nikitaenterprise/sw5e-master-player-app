@@ -71,7 +71,8 @@ describe('F-021 · огляд майстра: п’ять карточок', () 
     // At the table the GM needs "how much is left"; the file holds "how much was lost".
     const html = render('anam-melekh', { hitPointsLost: 15, temporaryHitPoints: 4 });
     expect(html).toContain('>36<');
-    expect(html).toContain('з 51 ХП +4');
+    // Read as text: since F-042 the maximum carries a hover hint, i.e. a tag in between.
+    expect(html.replace(/<[^>]+>/g, '')).toContain('з 51 ХП +4');
     expect(html, 'живий — без червоної рамки').not.toContain('is-down');
   });
 

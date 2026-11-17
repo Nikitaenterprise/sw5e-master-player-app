@@ -16,7 +16,7 @@ import { loadCompendium } from '@holotable/compendium';
 // are imported by path. Giving them a package.json would mean a new link in
 // node_modules, which means the owner has to run ВСТАНОВИТИ.bat again before the app
 // starts — and "double-click to run" is a hard requirement, not a nicety.
-import { computeSheet, restPlan, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
+import { computeSheet, explainSheet, restPlan, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 
 const ABILITIES = [
@@ -68,6 +68,22 @@ function summarize(
     0,
   );
 
+  const why = explainSheet(sheet);
+  const explain: SheetSummary['explain'] = {
+    hitPoints: why.hitPoints,
+    armorClass: why.armorClass,
+    initiative: why.initiative,
+    passivePerception: why.passivePerception,
+  };
+  for (const ability of ABILITIES) {
+    explain[`ability:${ability}`] = why.abilities[ability];
+    explain[`save:${ability}`] = why.savingThrows[ability];
+  }
+  for (const [skill, e] of Object.entries(why.skills)) explain[`skill:${skill}`] = e;
+  why.attacks.forEach((e, i) => {
+    explain[`attack:${i}`] = e;
+  });
+
   return {
     slug,
     name: sheet.name,
@@ -92,6 +108,8 @@ function summarize(
     attacks: sheet.weapons.map((w) => ({ name: w.name, toHit: w.attackBonus, damage: `${w.damage} ${w.damageType}` })),
     maneuvers,
     powers,
+    skills: Object.entries(sheet.skills).map(([name, v]) => ({ name, modifier: v.modifier, proficiency: v.proficiency })),
+    explain,
     warnings: sheet.warnings,
   };
 }

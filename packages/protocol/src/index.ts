@@ -185,6 +185,16 @@ export interface EventHappened {
 }
 
 /**
+ * Where a number comes from (F-042): the parts always add up to the total. Computed
+ * on load, never stored, like every other number on the card.
+ */
+export interface Explanation {
+  total: number;
+  parts: { label: string; value: number; handEdit?: boolean }[];
+  notes: string[];
+}
+
+/**
  * A character boiled down to what fits on a GM card. Every number here is computed by
  * the engine on load and never stored (ADR 0003) — it travels over the wire, not to
  * disk. What the players spend during the session lives in CharacterState instead.
@@ -213,6 +223,14 @@ export interface SheetSummary {
   maneuvers: { name: string; cost: number; saveDC: number | null }[];
   /** How many powers are on the sheet — a count, not a list. */
   powers: number;
+  /** All eighteen skills with their final modifier, in the order of the rules. */
+  skills: { name: string; modifier: number; proficiency: 'none' | 'Proficient' | 'Expertise' }[];
+  /**
+   * The breakdown behind each number on the card (F-042). Keys: hitPoints, armorClass,
+   * initiative, passivePerception, ability:<Ability>, save:<Ability>, skill:<Skill>,
+   * attack:<index in attacks>.
+   */
+  explain: Record<string, Explanation>;
   /**
    * What the engine could not work out on its own, verbatim. The GM card shows a
    * marker, because a number nobody can explain is the thing that costs a session.

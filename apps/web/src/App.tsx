@@ -9,6 +9,7 @@ import {
 } from './connection.js';
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
+import { explanationText } from './explain.js';
 import { usedOf } from '@holotable/protocol';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, type FeedRow,
@@ -99,7 +100,7 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-045. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 1 · F-042. Наведи на число на карточці — побачиш, з чого воно складається. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
@@ -489,6 +490,30 @@ const signed = (n: number): string => (n >= 0 ? `+${n}` : String(n));
 const asNumber = (value: unknown): number => (typeof value === 'number' ? value : 0);
 
 /**
+ * A number with its breakdown on hover (F-042). Without a breakdown it is just the
+ * number — never an empty hint.
+ */
+function Why({
+  sheet,
+  what,
+  signedTotal,
+  children,
+}: {
+  sheet: SheetSummary;
+  what: string;
+  signedTotal: boolean;
+  children: React.ReactNode;
+}): JSX.Element {
+  const e = sheet.explain?.[what];
+  if (e === undefined) return <>{children}</>;
+  return (
+    <span className="why" title={explanationText(e, signedTotal)}>
+      {children}
+    </span>
+  );
+}
+
+/**
  * One character, as the GM needs them at the table: how much they can still take, what
  * they roll, what they have left to spend. The computed numbers come from the server,
  * the spent ones from live state, and the two are kept visibly apart — a pool always
@@ -539,18 +564,21 @@ export function Card({
       <div className="big">
         <span className={hpClass}>
           <b>{left}</b>
-          <small>з {sheet.maxHitPoints} ХП{temporary > 0 ? ` +${temporary}` : ''}</small>
+          <small>
+            з <Why sheet={sheet} what="hitPoints" signedTotal={false}>{sheet.maxHitPoints}</Why> ХП
+            {temporary > 0 ? ` +${temporary}` : ''}
+          </small>
         </span>
         <span>
-          <b>{sheet.armorClass}</b>
+          <b><Why sheet={sheet} what="armorClass" signedTotal={false}>{sheet.armorClass}</Why></b>
           <small>КБ</small>
         </span>
         <span>
-          <b>{signed(sheet.initiative)}</b>
+          <b><Why sheet={sheet} what="initiative" signedTotal>{signed(sheet.initiative)}</Why></b>
           <small>ініціатива</small>
         </span>
         <span>
-          <b>{sheet.passivePerception}</b>
+          <b><Why sheet={sheet} what="passivePerception" signedTotal={false}>{sheet.passivePerception}</Why></b>
           <small>пас. увага</small>
         </span>
       </div>
@@ -564,12 +592,20 @@ export function Card({
           </tr>
           <tr>
             {ABILITY_SHORT.map(({ key }) => (
-              <td key={key}>{signed(sheet.abilityModifiers[key] ?? 0)}</td>
+              <td key={key}>
+                <Why sheet={sheet} what={`ability:${key}`} signedTotal={false}>
+                  {signed(sheet.abilityModifiers[key] ?? 0)}
+                </Why>
+              </td>
             ))}
           </tr>
           <tr className="saves">
             {ABILITY_SHORT.map(({ key }) => (
-              <td key={key} title="сейв">{signed(sheet.savingThrows[key] ?? 0)}</td>
+              <td key={key}>
+                <Why sheet={sheet} what={`save:${key}`} signedTotal>
+                  {signed(sheet.savingThrows[key] ?? 0)}
+                </Why>
+              </td>
             ))}
           </tr>
         </tbody>
@@ -618,10 +654,12 @@ export function Card({
 
       {sheet.attacks.length > 0 && (
         <ul className="attacks">
-          {sheet.attacks.map((a) => (
+          {sheet.attacks.map((a, i) => (
             <li key={a.name}>
               <span className="what">{a.name}</span>
-              <span className="hit">{signed(a.toHit)}</span>
+              <span className="hit">
+                <Why sheet={sheet} what={`attack:${i}`} signedTotal>{signed(a.toHit)}</Why>
+              </span>
               <span className="dmg">{a.damage}</span>
             </li>
           ))}
@@ -638,6 +676,20 @@ export function Card({
             </li>
           ))}
         </ul>
+      )}
+
+      {(sheet.skills?.length ?? 0) > 0 && (
+        <details className="skills">
+          <summary>Навички</summary>
+          <ul>
+            {sheet.skills.map((k) => (
+              <li key={k.name} className={k.proficiency === 'none' ? undefined : 'proficient'}>
+                <span className="what">{k.name}</span>
+                <Why sheet={sheet} what={`skill:${k.name}`} signedTotal>{signed(k.modifier)}</Why>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {conditions.length > 0 && <p className="conditions">{conditions.join(', ')}</p>}

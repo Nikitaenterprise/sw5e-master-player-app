@@ -246,3 +246,11 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 .hit-dice .value i { font-style: normal; color: var(--muted); font-weight: 400; }
 .hit-dice .roll { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .hit-dice .roll input { width: 4.5rem; }
+
+/* ── Where does this number come from (F-042) ──────────────────────────── */
+.why { cursor: help; text-decoration: underline dotted color-mix(in srgb, var(--muted) 60%, transparent); text-underline-offset: .2em; }
+.card .skills { margin-top: .5rem; font-size: .8rem; }
+.card .skills summary { cursor: pointer; color: var(--muted); }
+.card .skills ul { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: .1rem .8rem; }
+.card .skills li { display: flex; justify-content: space-between; color: var(--muted); }
+.card .skills li.proficient { color: var(--text); font-weight: 600; }
