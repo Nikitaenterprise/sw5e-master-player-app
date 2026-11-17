@@ -70,7 +70,7 @@ describe('F-030 · лист персонажа на A4', () => {
     expect(casting?.powers.length).toBe(14);
     expect(sandra).toContain('Поінти 19');
     expect(sandra).toContain('найвищий рівень 2');
-    expect(sandra).toContain(`${casting?.customPowers[0]}*`);
+    expect(sandra).toContain(`${showTerm(terms, 'both', 'power', casting?.customPowers[0] ?? '')}*`);
     expect(sandra).toContain('* вписано руками, понад книгу');
   });
 
