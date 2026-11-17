@@ -91,4 +91,13 @@ describe('F-042 · підказка «звідки це число»', () => {
     expect(html).toMatch(/title="без броні: 10\n\+ Спритність: 2\n\+ ручна правка: 4\n= 16"/);
     expect(html, 'список навичок на карточці').toContain('Навички');
   });
+
+  it('підказка всередині підпису не ламає розкладку великих чисел', () => {
+    // The big numbers stack "number over label" with a flex column on their spans. Written
+    // as a descendant rule (.big span), it also caught the hint span inside the HP label
+    // and broke the label into a column, one word per line. Only direct children stack.
+    const css = readFileSync(join(root, 'apps', 'web', 'src', 'style.css'), 'utf8');
+    expect(css).toMatch(/^\.big > span \{[^}]*flex-direction: column/m);
+    expect(css, 'правило для будь-якого вкладеного span у .big').not.toMatch(/^\.big span\b/m);
+  });
 });

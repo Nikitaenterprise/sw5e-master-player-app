@@ -92,7 +92,7 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 
 /* Four numbers the GM asks for most often. */
 .big { display: flex; gap: .85rem; flex-wrap: wrap; margin-bottom: .55rem; }
-.big span { display: flex; flex-direction: column; line-height: 1.1; }
+.big > span { display: flex; flex-direction: column; line-height: 1.1; }
 .big b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 .big small { font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .hp.half b { color: var(--waiting); }
