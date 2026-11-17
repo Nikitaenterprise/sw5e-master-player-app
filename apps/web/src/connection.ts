@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type CharacterState, type Client, type FromServer, type GameEvent, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type CharacterState, type Client, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -36,6 +36,8 @@ export interface Snapshot {
   queued: Intent[];
   /** The owner's glossary of game terms (F-025). Empty until the server sends it. */
   glossary: Record<string, string>;
+  /** Every term worth translating, for the GM's glossary editor (F-033). */
+  glossaryIndex: GlossaryRow[];
 }
 
 export const EMPTY: Snapshot = {
@@ -52,6 +54,7 @@ export const EMPTY: Snapshot = {
   pending: 0,
   queued: [],
   glossary: {},
+  glossaryIndex: [],
 };
 
 /**
@@ -123,6 +126,8 @@ export interface Controls {
   sendRest: (kind: 'short' | 'long') => void;
   /** Close the session: commit state/ to git and open the next one. GM only. */
   closeSession: () => void;
+  /** Set one glossary word; an empty word removes it. GM only (F-033). */
+  setTerm: (key: string, value: string) => void;
   /**
    * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
    * demo's button). The page stays, and so does its queue of unsent changes.
@@ -215,6 +220,9 @@ export function connect(
         case 'glossary':
           update({ glossary: m.terms });
           break;
+        case 'glossary-index':
+          update({ glossaryIndex: m.rows });
+          break;
         case 'event':
           // Our own change is now in the server's state: drop it from the queue in the
           // same update, or the screen would count it twice until the ack arrives.
@@ -277,6 +285,11 @@ export function connect(
       if (socket?.readyState !== 1) return;
       const rest: ToServer = { type: 'rest', kind };
       socket.send(JSON.stringify(rest));
+    },
+    setTerm: (key, value) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'glossary-set', key, value };
+      socket.send(JSON.stringify(message));
     },
     closeSession: () => {
       if (socket?.readyState !== 1) return;

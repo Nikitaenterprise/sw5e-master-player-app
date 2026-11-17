@@ -21,6 +21,7 @@ import {
   type PrintData,
   sessionCommitMessage,
   rebase,
+  parseGlossarySet,
   HISTORY_LIMIT,
 } from '@holotable/protocol';
 import { Log } from './log.js';
@@ -29,7 +30,10 @@ import { computeSummaries, computeRestPlans, applyRest, checkHitDice } from './s
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
-import { loadGlossary } from './glossary.js';
+import { loadGlossary, saveGlossary } from './glossary.js';
+import { buildTermIndex } from './termIndex.js';
+import { loadCompendium } from '@holotable/compendium';
+import { SKILLS } from '../../../packages/engine/src/skills.js';
 
 const SITE_ROOT = join(import.meta.dirname, '..', '..', 'web', 'dist');
 
@@ -119,6 +123,8 @@ export async function start(
   const demo = options.demo === true;
   const glossary = loadGlossary(stateDir);
   if (glossary.problem !== null) console.log(`  Увага: ${glossary.problem}`);
+  // The editor's list of terms: computed once, like the sheets (F-033).
+  const termIndex = buildTermIndex(loadCompendium({ root: ROOT }), sheets, SKILLS, glossary.terms);
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -189,6 +195,7 @@ export async function start(
         // The GM's feed comes from the log, not from what this page happened to see.
         if (hello.role === 'gm') {
           send(socket, { type: 'history', events: log.read().events.slice(-HISTORY_LIMIT) });
+          send(socket, { type: 'glossary-index', rows: termIndex });
         }
         broadcastClients();
         return;
@@ -250,6 +257,32 @@ export async function start(
             closing = false;
             broadcastAll({ type: 'session-closed', closed, opened, events, save });
           });
+        return;
+      }
+
+      // A word in the glossary (F-033): the GM edits, the file is written, and every
+      // screen gets the new glossary at once.
+      if ((data as { type?: unknown }).type === 'glossary-set') {
+        const edit = parseGlossarySet(data);
+        if (typeof edit === 'string') {
+          send(socket, { type: 'refused', reason: edit });
+          return;
+        }
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'глосарій править майстер' });
+          return;
+        }
+        const next = { ...glossary.terms };
+        if (edit.value === '') delete next[edit.key];
+        else next[edit.key] = edit.value;
+        try {
+          saveGlossary(stateDir, next);
+        } catch (error) {
+          send(socket, { type: 'refused', reason: `глосарій не записався: ${(error as Error).message}` });
+          return;
+        }
+        glossary.terms = next;
+        broadcastAll({ type: 'glossary', terms: next });
         return;
       }
 

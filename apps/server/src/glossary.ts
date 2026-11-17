@@ -2,8 +2,8 @@
 //
 // Read at startup and sent to every client. A broken file must not stop the session:
 // the screen then simply shows English names, and the server says what is wrong.
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 export interface Glossary {
   terms: Record<string, string>;
@@ -37,4 +37,34 @@ export function loadGlossary(stateDir: string): Glossary {
     terms[key] = value.trim();
   }
   return { terms, problem: null };
+}
+
+/** The owner's note at the top of the file, kept as it is when the editor saves. */
+const DEFAULT_HELP =
+  'Глосарій: ключ ліворуч не чіпай, праворуч пиши українське слово. Після зміни перезапусти ЗАПУСТИТИ.bat. '
+  + 'Терміна немає — на екрані лишиться англійська назва.';
+
+/**
+ * Writes the glossary from the editor (F-033). Notes ("_" keys) are kept, terms are
+ * sorted so the file stays readable by hand, and the write is atomic — a temporary
+ * file renamed over the old one — so a power cut leaves either the old glossary or the
+ * new one, never half of it.
+ */
+export function saveGlossary(stateDir: string, terms: Record<string, string>): void {
+  const file = glossaryFile(stateDir);
+  mkdirSync(dirname(file), { recursive: true });
+  let notes: Record<string, unknown> = { _help: DEFAULT_HELP };
+  if (existsSync(file)) {
+    try {
+      const old = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+      const kept = Object.fromEntries(Object.entries(old).filter(([k]) => k.startsWith('_')));
+      if (Object.keys(kept).length > 0) notes = kept;
+    } catch {
+      // A broken file loses nothing worth keeping but its notes; the default note returns.
+    }
+  }
+  const sorted = Object.fromEntries(Object.entries(terms).sort(([a], [b]) => a.localeCompare(b)));
+  const temporary = `${file}.tmp`;
+  writeFileSync(temporary, `${JSON.stringify({ ...notes, ...sorted }, null, 2)}\n`, 'utf8');
+  renameSync(temporary, file);
 }

@@ -39,7 +39,14 @@ export interface CloseSession {
   type: 'close-session';
 }
 
-export type ToServer = Hello | Intent | Rest | CloseSession;
+/** GM → server: set one glossary word (F-033). An empty value removes the entry. */
+export interface GlossarySet {
+  type: 'glossary-set';
+  key: string;
+  value: string;
+}
+
+export type ToServer = Hello | Intent | Rest | CloseSession | GlossarySet;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -94,7 +101,8 @@ export type FromServer =
   | SessionClosed
   | Ack
   | GlossaryMessage
-  | History;
+  | History
+  | GlossaryIndex;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -359,6 +367,38 @@ export function showTerm(glossary: Record<string, string>, mode: TermMode, kind:
   if (uk === undefined || uk === '' || mode === 'en') return name;
   if (mode === 'uk') return uk;
   return uk.toLowerCase() === name.toLowerCase() ? uk : `${uk} (${name})`;
+}
+
+/** One row of the glossary editor: a term the app knows, with its English name. */
+export interface GlossaryRow {
+  key: string;
+  kind: TermKind;
+  english: string;
+  /** Shown on the five sheets — these matter first. */
+  onSheets: boolean;
+}
+
+/** Server → GM on connect: every term worth translating, for the editor (F-033). */
+export interface GlossaryIndex {
+  type: 'glossary-index';
+  rows: GlossaryRow[];
+}
+
+/** Longest word the glossary accepts — a term, not a paragraph. */
+export const TERM_MAX_LENGTH = 120;
+
+/** Checks a glossary edit. Returns the edit, trimmed, or why it is refused. */
+export function parseGlossarySet(data: unknown): GlossarySet | string {
+  if (typeof data !== 'object' || data === null) return 'правка глосарію не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'glossary-set') return 'не правка глосарію';
+  const key = o['key'];
+  if (typeof key !== 'string' || !/^[a-z]+\.[a-z0-9-]+$/.test(key)) return 'ключ терміна має вигляд «вид.назва», латиницею';
+  const value = o['value'];
+  if (typeof value !== 'string') return 'слово мусить бути текстом';
+  const trimmed = value.trim();
+  if (trimmed.length > TERM_MAX_LENGTH) return `задовго: термін — до ${TERM_MAX_LENGTH} знаків`;
+  return { type: 'glossary-set', key, value: trimmed };
 }
 
 /** Server → client: the glossary, sent once on connect. */

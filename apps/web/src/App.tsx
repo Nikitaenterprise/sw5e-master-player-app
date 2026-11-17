@@ -15,6 +15,7 @@ import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
 import { usedOf, showTerm, type TermMode } from '@holotable/protocol';
 import { TermContext, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
+import { GlossaryEditor } from './GlossaryEditor.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, type FeedRow,
 } from './feed.js';
@@ -41,7 +42,8 @@ export function App(): JSX.Element {
   }, [role, character]);
 
   const gm = role === 'gm';
-  const header = gm ? 'Екран майстра' : name(character);
+  const editingGlossary = gm && new URLSearchParams(location.search).get('view') === 'glossary';
+  const header = editingGlossary ? 'Глосарій' : gm ? 'Екран майстра' : name(character);
   const [mode, setMode] = useState<TermMode>(readMode);
   const term: Term = (kind, english) => showTerm(snapshot.glossary, mode, kind, english);
 
@@ -64,7 +66,20 @@ export function App(): JSX.Element {
 
       {snapshot.refusal !== null && <p className="refusal">{snapshot.refusal}</p>}
 
-      {gm ? (
+      {gm && (
+        <nav className="views">
+          {editingGlossary ? <a href="/?as=gm">← до екрана майстра</a> : <a href="/?as=gm&view=glossary">Глосарій термінів →</a>}
+        </nav>
+      )}
+
+      {editingGlossary ? (
+        <GlossaryEditor
+          rows={snapshot.glossaryIndex}
+          glossary={snapshot.glossary}
+          save={(key, value) => controls.current?.setTerm(key, value)}
+          demo={snapshot.demo}
+        />
+      ) : gm ? (
         <section>
           <h2>Партія — {Object.keys(snapshot.characters).length}</h2>
           <div className="cards">
@@ -79,9 +94,9 @@ export function App(): JSX.Element {
         <PlayerSheet character={character} snapshot={snapshot} controls={controls} />
       )}
 
-      {gm && <Rests rest={(kind) => controls.current?.sendRest(kind)} />}
+      {gm && !editingGlossary && <Rests rest={(kind) => controls.current?.sendRest(kind)} />}
 
-      {gm && (
+      {gm && !editingGlossary && (
         <section className="rests">
           <h2>Друк</h2>
           <div className="buttons">
@@ -93,7 +108,7 @@ export function App(): JSX.Element {
         </section>
       )}
 
-      {gm && (
+      {gm && !editingGlossary && (
         <Session
           session={snapshot.session}
           lastClosed={snapshot.lastClosed}
@@ -101,7 +116,7 @@ export function App(): JSX.Element {
         />
       )}
 
-      {gm && (
+      {gm && !editingGlossary && (
         <Feed
           events={snapshot.events}
           undo={(row) =>
