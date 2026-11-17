@@ -118,7 +118,10 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
   display: flex; gap: .4rem; font-size: .74rem; align-items: baseline;
   background: none; border: none; border-radius: 0; padding: 0; margin: 0;
 }
-.attacks .what, .maneuvers .what { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Names wrap rather than get cut: with both languages shown (F-025) a cut name loses
+   exactly the English part the GM needs to find it in the book. */
+.attacks .what, .maneuvers .what { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.attacks .hit, .maneuvers .cost, .maneuvers .dc { white-space: nowrap; }
 .attacks .hit { font-variant-numeric: tabular-nums; color: var(--accent); }
 .attacks .dmg, .maneuvers .cost { color: var(--muted); }
 .maneuvers .dc { font-variant-numeric: tabular-nums; color: var(--accent); }
@@ -263,3 +266,11 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 .card .hand-edits ul { margin: .3rem 0 0; padding-left: 1rem; color: var(--muted); }
 .card .hand-edits li.unknown b { color: var(--bad); }
 .card .hand-edits li.redundant b, .card .hand-edits li.choice b { color: var(--text); }
+
+/* ── Term language switch (F-025) ──────────────────────────────────────── */
+.mode-switch { display: flex; gap: .2rem; margin-top: .5rem; }
+.mode-switch button {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: .35rem; font: inherit; font-size: .72rem; padding: .15rem .45rem; cursor: pointer;
+}
+.mode-switch button.on { color: var(--text); border-color: var(--accent); }

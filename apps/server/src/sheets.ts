@@ -105,7 +105,15 @@ function summarize(
     ...(superiority === undefined || superiority.diceSize === null
       ? {}
       : { superiority: { quantity: superiority.diceQuantity, size: superiority.diceSize } }),
-    attacks: sheet.weapons.map((w) => ({ name: w.name, toHit: w.attackBonus, damage: `${w.damage} ${w.damageType}` })),
+    attacks: sheet.weapons.map((w) => ({
+      name: w.name,
+      toHit: w.attackBonus,
+      damage: `${w.damage} ${w.damageType}`,
+      damageDice: w.damage,
+      damageType: w.damageType,
+    })),
+    species,
+    classes: sheet.classes,
     maneuvers,
     powers,
     skills: Object.entries(sheet.skills).map(([name, v]) => ({ name, modifier: v.modifier, proficiency: v.proficiency })),

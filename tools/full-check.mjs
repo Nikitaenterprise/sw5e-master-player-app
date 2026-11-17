@@ -44,6 +44,10 @@ try {
   await wait(gm, (g) => g.filter((m) => m.type === 'clients').some((m) => m.clients.length === 3));
   ok('F-011 «за столом — 3»', gm.got.filter((m) => m.type === 'clients').some((m) => m.clients.length === 3));
   const sheets = gm.got.find((m) => m.type === 'sheets').sheets;
+  await wait(gm, (g) => g.some((m) => m.type === 'glossary'));
+  const glossary = gm.got.find((m) => m.type === 'glossary')?.terms ?? {};
+  ok('F-025 глосарій приходить: Кел-Дор, Учений, Згуртування',
+    glossary['species.kel-dor'] === 'Кел-Дор' && glossary['class.scholar'] === 'Учений' && glossary['maneuver.rally'] === 'Згуртування');
   ok('F-021 Анам 51 ХП максимум', sheets['anam-melekh'].maxHitPoints === 51);
   ok('F-021 Крінж-Дор 4×d4 суперіориті, 5 маневрів', sheets['krinzh-dor'].superiority?.quantity === 4 && sheets['krinzh-dor'].maneuvers.length === 5);
   ok('F-021 Нигра DC техніки 13', sheets['nigra-4'].techPoints?.dc === 13);

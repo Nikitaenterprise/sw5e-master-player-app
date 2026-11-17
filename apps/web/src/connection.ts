@@ -32,6 +32,8 @@ export interface Snapshot {
   demo: boolean;
   /** Changes pressed but not yet confirmed by the server (F-045). */
   pending: number;
+  /** The owner's glossary of game terms (F-025). Empty until the server sends it. */
+  glossary: Record<string, string>;
 }
 
 export const EMPTY: Snapshot = {
@@ -46,6 +48,7 @@ export const EMPTY: Snapshot = {
   lastClosed: null,
   demo: false,
   pending: 0,
+  glossary: {},
 };
 
 /**
@@ -175,6 +178,9 @@ export function connect(
           break;
         case 'sheets':
           update({ sheets: m.sheets });
+          break;
+        case 'glossary':
+          update({ glossary: m.terms });
           break;
         case 'event':
           update({

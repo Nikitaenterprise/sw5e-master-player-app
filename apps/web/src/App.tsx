@@ -10,7 +10,8 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf } from '@holotable/protocol';
+import { usedOf, showTerm, type TermMode } from '@holotable/protocol';
+import { TermContext, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, type FeedRow,
 } from './feed.js';
@@ -38,12 +39,22 @@ export function App(): JSX.Element {
 
   const gm = role === 'gm';
   const header = gm ? 'Екран майстра' : name(character);
+  const [mode, setMode] = useState<TermMode>(readMode);
+  const term: Term = (kind, english) => showTerm(snapshot.glossary, mode, kind, english);
 
   return (
+    <TermContext.Provider value={term}>
     <main className={gm ? 'gm' : 'player'}>
       <header>
         <h1>{header}</h1>
         <Indicator snapshot={snapshot} />
+        <ModeSwitch
+          mode={mode}
+          change={(m) => {
+            setMode(m);
+            saveMode(m);
+          }}
+        />
       </header>
 
       {snapshot.demo && <DemoBanner />}
@@ -100,11 +111,25 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-043. Наведи на число — побачиш, з чого воно складається; ✎ — ручна правка. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 1 · F-025. Наведи на число — побачиш, з чого воно складається; ✎ — ручна правка. Терміни — з глосарію state/i18n/uk/terms.json. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
     </main>
+    </TermContext.Provider>
+  );
+}
+
+/** Ukrainian and English side by side, or one of them (F-025). Per viewer. */
+function ModeSwitch({ mode, change }: { mode: TermMode; change: (m: TermMode) => void }): JSX.Element {
+  return (
+    <div className="mode-switch" role="group" aria-label="Мова термінів">
+      {(Object.keys(MODE_LABELS) as TermMode[]).map((m) => (
+        <button key={m} type="button" className={m === mode ? 'on' : undefined} onClick={() => change(m)}>
+          {MODE_LABELS[m]}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -174,6 +199,7 @@ function Managed({
   sendChange: (changes: CharacterState) => void;
 }): JSX.Element {
   const [fresh, setFresh] = useState('');
+  const term = useTerm();
   const conditions = Array.isArray(state.conditions) ? state.conditions : [];
 
   const addCondition = (): void => {
@@ -234,7 +260,7 @@ function Managed({
               className="chip"
               onClick={() => sendChange({ conditions: conditions.filter((i) => i !== u) })}
             >
-              {u} <span aria-hidden="true">×</span>
+              {term('condition', u)} <span aria-hidden="true">×</span>
             </button>
           ))}
         </div>
@@ -570,6 +596,7 @@ export function Card({
   state: CharacterState;
   sheet: SheetSummary | undefined;
 }): JSX.Element {
+  const term = useTerm();
   const conditions = Array.isArray(state.conditions) ? state.conditions : [];
   const lost = asNumber(state.hitPointsLost);
   const temporary = asNumber(state.temporaryHitPoints);
@@ -601,7 +628,16 @@ export function Card({
           </span>
         )}
       </h3>
-      <p className="line">{sheet.line}</p>
+      <p className="line">
+        {sheet.classes === undefined
+          ? sheet.line
+          : [
+              ...(sheet.species === null ? [] : [term('species', sheet.species)]),
+              sheet.classes
+                .map((c) => `${term('class', c.name)} ${c.levels}${c.archetype === undefined ? '' : ` · ${term('archetype', c.archetype)}`}`)
+                .join(' / '),
+            ].join(' · ')}
+      </p>
 
       <div className="big">
         <span className={hpClass}>
@@ -698,11 +734,13 @@ export function Card({
         <ul className="attacks">
           {sheet.attacks.map((a, i) => (
             <li key={a.name}>
-              <span className="what">{a.name}</span>
+              <span className="what">{term('weapon', a.name)}</span>
               <span className="hit">
                 <Why sheet={sheet} what={`attack:${i}`} signedTotal>{signed(a.toHit)}</Why>
               </span>
-              <span className="dmg">{a.damage}</span>
+              <span className="dmg">
+                {a.damageType === undefined ? a.damage : `${a.damageDice} ${term('damage', a.damageType)}`}
+              </span>
             </li>
           ))}
         </ul>
@@ -712,7 +750,7 @@ export function Card({
         <ul className="maneuvers">
           {sheet.maneuvers.map((m) => (
             <li key={m.name}>
-              <span className="what">{m.name}</span>
+              <span className="what">{term('maneuver', m.name)}</span>
               <span className="cost">{m.cost === 0 ? '—' : `${m.cost} куб.`}</span>
               {m.saveDC !== null && <span className="dc">DC {m.saveDC}</span>}
             </li>
@@ -728,7 +766,7 @@ export function Card({
           <ul>
             {sheet.skills.map((k) => (
               <li key={k.name} className={k.proficiency === 'none' ? undefined : 'proficient'}>
-                <span className="what">{k.name}</span>
+                <span className="what">{term('skill', k.name)}</span>
                 <Why sheet={sheet} what={`skill:${k.name}`} signedTotal>{signed(k.modifier)}</Why>
               </li>
             ))}
@@ -736,7 +774,7 @@ export function Card({
         </details>
       )}
 
-      {conditions.length > 0 && <p className="conditions">{conditions.join(', ')}</p>}
+      {conditions.length > 0 && <p className="conditions">{conditions.map((c) => term('condition', c)).join(', ')}</p>}
     </article>
   );
 }

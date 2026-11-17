@@ -92,7 +92,8 @@ export type FromServer =
   | Sheets
   | Refusal
   | SessionClosed
-  | Ack;
+  | Ack
+  | GlossaryMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -218,7 +219,10 @@ export interface SheetSummary {
   techPoints?: { max: number; dc: number };
   superiority?: { quantity: number; size: string };
   /** Attacks, so the GM can call for a roll without opening the sheet. */
-  attacks: { name: string; toHit: number; damage: string }[];
+  attacks: { name: string; toHit: number; damage: string; damageDice: string; damageType: string }[];
+  /** The parts of `line`, kept apart so each can be translated (F-025). */
+  species: string | null;
+  classes: { name: string; levels: number; archetype?: string }[];
   /** Maneuvers the character knows, with the DC each one actually uses. */
   maneuvers: { name: string; cost: number; saveDC: number | null }[];
   /** How many powers are on the sheet — a count, not a list. */
@@ -276,6 +280,42 @@ export function plural(n: number, one: string, few: string, many: string): strin
   if (units === 1) return one;
   if (units >= 2 && units <= 4) return few;
   return many;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Glossary (F-025). Game terms are shown in Ukrainian next to the English the books
+// use, from a plain file the owner edits: state/i18n/uk/terms.json.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TermKind =
+  | 'ability' | 'skill' | 'condition' | 'damage' | 'property'
+  | 'species' | 'class' | 'archetype' | 'weapon' | 'maneuver';
+
+/** Glossary key of a term: "skill.sleight-of-hand", "maneuver.parry-improved". */
+export function termKey(kind: TermKind, english: string): string {
+  return `${kind}.${english.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`;
+}
+
+/** How terms are shown: both languages, Ukrainian only, or English only. */
+export type TermMode = 'both' | 'uk' | 'en';
+
+/**
+ * A term as the screen shows it. Without a translation it stays English in every mode:
+ * an untranslated word is better than an empty one, and it tells the owner what is
+ * missing from the glossary.
+ */
+export function showTerm(glossary: Record<string, string>, mode: TermMode, kind: TermKind, english: string): string {
+  const name = english.trim();
+  const uk = glossary[termKey(kind, name)];
+  if (uk === undefined || uk === '' || mode === 'en') return name;
+  if (mode === 'uk') return uk;
+  return uk.toLowerCase() === name.toLowerCase() ? uk : `${uk} (${name})`;
+}
+
+/** Server → client: the glossary, sent once on connect. */
+export interface GlossaryMessage {
+  type: 'glossary';
+  terms: Record<string, string>;
 }
 
 /** Default port. Changed through HOLOTABLE_PORT. */

@@ -27,6 +27,7 @@ import { computeSummaries, computeRestPlans, applyRest, checkHitDice } from './s
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
+import { loadGlossary } from './glossary.js';
 
 const SITE_ROOT = join(import.meta.dirname, '..', '..', 'web', 'dist');
 
@@ -114,6 +115,8 @@ export async function start(
   const stateDir = options.stateDir ?? join(ROOT, 'state');
   let closing = false;
   const demo = options.demo === true;
+  const glossary = loadGlossary(stateDir);
+  if (glossary.problem !== null) console.log(`  Увага: ${glossary.problem}`);
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -172,6 +175,7 @@ export async function start(
         });
         send(socket, { type: 'state', characters: state.all() });
         send(socket, { type: 'sheets', sheets });
+        send(socket, { type: 'glossary', terms: glossary.terms });
         broadcastClients();
         return;
       }
