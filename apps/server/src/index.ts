@@ -19,6 +19,7 @@ import {
   type Client,
   type FromServer,
   sessionCommitMessage,
+  rebase,
 } from '@holotable/protocol';
 import { Log } from './log.js';
 import { State } from './state.js';
@@ -240,26 +241,46 @@ export async function start(
         return;
       }
 
+      // A resend of something already applied: just confirm it, change nothing.
+      if (intent.id !== undefined && state.seen(intent.id)) {
+        send(socket, { type: 'ack', intent: intent.id });
+        return;
+      }
+      const done = (): void => {
+        if (intent.id === undefined) return;
+        state.remember(intent.id);
+        send(socket, { type: 'ack', intent: intent.id });
+      };
+      const refuse = (reason: string): void => {
+        send(socket, { type: 'refused', reason });
+        done();
+      };
+
       // Rights: a player changes only their own character, the GM changes any.
       // Checked on the server, because the client cannot be trusted even among friends.
       if (who.role === 'player') {
         if (who.character === undefined) {
-          send(socket, { type: 'refused', reason: 'ти підключився без персонажа' });
+          refuse('ти підключився без персонажа');
           return;
         }
         if (who.character !== intent.character) {
-          send(socket, {
-            type: 'refused',
-            reason: `це не твій персонаж: ти ${who.character}, а зміна для ${intent.character}`,
-          });
+          refuse(`це не твій персонаж: ти ${who.character}, а зміна для ${intent.character}`);
           return;
         }
       }
 
-      if (intent.changes.hitDiceUsed !== undefined) {
-        const problem = checkHitDice(sheets[intent.character], intent.changes.hitDiceUsed as Record<string, number>);
+      // What the person pressed is a difference from what they saw. Apply that
+      // difference to what is true now (F-045).
+      const current = state.one(intent.character);
+      const changes =
+        intent.base === undefined || current === undefined
+          ? intent.changes
+          : rebase(current, intent.base, intent.changes);
+
+      if (changes.hitDiceUsed !== undefined) {
+        const problem = checkHitDice(sheets[intent.character], changes.hitDiceUsed as Record<string, number>);
         if (problem !== null) {
-          send(socket, { type: 'refused', reason: problem });
+          refuse(problem);
           return;
         }
       }
@@ -270,14 +291,9 @@ export async function start(
         ...(who.character === undefined ? {} : { character: who.character }),
       };
 
-      const result = state.apply(
-        intent.character,
-        intent.changes,
-        author,
-        intent.note,
-      );
+      const result = state.apply(intent.character, changes, author, intent.note, intent.id);
       if (typeof result === 'string') {
-        send(socket, { type: 'refused', reason: result });
+        refuse(result);
         return;
       }
 
@@ -286,6 +302,7 @@ export async function start(
         event: result,
         state: state.one(intent.character) ?? {},
       });
+      done();
     });
 
     socket.on('close', () => {

@@ -22,7 +22,17 @@ export function App(): JSX.Element {
   useEffect(() => {
     const k = connect(role, character, onChange);
     controls.current = k;
-    return () => k.disconnect();
+    // The four-screen demo cuts a panel's wifi through a message from the parent page.
+    const listen = (ev: MessageEvent): void => {
+      if (ev.origin !== location.origin) return;
+      const data = ev.data as { holotable?: unknown; cut?: unknown } | null;
+      if (data?.holotable === 'wifi' && typeof data.cut === 'boolean') k.setCut(data.cut);
+    };
+    window.addEventListener('message', listen);
+    return () => {
+      window.removeEventListener('message', listen);
+      k.disconnect();
+    };
   }, [role, character]);
 
   const gm = role === 'gm';
@@ -67,7 +77,11 @@ export function App(): JSX.Element {
       {gm && (
         <Feed
           events={snapshot.events}
-          undo={(row) => controls.current?.sendChange(row.character, undoOf(row), undoNote(row))}
+          undo={(row) =>
+            // Relative to where the run ended: undo takes back THIS change, and what
+            // others did since stays (F-045).
+            controls.current?.sendChange(row.character, undoOf(row), undoNote(row), { [row.field]: row.to })
+          }
         />
       )}
 
@@ -85,7 +99,7 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-044. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 1 · F-045. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
@@ -683,6 +697,19 @@ function Fields({ state }: { state: CharacterState }): JSX.Element {
 }
 
 function Indicator({ snapshot }: { snapshot: Snapshot }): JSX.Element {
+  return (
+    <>
+      <Link snapshot={snapshot} />
+      {snapshot.pending > 0 && (
+        <p className="conn waiting">
+          не надіслано: {snapshot.pending} — дійде, щойно буде звʼязок
+        </p>
+      )}
+    </>
+  );
+}
+
+function Link({ snapshot }: { snapshot: Snapshot }): JSX.Element {
   const z = snapshot.connection;
   switch (z.status) {
     case 'online':
@@ -695,6 +722,8 @@ function Indicator({ snapshot }: { snapshot: Snapshot }): JSX.Element {
           звʼязок обірвано, пробую знову за {Math.round(z.afterMs / 100) / 10} с
         </p>
       );
+    case 'cut':
+      return <p className="conn bad">звʼязку немає — обірвано в демо</p>;
     case 'error':
       return <p className="conn bad">помилка: {z.text}</p>;
   }

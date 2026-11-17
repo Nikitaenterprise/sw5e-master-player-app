@@ -24,13 +24,16 @@
                        border-radius:.3rem; font:inherit; font-size:.68rem; padding:.1rem .4rem;
                        cursor:pointer; }
       .label button:hover { color:var(--text); border-color:var(--muted); }
+      .label button:first-of-type { margin-left:auto; }
+      .label button + button { margin-left:.3rem; }
       iframe { flex:1; width:100%; border:0; min-height:0; }
     </style>
   </head>
   <body>
     <div class="header">
       <strong>Демо на чотирьох екранах</strong>
-      <span>Майстер і три гравці на одному сервері. Закрий один — решта оновиться.</span>
+      <span>Майстер і три гравці на одному сервері. Закрий один — решта оновиться. Обірви
+        гравцю wifi, натисни «−5 ХП» — зміна дійде, щойно wifi повернеться.</span>
     </div>
     <div class="grid" id="grid"></div>
     <script>
@@ -57,6 +60,19 @@
           button.textContent = live ? 'підключити' : 'відключити';
         });
         label.append(button);
+        // A wifi drop, not a closed page: the screen stays, its unsent changes wait in
+        // a queue and go out when the wifi is back (F-045). Players only.
+        if (screen.label !== 'Майстер') {
+          const wifi = document.createElement('button');
+          wifi.textContent = 'обірвати wifi';
+          let cut = false;
+          wifi.addEventListener('click', () => {
+            cut = !cut;
+            frame.contentWindow.postMessage({ holotable: 'wifi', cut }, location.origin);
+            wifi.textContent = cut ? 'повернути wifi' : 'обірвати wifi';
+          });
+          label.append(wifi);
+        }
         panel.append(label, frame);
         grid.append(panel);
       }

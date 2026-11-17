@@ -20,6 +20,11 @@ import type { Log } from './log.js';
 
 export class State {
   private readonly characters = new Map<string, CharacterState>();
+  /**
+   * Ids of intents already applied (F-045). Rebuilt from the log on start, so a client
+   * resending after a server restart still does not double its change.
+   */
+  private readonly applied = new Set<string>();
 
   constructor(
     private readonly log: Log,
@@ -28,7 +33,20 @@ export class State {
     for (const [slug, base] of State.baseline(charactersDir)) {
       this.characters.set(slug, base);
     }
-    for (const event of log.readAll().events) this.applyChange(event);
+    for (const event of log.readAll().events) {
+      this.applyChange(event);
+      if (event.intent !== undefined) this.applied.add(event.intent);
+    }
+  }
+
+  /** Whether an intent with this id has already been applied. */
+  seen(intent: string): boolean {
+    return this.applied.has(intent);
+  }
+
+  /** Marks an intent as dealt with even though it wrote no event (refused, no change). */
+  remember(intent: string): void {
+    this.applied.add(intent);
   }
 
   /** Starting state from the source exports: only the fields we know how to change. */
@@ -71,6 +89,7 @@ export class State {
     changes: CharacterState,
     author: Author,
     note?: string,
+    intent?: string,
   ): GameEvent | string {
     const current = this.characters.get(slug);
     if (current === undefined) return `немає персонажа «${slug}»`;
@@ -92,10 +111,12 @@ export class State {
       character: slug,
       changes: list,
       ...(note === undefined ? {} : { note }),
+      ...(intent === undefined ? {} : { intent }),
     };
 
     this.log.append(event);
     this.applyChange(event);
+    if (intent !== undefined) this.applied.add(intent);
     return event;
   }
 

@@ -3,12 +3,14 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import type { CharacterState, Client, FromServer, GameEvent, Role, SessionClosed, SheetSummary, ToServer } from '@holotable/protocol';
+import type { CharacterState, Client, FromServer, GameEvent, Intent, Role, SessionClosed, SheetSummary, StateField, ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
   | { status: 'online' }
   | { status: 'dropped'; afterMs: number }
+  /** The demo cut this screen's wifi on purpose (F-045); no reconnect until it is back. */
+  | { status: 'cut' }
   | { status: 'error'; text: string };
 
 export interface Snapshot {
@@ -28,6 +30,8 @@ export interface Snapshot {
   lastClosed: SessionClosed | null;
   /** The four-screen demo: changes go to a throwaway log (F-037). */
   demo: boolean;
+  /** Changes pressed but not yet confirmed by the server (F-045). */
+  pending: number;
 }
 
 export const EMPTY: Snapshot = {
@@ -41,7 +45,29 @@ export const EMPTY: Snapshot = {
   session: 0,
   lastClosed: null,
   demo: false,
+  pending: 0,
 };
+
+/**
+ * An intent id. Not crypto.randomUUID: a phone opening http://192.168.x.x is not a
+ * secure context, and there that function does not exist.
+ */
+let counter = 0;
+export function intentId(): string {
+  counter += 1;
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${counter.toString(36)}`;
+}
+
+/** What the person was looking at, for exactly the fields they are changing. */
+export function baseFor(seen: CharacterState | undefined, changes: CharacterState): CharacterState {
+  const base: CharacterState = {};
+  if (seen === undefined) return base;
+  for (const field of Object.keys(changes) as StateField[]) {
+    const value = seen[field];
+    if (value !== undefined) base[field] = value;
+  }
+  return base;
+}
 
 /** Reads role and character from the URL: ?as=gm or ?as=player&character=krinzh-dor */
 export function roleFromUrl(search: string): { role: Role; character?: string } {
@@ -57,12 +83,20 @@ export function backoff(attempt: number): number {
 }
 
 export interface Controls {
-  /** Send an intent to change state. The server decides whether it is allowed. */
-  sendChange: (character: string, changes: CharacterState, note?: string) => void;
+  /**
+   * Send an intent to change state. The server decides whether it is allowed. `base` is
+   * what the change is relative to; by default, what this screen shows right now.
+   */
+  sendChange: (character: string, changes: CharacterState, note?: string, base?: CharacterState) => void;
   /** Announce a rest for the whole party. The server refuses it from a player. */
   sendRest: (kind: 'short' | 'long') => void;
   /** Close the session: commit state/ to git and open the next one. GM only. */
   closeSession: () => void;
+  /**
+   * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
+   * demo's button). The page stays, and so does its queue of unsent changes.
+   */
+  setCut: (cut: boolean) => void;
   disconnect: () => void;
 }
 
@@ -76,6 +110,17 @@ export function connect(
   let timer: number | undefined;
   let closed = false;
   let attempt = 0;
+  // Sent only once the server has greeted us and sent the state; until then they wait.
+  let ready = false;
+  let cut = false;
+  // Pressed but not confirmed. Resent on every reconnect until the server acks them —
+  // the server applies each id once, so resending never doubles a change (F-045).
+  let pending: Intent[] = [];
+
+  const flush = (): void => {
+    if (!ready || socket?.readyState !== 1) return;
+    for (const intent of pending) socket.send(JSON.stringify(intent));
+  };
 
   const update = (part: Partial<Snapshot>): void => {
     snapshot = { ...snapshot, ...part };
@@ -83,7 +128,7 @@ export function connect(
   };
 
   const open = (): void => {
-    if (closed) return;
+    if (closed || cut) return;
     update({ connection: { status: 'connecting' } });
 
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -121,6 +166,12 @@ export function connect(
           break;
         case 'state':
           update({ characters: m.characters });
+          ready = true;
+          flush();
+          break;
+        case 'ack':
+          pending = pending.filter((i) => i.id !== m.intent);
+          update({ pending: pending.length });
           break;
         case 'sheets':
           update({ sheets: m.sheets });
@@ -146,7 +197,12 @@ export function connect(
     });
 
     socket.addEventListener('close', () => {
+      ready = false;
       if (closed) return;
+      if (cut) {
+        update({ connection: { status: 'cut' } });
+        return;
+      }
       attempt += 1;
       const ms = backoff(attempt);
       update({ connection: { status: 'dropped', afterMs: ms } });
@@ -157,15 +213,20 @@ export function connect(
   open();
 
   return {
-    sendChange: (whom, changes, note) => {
-      if (socket?.readyState !== 1) return;
-      const intent: ToServer = {
+    sendChange: (whom, changes, note, base) => {
+      // Never dropped on the floor: with no connection the change waits in the queue
+      // and goes out on reconnect, applied as a difference onto whatever is true then.
+      const intent: Intent = {
         type: 'intent',
         character: whom,
         changes,
+        base: base ?? baseFor(snapshot.characters[whom], changes),
+        id: intentId(),
         ...(note === undefined ? {} : { note }),
       };
-      socket.send(JSON.stringify(intent));
+      pending = [...pending, intent];
+      update({ pending: pending.length });
+      if (ready && socket?.readyState === 1) socket.send(JSON.stringify(intent));
     },
     sendRest: (kind) => {
       if (socket?.readyState !== 1) return;
@@ -176,6 +237,16 @@ export function connect(
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'close-session' };
       socket.send(JSON.stringify(message));
+    },
+    setCut: (on) => {
+      if (on === cut) return;
+      cut = on;
+      if (timer !== undefined) window.clearTimeout(timer);
+      if (on) socket?.close();
+      else {
+        attempt = 0;
+        open();
+      }
     },
     disconnect: () => {
       closed = true;

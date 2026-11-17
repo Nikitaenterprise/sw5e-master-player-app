@@ -91,7 +91,8 @@ export type FromServer =
   | EventHappened
   | Sheets
   | Refusal
-  | SessionClosed;
+  | SessionClosed
+  | Ack;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -147,6 +148,8 @@ export interface GameEvent {
   character: string;
   changes: Change[];
   note?: string;
+  /** Id of the intent that made this event, when the client gave one (F-045). */
+  intent?: string;
 }
 
 /** Client → server: an intent to change state. The server decides whether it is allowed. */
@@ -155,6 +158,23 @@ export interface Intent {
   character: string;
   changes: CharacterState;
   note?: string;
+  /**
+   * The values the client saw when the person pressed the button (F-045). With it the
+   * server applies the DIFFERENCE onto the current state instead of overwriting it, so
+   * a GM's −7 and a player's +5 at the same moment both survive.
+   */
+  base?: CharacterState;
+  /**
+   * Client-made id. The client resends an intent until it hears an ack, and the server
+   * applies each id once — so a dropped wifi neither loses nor doubles a change.
+   */
+  id?: string;
+}
+
+/** Server → the sender: the intent with this id is dealt with, do not resend it. */
+export interface Ack {
+  type: 'ack';
+  intent: string;
 }
 
 /** Server → everyone: an event happened. */
@@ -270,8 +290,34 @@ export function parseIntent(data: unknown): Intent | string {
   const changes = o['changes'];
   if (typeof changes !== 'object' || changes === null) return 'немає змін';
 
+  const checked = checkFields(changes as Record<string, unknown>);
+  if (typeof checked === 'string') return checked;
+  if (Object.keys(checked).length === 0) return 'порожній намір';
+
+  const result: Intent = { type: 'intent', character, changes: checked };
+  const note = o['note'];
+  if (note !== undefined && note !== '') result.note = String(note);
+
+  const base = o['base'];
+  if (base !== undefined) {
+    if (typeof base !== 'object' || base === null) return 'базис наміру не обʼєкт';
+    const checkedBase = checkFields(base as Record<string, unknown>);
+    if (typeof checkedBase === 'string') return `базис: ${checkedBase}`;
+    result.base = checkedBase;
+  }
+
+  const id = o['id'];
+  if (id !== undefined) {
+    if (typeof id !== 'string' || id === '' || id.length > 100) return 'негодящий id наміру';
+    result.id = id;
+  }
+  return result;
+}
+
+/** Validates state fields and their values. Returns the checked fields or why not. */
+function checkFields(changes: Record<string, unknown>): CharacterState | string {
   const checked: CharacterState = {};
-  for (const [field, value] of Object.entries(changes as Record<string, unknown>)) {
+  for (const [field, value] of Object.entries(changes)) {
     if (!isStateField(field)) return `поле «${field}» не можна міняти за столом`;
     if (field === 'hitDiceUsed') {
       const problem = checkHitDiceUsed(value);
@@ -293,12 +339,52 @@ export function parseIntent(data: unknown): Intent | string {
       checked[field] = value;
     }
   }
-  if (Object.keys(checked).length === 0) return 'порожній намір';
+  return checked;
+}
 
-  const note = o['note'];
-  return note === undefined || note === ''
-    ? { type: 'intent', character, changes: checked }
-    : { type: 'intent', character, changes: checked, note: String(note) };
+const isMap = (v: StateValue | undefined): v is HitDiceUsed =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * Moves an intent onto the current state (F-045). `wanted` is what the person asked
+ * for, `base` is what they were looking at when they asked; the difference between the
+ * two is the change, and that difference is applied to what is true NOW.
+ *
+ * - numbers: the delta, never below zero (−5 HP stays −5 HP whatever happened since);
+ * - lists: what was added is added, what was removed is removed;
+ * - spent hit dice: the delta per die size;
+ * - yes/no: set only if the person actually flipped it.
+ *
+ * A field missing from `base` is set as asked — the old, absolute behaviour.
+ */
+export function rebase(current: CharacterState, base: CharacterState, wanted: CharacterState): CharacterState {
+  const result: CharacterState = {};
+  for (const [field, to] of Object.entries(wanted) as [StateField, StateValue][]) {
+    const was = base[field];
+    const now = current[field];
+    if (was === undefined) {
+      result[field] = to;
+    } else if (typeof to === 'number' && typeof was === 'number') {
+      result[field] = Math.max(0, (typeof now === 'number' ? now : 0) + (to - was));
+    } else if (typeof to === 'boolean' && typeof was === 'boolean') {
+      if (to !== was) result[field] = to;
+    } else if (Array.isArray(to) && Array.isArray(was)) {
+      const added = to.filter((x) => !was.includes(x));
+      const removed = was.filter((x) => !to.includes(x));
+      const list = Array.isArray(now) ? now : [];
+      result[field] = [...list.filter((x) => !removed.includes(x)), ...added.filter((x) => !list.includes(x))];
+    } else if (isMap(to) && isMap(was)) {
+      const map: HitDiceUsed = { ...(isMap(now) ? now : {}) };
+      for (const size of new Set([...Object.keys(to), ...Object.keys(was)])) {
+        const delta = (to[size] ?? 0) - (was[size] ?? 0);
+        if (delta !== 0) map[size] = Math.max(0, (map[size] ?? 0) + delta);
+      }
+      result[field] = map;
+    } else {
+      result[field] = to;
+    }
+  }
+  return result;
 }
 
 /** Shape check of spent hit dice. Whether the dice exist is the server's call. */
