@@ -10,7 +10,7 @@
 // without touching a single file in state/.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import type { CharacterState, SheetSummary } from '@holotable/protocol';
+import { usedOf, type CharacterState, type HitDiceUsed, type SheetSummary } from '@holotable/protocol';
 import { loadCompendium } from '@holotable/compendium';
 // The engine and the schema are plain source folders, not workspace packages, so they
 // are imported by path. Giving them a package.json would mean a new link in
@@ -79,6 +79,9 @@ function summarize(
     proficiencyBonus: sheet.proficiencyBonus,
     abilityModifiers,
     savingThrows,
+    hitDice: sheet.hitPoints.dice
+      .filter((d) => d.faces > 0)
+      .map((d) => ({ size: `d${d.faces}`, count: d.count })),
     ...(force === undefined
       ? {}
       : { forcePoints: { max: force.points, dcLight: force.saveDC.light ?? force.saveDC.universal, dcDark: force.saveDC.dark ?? force.saveDC.universal } }),
@@ -130,6 +133,20 @@ export function applyRest(plan: RestPlan, current: CharacterState): CharacterSta
     const now = current[field as keyof CharacterState];
     if (typeof now === 'number' && now !== 0) changes[field as 'hitPointsLost'] = 0;
   }
+  if (plan.hitDiceBack > 0) {
+    // Back from the biggest die first: for a multiclass character that is the choice
+    // that heals most. For a single class there is no choice to make.
+    const used: HitDiceUsed = { ...(current.hitDiceUsed as HitDiceUsed | undefined) };
+    let left = plan.hitDiceBack;
+    const sizes = Object.keys(used).sort((a, b) => Number(b.slice(1)) - Number(a.slice(1)));
+    for (const size of sizes) {
+      const back = Math.min(left, usedOf(used, size));
+      if (back === 0) continue;
+      used[size] = usedOf(used, size) - back;
+      left -= back;
+    }
+    if (left < plan.hitDiceBack) changes.hitDiceUsed = used;
+  }
   if (plan.exhaustionDown > 0) {
     const now = current.exhaustion;
     if (typeof now === 'number' && now > 0) {
@@ -137,4 +154,22 @@ export function applyRest(plan: RestPlan, current: CharacterState): CharacterSta
     }
   }
   return changes;
+}
+
+/**
+ * Whether the spent hit dice fit the character: a size they have, no more than they
+ * have. Returns why not, or null. The protocol checks the shape; only the server knows
+ * the sheet.
+ */
+export function checkHitDice(summary: SheetSummary | undefined, value: HitDiceUsed): string | null {
+  if (summary === undefined) return 'для цього персонажа немає обчисленого листа';
+  for (const [size, used] of Object.entries(value)) {
+    const have = summary.hitDice.find((d) => d.size === size);
+    if (have === undefined) {
+      if (used === 0) continue;
+      return `у персонажа немає кубиків здоровʼя ${size}`;
+    }
+    if (used > have.count) return `кубиків здоровʼя ${size} лише ${have.count}`;
+  }
+  return null;
 }

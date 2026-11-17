@@ -107,12 +107,19 @@ export const STATE_FIELDS = [
   'exhaustion',
   'hasInspiration',
   'conditions',
+  'hitDiceUsed',
 ] as const;
 
 export type StateField = (typeof STATE_FIELDS)[number];
 
+/**
+ * Spent hit dice, per die size: {"d8": 1}. The sw5e.com format keeps them as a map
+ * because a multiclass character has dice of several sizes (ADR 0001: kept as is).
+ */
+export type HitDiceUsed = Record<string, number>;
+
 /** The values these fields can take. */
-export type StateValue = number | boolean | string[];
+export type StateValue = number | boolean | string[] | HitDiceUsed;
 
 /** Character state — a subset of currentStats in the sw5e.com format (ADR 0001). */
 export type CharacterState = Partial<Record<StateField, StateValue>>;
@@ -174,6 +181,8 @@ export interface SheetSummary {
   proficiencyBonus: number;
   abilityModifiers: Record<string, number>;
   savingThrows: Record<string, number>;
+  /** Hit dice the character has in total, per die size — the level, split by class. */
+  hitDice: { size: string; count: number }[];
   /** Pools the GM watches. Absent when the character has none. */
   forcePoints?: { max: number; dcLight: number; dcDark: number };
   techPoints?: { max: number; dc: number };
@@ -264,7 +273,11 @@ export function parseIntent(data: unknown): Intent | string {
   const checked: CharacterState = {};
   for (const [field, value] of Object.entries(changes as Record<string, unknown>)) {
     if (!isStateField(field)) return `поле «${field}» не можна міняти за столом`;
-    if (field === 'conditions') {
+    if (field === 'hitDiceUsed') {
+      const problem = checkHitDiceUsed(value);
+      if (problem !== null) return problem;
+      checked[field] = value as HitDiceUsed;
+    } else if (field === 'conditions') {
       if (!Array.isArray(value) || value.some((z) => typeof z !== 'string')) {
         return 'умови мусять бути списком рядків';
       }
@@ -286,6 +299,26 @@ export function parseIntent(data: unknown): Intent | string {
   return note === undefined || note === ''
     ? { type: 'intent', character, changes: checked }
     : { type: 'intent', character, changes: checked, note: String(note) };
+}
+
+/** Shape check of spent hit dice. Whether the dice exist is the server's call. */
+export function checkHitDiceUsed(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return 'кубики здоровʼя мусять бути мапою «розмір → витрачено»';
+  }
+  for (const [size, used] of Object.entries(value as Record<string, unknown>)) {
+    if (!/^d\d+$/.test(size)) return `«${size}» — не розмір кубика`;
+    if (typeof used !== 'number' || !Number.isInteger(used) || used < 0) {
+      return `витрачених кубиків ${size} мусить бути ціле невідʼємне число`;
+    }
+  }
+  return null;
+}
+
+/** Spent dice of one size; an absent size means none spent. */
+export function usedOf(value: StateValue | undefined, size: string): number {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 0;
+  return value[size] ?? 0;
 }
 
 /** Server-side check of a rest message. Returns the message or why it was refused. */

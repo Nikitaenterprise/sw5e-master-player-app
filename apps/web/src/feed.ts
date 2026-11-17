@@ -92,6 +92,10 @@ export function valueText(value: StateValue | undefined): string {
   if (value === undefined) return '—';
   if (typeof value === 'boolean') return value ? 'так' : 'ні';
   if (Array.isArray(value)) return value.length === 0 ? 'немає' : value.join(', ');
+  if (typeof value === 'object') {
+    const parts = Object.entries(value).filter(([, n]) => n > 0).map(([size, n]) => `${size}: ${n}`);
+    return parts.length === 0 ? 'жодного' : parts.join(', ');
+  }
   return String(value);
 }
 
@@ -112,6 +116,7 @@ export function undoOf(row: FeedRow): CharacterState {
   if (row.from !== undefined) return { [row.field]: row.from };
   if (row.field === 'hasInspiration') return { [row.field]: false };
   if (row.field === 'conditions') return { [row.field]: [] };
+  if (row.field === 'hitDiceUsed') return { [row.field]: {} };
   return { [row.field]: 0 };
 }
 

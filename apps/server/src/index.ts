@@ -22,7 +22,7 @@ import {
 } from '@holotable/protocol';
 import { Log } from './log.js';
 import { State } from './state.js';
-import { computeSummaries, computeRestPlans, applyRest } from './sheets.js';
+import { computeSummaries, computeRestPlans, applyRest, checkHitDice } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
@@ -252,6 +252,14 @@ export async function start(
             type: 'refused',
             reason: `це не твій персонаж: ти ${who.character}, а зміна для ${intent.character}`,
           });
+          return;
+        }
+      }
+
+      if (intent.changes.hitDiceUsed !== undefined) {
+        const problem = checkHitDice(sheets[intent.character], intent.changes.hitDiceUsed as Record<string, number>);
+        if (problem !== null) {
+          send(socket, { type: 'refused', reason: problem });
           return;
         }
       }

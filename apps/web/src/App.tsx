@@ -8,6 +8,8 @@ import {
   type Controls,
 } from './connection.js';
 import { name, LABELS } from './characters.js';
+import { spendHitDie, rollHint } from './hitDice.js';
+import { usedOf } from '@holotable/protocol';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, type FeedRow,
 } from './feed.js';
@@ -83,7 +85,7 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-037. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 1 · F-044. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
@@ -121,11 +123,20 @@ function PlayerSheet({
   const sendChange = (changes: CharacterState): void => {
     controls.current?.sendChange(character, changes);
   };
+  const sheet = snapshot.sheets[character];
 
   return (
     <section>
       <h2>Мій стан</h2>
       <Managed state={state} sendChange={sendChange} />
+      {sheet !== undefined && sheet.hitDice.length > 0 && (
+        <HitDice
+          state={state}
+          dice={sheet.hitDice}
+          constitutionModifier={sheet.abilityModifiers['Constitution'] ?? 0}
+          send={(changes, note) => controls.current?.sendChange(character, changes, note)}
+        />
+      )}
     </section>
   );
 }
@@ -233,6 +244,93 @@ function Managed({
 }
 
 /**
+ * Hit dice (F-044). The player spends one at the end of a short rest: rolls it by hand,
+ * types what came up, and the app adds Constitution and heals. One message carries both
+ * the spent die and the healed hit points, so the log never holds one without the other.
+ */
+export function HitDice({
+  state,
+  dice,
+  constitutionModifier,
+  send,
+}: {
+  state: CharacterState;
+  dice: { size: string; count: number }[];
+  constitutionModifier: number;
+  send: (changes: CharacterState, note?: string) => void;
+}): JSX.Element {
+  const [rolling, setRolling] = useState<string | null>(null);
+  const [roll, setRoll] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const submit = (size: string, count: number): void => {
+    const result = spendHitDie(state, size, count, Number(roll), constitutionModifier);
+    if (typeof result === 'string') {
+      setProblem(result);
+      return;
+    }
+    send(result.changes, result.note);
+    setRolling(null);
+    setRoll('');
+    setProblem(null);
+  };
+
+  return (
+    <div className="hit-dice">
+      <h3>Кубики здоровʼя</h3>
+      {dice.map(({ size, count }) => {
+        const used = usedOf(state.hitDiceUsed, size);
+        const left = Math.max(0, count - used);
+        return (
+          <div key={size} className="state-row">
+            <span className="label">{size}</span>
+            <b className="value">
+              {left}
+              <i>/{count}</i>
+            </b>
+            <span className="buttons">
+              <button
+                type="button"
+                disabled={left === 0}
+                onClick={() => {
+                  setRolling(rolling === size ? null : size);
+                  setProblem(null);
+                }}
+              >
+                витратити
+              </button>
+            </span>
+            {rolling === size && (
+              <form
+                className="add roll"
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  submit(size, count);
+                }}
+              >
+                <span className="hint">{rollHint(size, constitutionModifier)}</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={Number(size.slice(1))}
+                  value={roll}
+                  onChange={(ev) => setRoll(ev.target.value)}
+                  aria-label={`Що випало на ${size}`}
+                  autoFocus
+                />
+                <button type="submit">лікуватись</button>
+                {problem !== null && <span className="refusal">{problem}</span>}
+              </form>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
  * The rest buttons. One announcement at the table is one button here, for everyone.
  *
  * What a rest gives back is not the same for everyone, and the app does not guess: the
@@ -250,11 +348,12 @@ function Rests({ rest }: { rest: (kind: 'short' | 'long') => void }): JSX.Elemen
         </button>
         <button type="button" onClick={() => rest('long')}>
           Довгий
-          <small>ХП, усі пули, виснаження −1</small>
+          <small>ХП, усі пули, половина кубиків здоровʼя, виснаження −1</small>
         </button>
       </div>
       <p className="hint">
-        Кубики здоровʼя лишаються гравцям: скільки витратити й що випало — вирішують вони.
+        Кубики здоровʼя витрачають гравці: скільки й що випало — вирішують вони.
+        Довгий відпочинок повертає половину від усіх (мінімум один).
       </p>
     </section>
   );
@@ -491,6 +590,15 @@ export function Card({
             note={sheet.superiority.size}
           />
         )}
+        {sheet.hitDice.map((d) => (
+          <Pool
+            key={d.size}
+            label="Кубики ХП"
+            left={Math.max(0, d.count - usedOf(state.hitDiceUsed, d.size))}
+            max={d.count}
+            note={d.size}
+          />
+        ))}
         {exhaustion > 0 && <Pool label="Виснаження" left={exhaustion} max={6} note="рівнів" />}
       </div>
 

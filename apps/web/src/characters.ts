@@ -24,4 +24,5 @@ export const LABELS: Record<StateField, string> = {
   exhaustion: 'Виснаження',
   hasInspiration: 'Натхнення',
   conditions: 'Умови',
+  hitDiceUsed: 'Витрачено кубиків здоровʼя',
 };

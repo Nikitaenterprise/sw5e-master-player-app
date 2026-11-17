@@ -37,11 +37,17 @@ export interface RestPlan {
   zeroed: string[];
   /** Exhaustion goes down by this much, never below zero. Zero means untouched. */
   exhaustionDown: number;
+  /** Spent hit dice that come back, at most. Zero means untouched. */
+  hitDiceBack: number;
   /** What was restored and why, in words, for the GM. */
   notes: string[];
   /** Pools the engine refused to restore because no text said it could. */
   warnings: string[];
 }
+
+/** The sentence in rule/phb-adventuring that says what a long rest gives back. */
+export const LONG_REST_HIT_DICE =
+  /regains spent Hit Dice, up to a number of dice equal to half of the character's total number of them \(minimum of one\)/;
 
 const RECOVERY_SENTENCE =
   /You regain all (?:of your )?(?:expended|spent) (force points|tech points|superiority dice) when you finish an? ([a-z ]+?) rest/i;
@@ -145,5 +151,22 @@ export function restPlan(sheet: ComputedSheet, compendium: Compendium, kind: Res
   const exhaustionDown = kind === 'long' ? 1 : 0;
   if (exhaustionDown > 0) notes.push('виснаження −1, якщо персонаж їв і пив');
 
-  return { kind, zeroed, exhaustionDown, notes, warnings };
+  // Hit dice: spending them is the player's choice and roll, but getting them back is
+  // the book's rule — half of the total, at least one. Read from the rule, not assumed.
+  let hitDiceBack = 0;
+  if (kind === 'long') {
+    const total = sheet.hitPoints.dice.reduce((sum, d) => sum + d.count, 0);
+    const body = compendium.get('rule', 'phb-adventuring')?.['body'];
+    if (typeof body === 'string' && LONG_REST_HIT_DICE.test(body.replace(/\s+/g, ' '))) {
+      hitDiceBack = Math.max(1, Math.floor(total / 2));
+      notes.push(`кубики здоровʼя: повертається до ${hitDiceBack} витрачених`);
+    } else {
+      warnings.push(
+        'у правилах не знайдено, скільки кубиків здоровʼя повертає довгий відпочинок — ' +
+          'рушій їх не повертає, подивись сам',
+      );
+    }
+  }
+
+  return { kind, zeroed, exhaustionDown, hitDiceBack, notes, warnings };
 }
