@@ -48,6 +48,8 @@ export interface Welcome {
   clients: Client[];
   /** Number of the session being played: the NN in state/events/session-NN.jsonl. */
   session: number;
+  /** Present when this is the four-screen demo: nothing here touches real sessions. */
+  demo?: boolean;
 }
 
 /** What happened to the git commit when a session was closed. */

@@ -26,6 +26,8 @@ export interface Snapshot {
   session: number;
   /** The last session closing, with whether git saved it (F-024). */
   lastClosed: SessionClosed | null;
+  /** The four-screen demo: changes go to a throwaway log (F-037). */
+  demo: boolean;
 }
 
 export const EMPTY: Snapshot = {
@@ -38,6 +40,7 @@ export const EMPTY: Snapshot = {
   refusal: null,
   session: 0,
   lastClosed: null,
+  demo: false,
 };
 
 /** Reads role and character from the URL: ?as=gm or ?as=player&character=krinzh-dor */
@@ -110,6 +113,7 @@ export function connect(
             me: m.me,
             clients: m.clients,
             session: typeof m.session === 'number' ? m.session : 0,
+            demo: m.demo === true,
           });
           break;
         case 'clients':

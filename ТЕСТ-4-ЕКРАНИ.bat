@@ -21,6 +21,7 @@ echo   Відкриється одне вікно, сітка 2x2: майсте�
 echo   Усі на тому самому сервері. Тисни "відключити" в будь-якій панелі -
 echo   решта має це побачити одразу.
 echo.
+set HOLOTABLE_DEMO=1
 set HOLOTABLE_OPEN=/demo.html
 call npm start
 pause

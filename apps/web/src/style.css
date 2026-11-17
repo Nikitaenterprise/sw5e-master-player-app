@@ -232,3 +232,10 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   font-size: .85rem;
 }
+
+/* ── Demo banner (F-037) ───────────────────────────────────────────────── */
+.demo-banner {
+  margin: 0; padding: .45rem .8rem; border-radius: .45rem; font-size: .8rem;
+  border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--muted);
+}

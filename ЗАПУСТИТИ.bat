@@ -16,6 +16,7 @@ if not exist "node_modules\@holotable\protocol" (
   pause
   exit /b 1
 )
+set HOLOTABLE_DEMO=
 set HOLOTABLE_OPEN=/?as=gm
 call npm start
 pause

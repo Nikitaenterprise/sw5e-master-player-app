@@ -6,6 +6,7 @@
 // devices on the local network see the same thing in real time.
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
+import { rmSync } from 'node:fs';
 import { join, normalize, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -65,7 +66,31 @@ export interface Options {
    */
   repoDir?: string;
   stateDir?: string;
+  /**
+   * Demo mode (F-037): the four-screen demo writes into its own throwaway log and never
+   * commits, so acceptance clicks do not take up real session numbers.
+   */
+  demo?: boolean;
 }
+
+/**
+ * Where the demo keeps its log: inside .cache/, which git ignores. Wiped on every demo
+ * start, so the owner always accepts features against the same numbers — the ones in
+ * the source exports.
+ */
+export function demoEventsDir(root: string): string {
+  return join(root, '.cache', 'demo', 'events');
+}
+
+/** Options for a demo run: a fresh, empty demo log. */
+export function demoOptions(root: string): Options {
+  const eventsDir = demoEventsDir(root);
+  rmSync(eventsDir, { recursive: true, force: true });
+  return { demo: true, eventsDir };
+}
+
+/** Said to the GM when the demo's session is closed: nothing went to git, on purpose. */
+export const DEMO_NOT_SAVED = 'це демо — у git не зберігається, справжні сесії не зачеплені';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..');
 
@@ -87,6 +112,7 @@ export async function start(
   const repoDir = options.repoDir ?? ROOT;
   const stateDir = options.stateDir ?? join(ROOT, 'state');
   let closing = false;
+  const demo = options.demo === true;
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -136,7 +162,13 @@ export async function start(
           since: Date.now(),
           socket,
         });
-        send(socket, { type: 'welcome', me: id, clients: list(), session: log.sessionNumber });
+        send(socket, {
+          type: 'welcome',
+          me: id,
+          clients: list(),
+          session: log.sessionNumber,
+          ...(demo ? { demo: true } : {}),
+        });
         send(socket, { type: 'state', characters: state.all() });
         send(socket, { type: 'sheets', sheets });
         broadcastClients();
@@ -190,7 +222,10 @@ export async function start(
         const closed = log.sessionNumber;
         const events = log.read().events.length;
         const opened = log.next();
-        void commitState(repoDir, stateDir, sessionCommitMessage(closed, events))
+        const saving = demo
+          ? Promise.resolve({ saved: false as const, reason: DEMO_NOT_SAVED })
+          : commitState(repoDir, stateDir, sessionCommitMessage(closed, events));
+        void saving
           .catch((error: unknown) => ({ saved: false as const, reason: String(error) }))
           .then((save) => {
             closing = false;
@@ -320,11 +355,16 @@ async function serveFile(
 /** Command-line entry: start the server and print how to connect to it. */
 export async function main(): Promise<void> {
   const port = Number(process.env['HOLOTABLE_PORT'] ?? DEFAULT_PORT);
-  const server = await start(port);
+  const demo = process.env['HOLOTABLE_DEMO'] === '1';
+  const server = await start(port, demo ? demoOptions(ROOT) : {});
   const address = localAddress();
 
   console.log('');
   console.log('  Сервер працює.');
+  if (demo) {
+    console.log('  Це ДЕМО: зміни йдуть в окремий журнал і зникають при наступному запуску.');
+    console.log('  Справжні сесії в state/events/ не зачеплені.');
+  }
   console.log('');
   console.log(`  Екран майстра:   http://localhost:${server.port}/?as=gm`);
   if (address === null) {

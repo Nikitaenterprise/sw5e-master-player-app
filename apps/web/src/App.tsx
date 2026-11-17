@@ -33,6 +33,8 @@ export function App(): JSX.Element {
         <Indicator snapshot={snapshot} />
       </header>
 
+      {snapshot.demo && <DemoBanner />}
+
       {snapshot.refusal !== null && <p className="refusal">{snapshot.refusal}</p>}
 
       {gm ? (
@@ -81,7 +83,7 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-024. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 1 · F-037. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
@@ -255,6 +257,16 @@ function Rests({ rest }: { rest: (kind: 'short' | 'long') => void }): JSX.Elemen
         Кубики здоровʼя лишаються гравцям: скільки витратити й що випало — вирішують вони.
       </p>
     </section>
+  );
+}
+
+/** Shown on every demo screen, so nobody mistakes demo clicks for the real session. */
+export function DemoBanner(): JSX.Element {
+  return (
+    <p className="demo-banner">
+      ДЕМО · зміни йдуть в окремий журнал і зникають при наступному запуску.
+      Справжні сесії не зачеплені.
+    </p>
   );
 }
 
