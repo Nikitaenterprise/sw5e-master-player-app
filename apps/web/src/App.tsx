@@ -3,6 +3,9 @@ import type { CharacterState, GameEvent, SessionClosed, SheetSummary } from '@ho
 import {
   connect,
   roleFromUrl,
+  withQueued,
+  queuedFields,
+  baseFor,
   EMPTY,
   type Snapshot,
   type Controls,
@@ -152,7 +155,10 @@ function PlayerSheet({
       </section>
     );
   }
-  const state = snapshot.characters[character];
+  // What the player sees includes what they pressed and the server has not confirmed
+  // yet (F-046) — with no wifi the number still moves, marked as not sent.
+  const state = withQueued(snapshot.characters[character], snapshot.queued, character);
+  const waiting = queuedFields(snapshot.queued, character);
   if (state === undefined) {
     return (
       <section>
@@ -160,21 +166,24 @@ function PlayerSheet({
       </section>
     );
   }
+  // The base is the very state this render computed the new number from — not whatever
+  // the connection holds by the time the click lands — so taps faster than a re-render
+  // each count once.
   const sendChange = (changes: CharacterState): void => {
-    controls.current?.sendChange(character, changes);
+    controls.current?.sendChange(character, changes, undefined, baseFor(state, changes));
   };
   const sheet = snapshot.sheets[character];
 
   return (
     <section>
       <h2>Мій стан</h2>
-      <Managed state={state} sendChange={sendChange} />
+      <Managed state={state} waiting={waiting} sendChange={sendChange} />
       {sheet !== undefined && sheet.hitDice.length > 0 && (
         <HitDice
           state={state}
           dice={sheet.hitDice}
           constitutionModifier={sheet.abilityModifiers['Constitution'] ?? 0}
-          send={(changes, note) => controls.current?.sendChange(character, changes, note)}
+          send={(changes, note) => controls.current?.sendChange(character, changes, note, baseFor(state, changes))}
         />
       )}
     </section>
@@ -191,11 +200,14 @@ const STEPS: Array<{ field: 'hitPointsLost' | 'temporaryHitPoints' | 'forcePoint
   { field: 'exhaustion', steps: [-1, 1] },
 ];
 
-function Managed({
+export function Managed({
   state,
+  waiting = new Set(),
   sendChange,
 }: {
   state: CharacterState;
+  /** Fields with a change the server has not confirmed yet. */
+  waiting?: Set<string>;
   sendChange: (changes: CharacterState) => void;
 }): JSX.Element {
   const [fresh, setFresh] = useState('');
@@ -217,9 +229,9 @@ function Managed({
       {STEPS.map(({ field, steps }) => {
         const now = typeof state[field] === 'number' ? (state[field] as number) : 0;
         return (
-          <div key={field} className="state-row">
+          <div key={field} className={`state-row${waiting.has(field) ? ' waiting' : ''}`}>
             <span className="label">{LABELS[field]}</span>
-            <b className="value">{now}</b>
+            <b className="value" title={waiting.has(field) ? 'ще не надіслано' : undefined}>{now}</b>
             <span className="buttons">
               {steps.map((step) => (
                 <button

@@ -146,9 +146,12 @@ describe('F-045 · жодна натиснута зміна не губитьс�
     const before = server.state.one('alister')?.hitPointsLost as number;
     const { controls, now } = realClient(server.port, 'alister');
     await until(() => now()?.characters['alister'] !== undefined);
-    // Faster than any echo: every tap sees the same number on screen.
+    // Faster than any echo or re-render: every tap sees the same number on screen, and
+    // the sheet sends what it saw as the base (F-046 made that explicit).
     const seen = now().characters['alister']?.hitPointsLost as number;
-    for (let i = 0; i < 10; i += 1) controls.sendChange('alister', { hitPointsLost: seen + 1 });
+    for (let i = 0; i < 10; i += 1) {
+      controls.sendChange('alister', { hitPointsLost: seen + 1 }, undefined, { hitPointsLost: seen });
+    }
     await until(() => now().pending === 0 && logOf(o).length === 10);
     expect(server.state.one('alister')?.hitPointsLost).toBe(before + 10);
   });
@@ -166,8 +169,9 @@ describe('F-045 · жодна натиснута зміна не губитьс�
     server = null;
     await until(() => now().connection.status !== 'online');
     const seen = now().characters['sandra-vong']?.hitPointsLost as number;
-    controls.sendChange('sandra-vong', { hitPointsLost: seen + 5 });
-    controls.sendChange('sandra-vong', { hitPointsLost: seen + 5 });
+    // Two taps before the screen re-rendered: both computed from the same number.
+    controls.sendChange('sandra-vong', { hitPointsLost: seen + 5 }, undefined, { hitPointsLost: seen });
+    controls.sendChange('sandra-vong', { hitPointsLost: seen + 5 }, undefined, { hitPointsLost: seen });
     expect(now().pending, 'на екрані видно, що дві зміни не надіслано').toBe(2);
 
     // Meanwhile the GM healed her by 3 (the server is back; the phone is not yet).

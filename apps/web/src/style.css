@@ -274,3 +274,7 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
   border-radius: .35rem; font: inherit; font-size: .72rem; padding: .15rem .45rem; cursor: pointer;
 }
 .mode-switch button.on { color: var(--text); border-color: var(--accent); }
+
+/* ── Changes not confirmed yet (F-046) ─────────────────────────────────── */
+.state-row.waiting { border-style: dashed; }
+.state-row.waiting .value { color: var(--muted); font-style: italic; }

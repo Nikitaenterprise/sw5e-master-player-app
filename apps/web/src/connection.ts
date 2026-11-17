@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import type { CharacterState, Client, FromServer, GameEvent, Intent, Role, SessionClosed, SheetSummary, StateField, ToServer } from '@holotable/protocol';
+import { rebase, type CharacterState, type Client, type FromServer, type GameEvent, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -32,6 +32,8 @@ export interface Snapshot {
   demo: boolean;
   /** Changes pressed but not yet confirmed by the server (F-045). */
   pending: number;
+  /** Those changes themselves, oldest first, so the screen can show them at once (F-046). */
+  queued: Intent[];
   /** The owner's glossary of game terms (F-025). Empty until the server sends it. */
   glossary: Record<string, string>;
 }
@@ -48,8 +50,34 @@ export const EMPTY: Snapshot = {
   lastClosed: null,
   demo: false,
   pending: 0,
+  queued: [],
   glossary: {},
 };
+
+/**
+ * A character as this screen should show it (F-046): what the server confirmed, plus
+ * every change pressed here and not yet confirmed, each applied as the difference it
+ * is. With no connection the player still sees their −5 HP at once.
+ */
+export function withQueued(server: CharacterState | undefined, queued: Intent[], character: string): CharacterState | undefined {
+  if (server === undefined) return undefined;
+  let shown: CharacterState = { ...server };
+  for (const intent of queued) {
+    if (intent.character !== character) continue;
+    shown = { ...shown, ...rebase(shown, intent.base ?? {}, intent.changes) };
+  }
+  return shown;
+}
+
+/** Fields of this character with a change still waiting for the server. */
+export function queuedFields(queued: Intent[], character: string): Set<StateField> {
+  const fields = new Set<StateField>();
+  for (const intent of queued) {
+    if (intent.character !== character) continue;
+    for (const field of Object.keys(intent.changes) as StateField[]) fields.add(field);
+  }
+  return fields;
+}
 
 /**
  * An intent id. Not crypto.randomUUID: a phone opening http://192.168.x.x is not a
@@ -174,7 +202,7 @@ export function connect(
           break;
         case 'ack':
           pending = pending.filter((i) => i.id !== m.intent);
-          update({ pending: pending.length });
+          update({ pending: pending.length, queued: pending });
           break;
         case 'sheets':
           update({ sheets: m.sheets });
@@ -188,7 +216,12 @@ export function connect(
           update({ glossary: m.terms });
           break;
         case 'event':
+          // Our own change is now in the server's state: drop it from the queue in the
+          // same update, or the screen would count it twice until the ack arrives.
+          if (m.event.intent !== undefined) pending = pending.filter((i) => i.id !== m.event.intent);
           update({
+            pending: pending.length,
+            queued: pending,
             characters: { ...snapshot.characters, [m.event.character]: m.state },
             events: [m.event, ...snapshot.events].slice(0, 100),
             refusal: null,
@@ -231,12 +264,13 @@ export function connect(
         type: 'intent',
         character: whom,
         changes,
-        base: base ?? baseFor(snapshot.characters[whom], changes),
+        // By default relative to what this screen shows, queued changes included.
+        base: base ?? baseFor(withQueued(snapshot.characters[whom], pending, whom), changes),
         id: intentId(),
         ...(note === undefined ? {} : { note }),
       };
       pending = [...pending, intent];
-      update({ pending: pending.length });
+      update({ pending: pending.length, queued: pending });
       if (ready && socket?.readyState === 1) socket.send(JSON.stringify(intent));
     },
     sendRest: (kind) => {
