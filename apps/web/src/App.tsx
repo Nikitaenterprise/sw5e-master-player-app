@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, GameEvent, SessionClosed, SheetSummary } from '@holotable/protocol';
+import type { CharacterState, CombatState, Fighter, GameEvent, SessionClosed, SheetSummary } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, checkInitiativeRoll, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
@@ -72,6 +72,16 @@ export function App(): JSX.Element {
           {editingGlossary ? <a href="/?as=gm">← до екрана майстра</a> : <a href="/?as=gm&view=glossary">Глосарій термінів →</a>}
           <a href="/?as=ref" target="_blank" rel="noreferrer">Довідник →</a>
         </nav>
+      )}
+
+      {gm && !editingGlossary && (
+        <CombatBoard
+          combat={snapshot.combat}
+          start={() => controls.current?.startCombat()}
+          roll={(whom, value) => controls.current?.rollInitiative(whom, value)}
+          move={(direction) => controls.current?.advanceTurn(direction)}
+          end={() => controls.current?.endCombat()}
+        />
       )}
 
       {editingGlossary ? (
@@ -151,7 +161,7 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-025. Наведи на число — побачиш, з чого воно складається; ✎ — ручна правка. Терміни — з глосарію state/i18n/uk/terms.json. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 4 · F-054. Ініціативу кидають руками: впиши, що випало на d20 — модифікатор додасться сам. Наведи на число — побачиш, з чого воно складається; ✎ — ручна правка. Терміни — з глосарію state/i18n/uk/terms.json. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
@@ -216,6 +226,13 @@ function PlayerSheet({
     <section>
       <h2>Мій стан</h2>
       <Managed state={state} waiting={waiting} sendChange={sendChange} />
+      {snapshot.combat !== null && (
+        <MyInitiative
+          combat={snapshot.combat}
+          character={character}
+          roll={(value) => controls.current?.rollInitiative(character, value)}
+        />
+      )}
       {sheet !== undefined && sheet.hitDice.length > 0 && (
         <HitDice
           state={state}
@@ -430,6 +447,196 @@ function ConditionHelp({ name }: { name: string }): JSX.Element {
     <a className="chip-help" href={termUrl('condition', name)} aria-label={`Що таке «${name}»`} {...(brief === undefined ? {} : { title: brief })}>
       ?
     </a>
+  );
+}
+
+/**
+ * The d20 input. The app never rolls: the die is thrown at the table and the person
+ * types what came up. The same check runs here and on the server, so a refusal is seen
+ * before the message leaves the phone.
+ */
+function RollInput({ label, submit }: { label: string; submit: (value: number) => void }): JSX.Element {
+  const [text, setText] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <form
+      className="add roll"
+      onSubmit={(ev) => {
+        ev.preventDefault();
+        const value = text.trim() === '' ? Number.NaN : Number(text);
+        const trouble = checkInitiativeRoll(value);
+        if (trouble !== null) {
+          setProblem(trouble);
+          return;
+        }
+        submit(value);
+        setText('');
+        setProblem(null);
+      }}
+    >
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={INITIATIVE_DIE}
+        value={text}
+        onChange={(ev) => setText(ev.target.value)}
+        aria-label={label}
+        placeholder={`d${INITIATIVE_DIE}`}
+      />
+      <button type="submit">ініціатива</button>
+      {problem !== null && <span className="refusal">{problem}</span>}
+    </form>
+  );
+}
+
+/** One line of the turn order: who, what they rolled, and whether it is their turn. */
+function OrderRow({
+  fighter,
+  current,
+  roll,
+}: {
+  fighter: Fighter;
+  current: boolean;
+  roll: (character: string, value: number) => void;
+}): JSX.Element {
+  return (
+    <li className={`${current ? 'now' : ''}${fighter.total === null ? ' unrolled' : ''}`.trim() || undefined}>
+      <span className="who">{name(fighter.character)}</span>
+      {fighter.total === null ? (
+        <RollInput
+          label={`Кидок ініціативи за ${name(fighter.character)}`}
+          submit={(value) => roll(fighter.character, value)}
+        />
+      ) : (
+        <span className="total">
+          <b>{fighter.total}</b>
+          <small>
+            {fighter.roll} {signed(fighter.modifier)}
+          </small>
+        </span>
+      )}
+      {current && <i className="mark">← хід</i>}
+    </li>
+  );
+}
+
+/**
+ * The fight on the GM's screen (F-054): the turn order, whose turn it is, which round.
+ *
+ * What the app does here is the arithmetic and the bookkeeping — it adds the modifier
+ * from the sheet, sorts the queue and counts the rounds. What it does not do is roll:
+ * every number in this list came out of someone's hand. Equal totals are settled by
+ * Dexterity, so the order is the same on every screen and after every restart.
+ */
+export function CombatBoard({
+  combat,
+  start,
+  roll,
+  move,
+  end,
+}: {
+  combat: CombatState | null;
+  start: () => void;
+  roll: (character: string, value: number) => void;
+  move: (direction: 'next' | 'back') => void;
+  end: () => void;
+}): JSX.Element {
+  if (combat === null) {
+    return (
+      <section className="combat">
+        <h2>Бій</h2>
+        <div className="buttons">
+          <button type="button" onClick={start}>
+            Почати бій
+            <small>партія стає в чергу; далі кожен кидає d20 і вписує, що випало</small>
+          </button>
+        </div>
+      </section>
+    );
+  }
+  const waiting = combat.order.filter((f) => f.total === null);
+  return (
+    <section className="combat on">
+      <h2>Бій · раунд {combat.round}</h2>
+      <ol className="order">
+        {combat.order.map((f) => (
+          <OrderRow key={f.id} fighter={f} current={f.id === combat.turn} roll={roll} />
+        ))}
+      </ol>
+      {waiting.length > 0 && (
+        <p className="hint">
+          Чекаю кидок: {waiting.map((f) => name(f.character)).join(', ')}. Хто не кинув — чергу пропускає;
+          впиши за нього сам, якщо його немає за столом.
+        </p>
+      )}
+      <div className="buttons">
+        <button type="button" onClick={() => move('next')}>
+          Наступний хід
+          <small>після останнього починається новий раунд</small>
+        </button>
+        <button type="button" onClick={() => move('back')}>
+          Крок назад
+          <small>якщо натиснув зарано</small>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (confirm('Завершити бій? Черга зникне, ХП і пули лишаться як є.')) end();
+          }}
+        >
+          Завершити бій
+          <small>черга зникає; ХП, пули й умови не змінюються</small>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The player's side of the fight (F-054): throw the d20, type it, see where you stand.
+ * The big "your turn" screen with the attacks to hand is F-057; here it is one line.
+ */
+export function MyInitiative({
+  combat,
+  character,
+  roll,
+}: {
+  combat: CombatState;
+  character: string;
+  roll: (value: number) => void;
+}): JSX.Element {
+  const mine = combat.order.find((f) => f.character === character);
+  const current = combat.order.find((f) => f.id === combat.turn);
+  return (
+    <div className="my-initiative">
+      <h3>Бій · раунд {combat.round}</h3>
+      {mine === undefined ? (
+        <p className="hint">Тебе в цьому бою немає.</p>
+      ) : mine.total === null ? (
+        <>
+          <p className="hint">
+            Кинь d{INITIATIVE_DIE} і впиши, що випало — додам {signed(mine.modifier)} за ініціативу.
+          </p>
+          <RollInput label={`Що випало на d${INITIATIVE_DIE}`} submit={roll} />
+        </>
+      ) : (
+        <p className="state-row">
+          <span className="label">Твоя ініціатива</span>
+          <b className="value">{mine.total}</b>
+          <small>
+            {mine.roll} {signed(mine.modifier)}
+          </small>
+        </p>
+      )}
+      <p className={current?.character === character ? 'turn-now' : 'hint'}>
+        {current === undefined
+          ? 'Хід ще нічий — чекаємо кидки.'
+          : current.character === character
+            ? 'Зараз твій хід.'
+            : `Зараз хід: ${name(current.character)}.`}
+      </p>
+    </div>
   );
 }
 

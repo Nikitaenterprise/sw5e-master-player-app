@@ -84,6 +84,20 @@ try {
   ok('F-023/F-044 після довгого: ХП повні, кубики повернулись', last.state.hitPointsLost === 0 && last.state.hitDiceUsed.d6 === 0);
   p1.ws.send(JSON.stringify({ type: 'rest', kind: 'long' }));
   ok('F-023 гравцю відпочинок не дозволено', await wait(p1, (g) => g.some((m) => m.type === 'refused' && m.reason === 'відпочинок оголошує майстер')));
+  gm.ws.send(JSON.stringify({ type: 'combat-start' }));
+  ok('F-054 майстер почав бій — у черзі вся партія',
+    await wait(gm, (g) => g.some((m) => m.type === 'combat' && m.combat?.order.length === 5 && m.combat.order.every((f) => f.total === null))));
+  p1.ws.send(JSON.stringify({ type: 'combat-roll', character: 'sandra-vong', roll: 14 }));
+  const rolled = await wait(gm, (g) => g.some((m) => m.type === 'combat' && m.combat?.order.some((f) => f.character === 'sandra-vong' && f.total !== null)));
+  const hers = [...gm.got].reverse().find((m) => m.type === 'combat')?.combat?.order.find((f) => f.character === 'sandra-vong');
+  ok('F-054 кидок гравця + модифікатор із листа', rolled && hers.roll === 14 && hers.total === 14 + sheets['sandra-vong'].initiative, String(hers?.total));
+  p1.ws.send(JSON.stringify({ type: 'combat-turn', direction: 'next' }));
+  ok('F-054 гравець ходом не рухає', await wait(p1, (g) => g.some((m) => m.type === 'refused' && m.reason === 'бій веде майстер')));
+  gm.ws.send(JSON.stringify({ type: 'combat-turn', direction: 'next' }));
+  ok('F-054 хід перейшов до того, хто кинув', await wait(gm, (g) => g.some((m) => m.type === 'combat' && m.combat?.turn === 'sandra-vong')));
+  const midFight = await client({ role: 'gm' });
+  ok('F-054 нова сторінка майстра одразу бачить бій', await wait(midFight, (g) => g.some((m) => m.type === 'combat' && m.combat?.turn === 'sandra-vong')));
+  midFight.ws.close();
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');

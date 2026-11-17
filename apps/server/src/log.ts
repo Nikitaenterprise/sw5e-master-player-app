@@ -6,7 +6,19 @@
 // gives that simple a guarantee for the same price.
 import { appendFileSync, openSync, fsyncSync, closeSync, readFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { GameEvent } from '@holotable/protocol';
+import { isCombatEvent, type CombatEvent, type GameEvent, type LogLine } from '@holotable/protocol';
+
+/**
+ * What a log file holds. State changes and combat lines live in the same file, in the
+ * order they happened, and are handed out apart because they are replayed by different
+ * owners: the character state and the fight (F-054). A line of a kind this version does
+ * not know is simply not handed to anyone, so an older build can read a newer log.
+ */
+export interface LogContents {
+  events: GameEvent[];
+  combat: CombatEvent[];
+  corruptLines: number;
+}
 
 export class Log {
   private currentFile: string;
@@ -66,8 +78,8 @@ export class Log {
    * Synchronous, with fsync, on purpose: a few events per second at the table, so the
    * cost is nil and the guarantee is worth it.
    */
-  append(event: GameEvent): void {
-    appendFileSync(this.file, `${JSON.stringify(event)}\n`, 'utf8');
+  append(line: LogLine): void {
+    appendFileSync(this.file, `${JSON.stringify(line)}\n`, 'utf8');
     const fd = openSync(this.file, 'r+');
     try {
       fsyncSync(fd);
@@ -80,7 +92,7 @@ export class Log {
    * Reads the log. A corrupt last line (cut off by a power outage) is skipped — that
    * is exactly the "at most one lost event" promised above.
    */
-  read(): { events: GameEvent[]; corruptLines: number } {
+  read(): LogContents {
     return Log.readFile(this.file);
   }
 
@@ -89,29 +101,42 @@ export class Log {
    * the party is the sum of all sessions played, not of the last one: closing a
    * session must not hand everyone their hit points back.
    */
-  readAll(): { events: GameEvent[]; corruptLines: number } {
+  readAll(): LogContents {
     const events: GameEvent[] = [];
+    const combat: CombatEvent[] = [];
     let corruptLines = 0;
     for (const n of Log.numbers(this.dir).filter((k) => k <= this.currentNumber)) {
       const part = Log.readFile(Log.fileFor(this.dir, n));
       events.push(...part.events);
+      combat.push(...part.combat);
       corruptLines += part.corruptLines;
     }
-    return { events, corruptLines };
+    return { events, combat, corruptLines };
   }
 
-  private static readFile(file: string): { events: GameEvent[]; corruptLines: number } {
-    if (!existsSync(file)) return { events: [], corruptLines: 0 };
+  private static readFile(file: string): LogContents {
+    if (!existsSync(file)) return { events: [], combat: [], corruptLines: 0 };
     const lines = readFileSync(file, 'utf8').split('\n').filter((r) => r.trim() !== '');
     const events: GameEvent[] = [];
+    const combat: CombatEvent[] = [];
     let corrupt = 0;
     for (const line of lines) {
+      let parsed: LogLine;
       try {
-        events.push(JSON.parse(line) as GameEvent);
+        parsed = JSON.parse(line) as LogLine;
       } catch {
         corrupt += 1;
+        continue;
       }
+      // A line that is valid JSON but says nothing about what it is counts as damaged:
+      // guessing what it meant is how a log stops being a source of truth.
+      if (typeof (parsed as { type?: unknown }).type !== 'string') {
+        corrupt += 1;
+        continue;
+      }
+      if (isCombatEvent(parsed)) combat.push(parsed);
+      else if (parsed.type === 'state.changed') events.push(parsed);
     }
-    return { events, corruptLines: corrupt };
+    return { events, combat, corruptLines: corrupt };
   }
 }

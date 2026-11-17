@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type CharacterState, type Client, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type CharacterState, type Client, type CombatState, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -42,6 +42,8 @@ export interface Snapshot {
   briefs: Record<string, string>;
   /** The last compendium-wide glossary search and what it found (F-052). */
   glossaryFound: { q: string; rows: GlossaryRow[] };
+  /** The fight: order, whose turn, which round. Null when there is none (F-054). */
+  combat: CombatState | null;
 }
 
 export const EMPTY: Snapshot = {
@@ -61,6 +63,7 @@ export const EMPTY: Snapshot = {
   glossaryIndex: [],
   briefs: {},
   glossaryFound: { q: '', rows: [] },
+  combat: null,
 };
 
 /**
@@ -136,6 +139,14 @@ export interface Controls {
   setTerm: (key: string, value: string) => void;
   /** Look for terms anywhere in the compendium, to translate them. GM only (F-052). */
   searchTerms: (q: string) => void;
+  /** Start the fight: the party goes into the turn order. GM only (F-054). */
+  startCombat: () => void;
+  /** Send what came up on a d20. A player may send only their own character's roll. */
+  rollInitiative: (character: string, roll: number) => void;
+  /** Move the turn on, or back when a button was pressed too early. GM only. */
+  advanceTurn: (direction: 'next' | 'back') => void;
+  /** End the fight. The order goes away, nobody's numbers change. GM only. */
+  endCombat: () => void;
   /**
    * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
    * demo's button). The page stays, and so does its queue of unsent changes.
@@ -237,6 +248,11 @@ export function connect(
         case 'glossary-index':
           update({ glossaryIndex: m.rows });
           break;
+        case 'combat':
+          // Always the whole fight, never a patch: the server is the one that knows the
+          // order, and a screen that reconnects mid-fight must not stitch it together.
+          update({ combat: m.combat });
+          break;
         case 'event':
           // Our own change is now in the server's state: drop it from the queue in the
           // same update, or the screen would count it twice until the ack arrives.
@@ -303,6 +319,29 @@ export function connect(
     searchTerms: (q) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'glossary-search', q };
+      socket.send(JSON.stringify(message));
+    },
+    // The fight is not queued the way a change is (F-045): a turn order is only
+    // meaningful live, and a roll typed with no connection would land in a fight that
+    // has since moved on. With no connection these buttons simply do nothing.
+    startCombat: () => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'combat-start' };
+      socket.send(JSON.stringify(message));
+    },
+    rollInitiative: (whom, roll) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'combat-roll', character: whom, roll };
+      socket.send(JSON.stringify(message));
+    },
+    advanceTurn: (direction) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'combat-turn', direction };
+      socket.send(JSON.stringify(message));
+    },
+    endCombat: () => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'combat-end' };
       socket.send(JSON.stringify(message));
     },
     setTerm: (key, value) => {

@@ -15,6 +15,8 @@ import {
   parseHello,
   parseIntent,
   parseRest,
+  parseCombatRoll,
+  parseCombatTurn,
   type Author,
   type Client,
   type FromServer,
@@ -27,6 +29,7 @@ import {
 } from '@holotable/protocol';
 import { Log } from './log.js';
 import { State } from './state.js';
+import { CombatTracker } from './combat.js';
 import { computeSummaries, computeRestPlans, applyRest, checkHitDice } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
@@ -142,6 +145,8 @@ export async function start(
   let termIndex = buildTermIndex(compendium, sheets, SKILLS, glossary.terms, catalog);
   // A few lines from the book per term, for hover hints (F-051). Computed once.
   const briefs = buildBriefs(compendium, termIndex, glossary.terms);
+  // The fight (F-054): replayed from the log, so a restart mid-combat changes nothing.
+  const combat = new CombatTracker(log, sheets);
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -237,6 +242,8 @@ export async function start(
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
         send(socket, { type: 'briefs', briefs });
+        // The fight comes with the greeting: a reloaded page must not lose the queue.
+        send(socket, { type: 'combat', combat: combat.view() });
         // The GM's feed comes from the log, not from what this page happened to see.
         if (hello.role === 'gm') {
           send(socket, { type: 'history', events: log.read().events.slice(-HISTORY_LIMIT) });
@@ -248,6 +255,61 @@ export async function start(
 
       const who = connected.get(id);
       if (who === undefined) return;
+
+      const authorOf = (): Author => ({
+        kind: who.role === 'gm' ? 'gm' : 'player',
+        id: who.id,
+        ...(who.character === undefined ? {} : { character: who.character }),
+      });
+      const kind = (data as { type?: unknown }).type;
+
+      // The fight (F-054). The GM runs it: starts it, moves the turn, ends it. A roll is
+      // the one thing a player sends, and only for their own character — with the GM
+      // able to type it for whoever is not at the table.
+      if (kind === 'combat-start' || kind === 'combat-turn' || kind === 'combat-end') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'бій веде майстер' });
+          return;
+        }
+        let result: ReturnType<CombatTracker['move']>;
+        if (kind === 'combat-start') {
+          result = combat.start(authorOf(), state.slugs());
+        } else if (kind === 'combat-end') {
+          result = combat.end(authorOf());
+        } else {
+          const turn = parseCombatTurn(data);
+          if (typeof turn === 'string') {
+            send(socket, { type: 'refused', reason: turn });
+            return;
+          }
+          result = combat.move(authorOf(), turn.direction);
+        }
+        if (typeof result === 'string') {
+          send(socket, { type: 'refused', reason: result });
+          return;
+        }
+        broadcastAll({ type: 'combat', combat: combat.view() });
+        return;
+      }
+
+      if (kind === 'combat-roll') {
+        const parsed = parseCombatRoll(data);
+        if (typeof parsed === 'string') {
+          send(socket, { type: 'refused', reason: parsed });
+          return;
+        }
+        if (who.role === 'player' && who.character !== parsed.character) {
+          send(socket, { type: 'refused', reason: 'ініціативу кидає власник персонажа або майстер' });
+          return;
+        }
+        const rolled = combat.roll(authorOf(), parsed.character, parsed.roll);
+        if (typeof rolled === 'string') {
+          send(socket, { type: 'refused', reason: rolled });
+          return;
+        }
+        broadcastAll({ type: 'combat', combat: combat.view() });
+        return;
+      }
 
       // A rest is one announcement at the table, so it is one message for the whole
       // party — and only the GM gets to make it.

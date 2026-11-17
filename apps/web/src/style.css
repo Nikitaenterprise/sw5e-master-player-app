@@ -402,3 +402,39 @@ a.ref-link:hover { color: var(--accent); }
 }
 .ref-facts a { color: var(--accent); }
 .chip-pair { display: inline-flex; align-items: center; gap: .1rem; }
+
+/* ── Combat: initiative and whose turn (F-054) ─────────────────────────── */
+.combat .buttons { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .5rem; }
+.combat button {
+  flex: 1 1 10rem; display: flex; flex-direction: column; gap: .2rem; align-items: flex-start;
+  background: var(--panel); border: 1px solid var(--border); border-radius: .5rem;
+  padding: .6rem .8rem; color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+}
+.combat button:hover { border-color: var(--accent); }
+.combat button small { font-weight: 400; font-size: .7rem; color: var(--muted); }
+.combat .order { counter-reset: turn; display: flex; flex-direction: column; gap: .25rem; }
+.combat .order li {
+  display: flex; align-items: center; gap: .6rem; padding: .4rem .7rem;
+  background: var(--panel); border: 1px solid var(--border); border-radius: .4rem;
+}
+.combat .order li::before {
+  counter-increment: turn; content: counter(turn); color: var(--muted);
+  font-size: .75rem; min-width: 1rem; text-align: right;
+}
+.combat .order .who { flex: 1; min-width: 7rem; }
+.combat .order .total { display: flex; align-items: baseline; gap: .35rem; font-variant-numeric: tabular-nums; }
+.combat .order .total b { font-size: 1.1rem; }
+.combat .order .total small { color: var(--muted); font-size: .72rem; }
+.combat .order li.now { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.combat .order li.now .who { font-weight: 600; }
+.combat .order .mark { font-style: normal; color: var(--accent); font-size: .78rem; white-space: nowrap; }
+.combat .order li.unrolled { opacity: .85; }
+.combat .order li.unrolled .who { color: var(--muted); }
+.combat .order .add.roll { display: flex; gap: .3rem; align-items: center; }
+.combat .order .add.roll input { flex: 0 0 4.5rem; width: 4.5rem; }
+.my-initiative { margin-top: .8rem; padding-top: .6rem; border-top: 1px solid var(--border); }
+.my-initiative h3 { margin: 0 0 .4rem; font-size: .95rem; }
+.my-initiative .add.roll { display: flex; gap: .4rem; align-items: center; margin-top: .3rem; }
+.my-initiative .add.roll input { flex: 0 0 6rem; width: 6rem; }
+.my-initiative .state-row small { color: var(--muted); font-size: .75rem; }
+.my-initiative .turn-now { color: var(--accent); font-weight: 600; margin: .4rem 0 0; }

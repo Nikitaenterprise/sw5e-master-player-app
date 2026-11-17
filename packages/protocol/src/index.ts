@@ -52,7 +52,17 @@ export interface GlossarySearch {
   q: string;
 }
 
-export type ToServer = Hello | Intent | Rest | CloseSession | GlossarySet | GlossarySearch;
+export type ToServer =
+  | Hello
+  | Intent
+  | Rest
+  | CloseSession
+  | GlossarySet
+  | GlossarySearch
+  | CombatStart
+  | CombatRoll
+  | CombatTurn
+  | CombatEnd;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -110,7 +120,8 @@ export type FromServer =
   | History
   | GlossaryIndex
   | Briefs
-  | GlossaryFound;
+  | GlossaryFound
+  | CombatMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -634,4 +645,186 @@ export function parseRest(data: unknown): Rest | string {
   const kind = o['kind'];
   if (kind !== 'short' && kind !== 'long') return 'відпочинок буває коротким або довгим';
   return { type: 'rest', kind };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Combat (F-054): the turn order, whose turn it is, which round.
+//
+// The app never rolls a die. Initiative is a d20 thrown at the table; the person types
+// what came up and the app adds the modifier, because the modifier is the part people
+// get wrong. Nothing computed is stored (ADR 0003): the log keeps the decisions — the
+// fight began, this is what came up, the GM moved the turn on — and the order itself is
+// rebuilt from the sheets every time it is asked for.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Faces of the initiative die. The roll belongs to the person, the modifier to us. */
+export const INITIATIVE_DIE = 20;
+
+/** One participant of the fight, as the screens see them. */
+export interface Fighter {
+  /** Stable within one fight. For a party member it is the character slug. */
+  id: string;
+  /** Only party members fight so far; enemies from the bestiary arrive with F-055. */
+  kind: 'character';
+  character: string;
+  /** Name for sorting and for a screen that has no name of its own. */
+  name: string;
+  /** Initiative modifier from the sheet — computed on load, never stored. */
+  modifier: number;
+  /** What came up on the d20, as the person typed it. Null until the die is thrown. */
+  roll: number | null;
+  /** roll + modifier, or null while the roll is missing. */
+  total: number | null;
+  /** Dexterity modifier — the tie-break, so an equal total never shuffles by itself. */
+  dexterity: number;
+}
+
+/** The fight itself. Rebuilt from the log, so a reload or a power cut loses nothing. */
+export interface CombatState {
+  round: number;
+  /** Id of the fighter whose turn it is. Null until the first die is thrown. */
+  turn: string | null;
+  /** Everyone in the fight, already in turn order. */
+  order: Fighter[];
+}
+
+/** GM → server: the fight begins. The party goes into the order; rolls come next. */
+export interface CombatStart {
+  type: 'combat-start';
+}
+
+/**
+ * Player → server: what came up on their d20. The GM may send it for whoever is not at
+ * the table — that is one of the reasons the rights are checked per character.
+ */
+export interface CombatRoll {
+  type: 'combat-roll';
+  character: string;
+  roll: number;
+}
+
+/** GM → server: move the turn on, or step back when the button was pressed too early. */
+export interface CombatTurn {
+  type: 'combat-turn';
+  direction: 'next' | 'back';
+}
+
+/** GM → server: the fight is over. The order goes away; hit points stay as they are. */
+export interface CombatEnd {
+  type: 'combat-end';
+}
+
+/** Server → everyone: the fight as it stands, or null when there is no fight. */
+export interface CombatMessage {
+  type: 'combat';
+  combat: CombatState | null;
+}
+
+/** What a combat line of the log can say. */
+export type CombatEventType = 'combat.started' | 'combat.rolled' | 'combat.turn' | 'combat.ended';
+
+/**
+ * A combat line of the log (ADR 0002), living in the same file as the state lines and
+ * appended the same way. It holds decisions only, never the order itself.
+ */
+export interface CombatEvent {
+  id: string;
+  at: number;
+  author: Author;
+  type: CombatEventType;
+  /** combat.started: the party members in the fight, by slug. */
+  characters?: string[];
+  /** combat.rolled: whose initiative it is. */
+  character?: string;
+  /** combat.rolled: the d20 as the person typed it. */
+  roll?: number;
+  /** combat.turn: whose turn it is now, and which round. */
+  turn?: string | null;
+  round?: number;
+}
+
+/** A line of the log: a change of character state, or something in the fight. */
+export type LogLine = GameEvent | CombatEvent;
+
+/** Whether this log line is about the fight. */
+export function isCombatEvent(line: LogLine): line is CombatEvent {
+  return line.type.startsWith('combat.');
+}
+
+/** Checks an initiative roll. Returns why it is no good, or null when it is fine. */
+export function checkInitiativeRoll(roll: unknown): string | null {
+  if (typeof roll !== 'number' || !Number.isInteger(roll) || roll < 1 || roll > INITIATIVE_DIE) {
+    return `на d${INITIATIVE_DIE} випадає від 1 до ${INITIATIVE_DIE}`;
+  }
+  return null;
+}
+
+/** Parses a roll message. Returns the message, or why it was refused. */
+export function parseCombatRoll(data: unknown): CombatRoll | string {
+  if (typeof data !== 'object' || data === null) return 'кидок ініціативи не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'combat-roll') return 'не кидок ініціативи';
+  const character = o['character'];
+  if (typeof character !== 'string' || character === '') return 'не вказано персонажа';
+  const problem = checkInitiativeRoll(o['roll']);
+  if (problem !== null) return problem;
+  return { type: 'combat-roll', character, roll: o['roll'] as number };
+}
+
+/** Parses a turn message: forward, or back when someone pressed too early. */
+export function parseCombatTurn(data: unknown): CombatTurn | string {
+  if (typeof data !== 'object' || data === null) return 'хід не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'combat-turn') return 'не перехід ходу';
+  const direction = o['direction'];
+  if (direction !== 'next' && direction !== 'back') return 'хід рухається вперед або назад';
+  return { type: 'combat-turn', direction };
+}
+
+/**
+ * The turn order. The higher total goes first; an equal total is settled by Dexterity
+ * and then by name, so every screen and every restart put people in the same order
+ * instead of leaving it to chance. Whoever has not rolled waits at the end of the list:
+ * they are in the fight, but not in the rotation until their die is thrown.
+ */
+export function initiativeOrder(fighters: Fighter[]): Fighter[] {
+  return [...fighters].sort((a, b) => {
+    if ((a.total === null) !== (b.total === null)) return a.total === null ? 1 : -1;
+    if (a.total !== null && b.total !== null && a.total !== b.total) return b.total - a.total;
+    if (a.dexterity !== b.dexterity) return b.dexterity - a.dexterity;
+    return a.name.localeCompare(b.name, 'uk');
+  });
+}
+
+/** Fighters actually taking turns: the ones whose die has been thrown. */
+export function rotation(combat: CombatState): Fighter[] {
+  return combat.order.filter((f) => f.total !== null);
+}
+
+/**
+ * Where the turn goes next. Forward past the last fighter starts the next round; back
+ * from the first fighter of round one goes nowhere, because nothing happened before it.
+ * A fighter who has not rolled is skipped — the die decides when they join.
+ */
+export function nextTurn(
+  combat: CombatState,
+  direction: 'next' | 'back',
+): { turn: string | null; round: number } {
+  const queue = rotation(combat);
+  const first = queue[0];
+  const last = queue[queue.length - 1];
+  if (first === undefined || last === undefined) return { turn: null, round: combat.round };
+
+  const at = queue.findIndex((f) => f.id === combat.turn);
+  if (at === -1) return { turn: direction === 'next' ? first.id : last.id, round: combat.round };
+
+  if (direction === 'next') {
+    const ahead = queue[at + 1];
+    return ahead === undefined
+      ? { turn: first.id, round: combat.round + 1 }
+      : { turn: ahead.id, round: combat.round };
+  }
+  const behind = queue[at - 1];
+  if (behind !== undefined) return { turn: behind.id, round: combat.round };
+  return combat.round <= 1 ? { turn: combat.turn, round: 1 } : { turn: last.id, round: combat.round - 1 };
 }
