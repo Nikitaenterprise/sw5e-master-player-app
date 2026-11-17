@@ -100,8 +100,10 @@ Excel з ініціативою, лист корабля в PowerPoint і обм
 
 ## Стек
 
-Node 22, TypeScript, npm workspaces. Сервер: `node:http` + `ws`. Клієнт: Vite + React.
-Тести: Vitest. Пошук: `minisearch`. QR: `qrcode`. Усе на чистому JS — див. ADR 0004.
+Node 22.12+, TypeScript 6, npm workspaces. Сервер: `node:http` + `ws`. Клієнт:
+Vite 8 + React 19. Тести: Vitest 5. Пошук: `minisearch`. QR: `qrcode`. Усе на чистому
+JS — див. ADR 0004. Точні версії й пастки оновлення — у `docs/ПРОГРЕС.md`, розділ
+«Стек і перевірки».
 
 ## Заборонено
 
