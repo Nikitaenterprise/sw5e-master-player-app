@@ -38,6 +38,8 @@ export interface Snapshot {
   glossary: Record<string, string>;
   /** Every term worth translating, for the GM's glossary editor (F-033). */
   glossaryIndex: GlossaryRow[];
+  /** A few lines from the book per term, for hover hints (F-051). */
+  briefs: Record<string, string>;
 }
 
 export const EMPTY: Snapshot = {
@@ -55,6 +57,7 @@ export const EMPTY: Snapshot = {
   queued: [],
   glossary: {},
   glossaryIndex: [],
+  briefs: {},
 };
 
 /**
@@ -219,6 +222,9 @@ export function connect(
           break;
         case 'glossary':
           update({ glossary: m.terms });
+          break;
+        case 'briefs':
+          update({ briefs: m.briefs });
           break;
         case 'glossary-index':
           update({ glossaryIndex: m.rows });

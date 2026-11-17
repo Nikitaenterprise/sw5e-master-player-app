@@ -33,7 +33,7 @@ import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
 import { loadGlossary, saveGlossary } from './glossary.js';
 import { buildTermIndex } from './termIndex.js';
-import { searchReference, presentDoc, resolveTerm } from './reference.js';
+import { searchReference, presentDoc, resolveTerm, buildBriefs } from './reference.js';
 import { loadCompendium, CONTENT_TYPES, type ContentType } from '@holotable/compendium';
 
 const TERM_KINDS: readonly string[] = [
@@ -137,6 +137,8 @@ export async function start(
   // The editor's list of terms: computed once, like the sheets (F-033).
   const compendium = loadCompendium({ root: ROOT });
   const termIndex = buildTermIndex(compendium, sheets, SKILLS, glossary.terms);
+  // A few lines from the book per term, for hover hints (F-051). Computed once.
+  const briefs = buildBriefs(compendium, termIndex, glossary.terms);
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -231,6 +233,7 @@ export async function start(
         send(socket, { type: 'state', characters: state.all() });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
+        send(socket, { type: 'briefs', briefs });
         // The GM's feed comes from the log, not from what this page happened to see.
         if (hello.role === 'gm') {
           send(socket, { type: 'history', events: log.read().events.slice(-HISTORY_LIMIT) });

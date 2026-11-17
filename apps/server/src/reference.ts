@@ -268,3 +268,90 @@ export function presentDoc(doc: CompendiumDoc, glossary: Record<string, string>,
     sections: [...main, ...sections],
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Briefs (F-051): a few lines from the book, shown on hover without leaving the page.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BRIEF_MAX = 420;
+
+/** Markdown down to plain text: no emphasis marks, no heading hashes, lists as lines. */
+export function plain(markdown: string): string {
+  return markdown
+    .replace(/\r\n/g, '\n')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/^\s*[-*•]\s+/gm, '• ')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
+/** At most BRIEF_MAX characters, cut at a sentence end when there is one. */
+export function shorten(text: string, max = BRIEF_MAX): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('.\n'));
+  return `${end > max / 3 ? cut.slice(0, end + 1) : cut.trimEnd()} …`;
+}
+
+/** The text of one section of a rule: under a heading, or the paragraph of a bold run-in. */
+export function sectionText(body: string, anchor: string): string | null {
+  const lines = body.replace(/\r\n/g, '\n').split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = (lines[i] ?? '').trim();
+    const heading = /^(#{1,6})\s+(.+)$/.exec(line);
+    if (heading !== null && anchorOf(heading[2] ?? '') === anchor) {
+      const level = heading[1]?.length ?? 1;
+      const out: string[] = [];
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const next = /^(#{1,6})\s/.exec((lines[j] ?? '').trim());
+        if (next !== null && (next[1]?.length ?? 6) <= level) break;
+        out.push(lines[j] ?? '');
+      }
+      return out.join('\n').trim();
+    }
+    const runIn = /^\*{2,3}([^*]+?)\.?\*{2,3}\s*(.*)$/.exec(line);
+    if (runIn !== null && anchorOf(runIn[1] ?? '') === anchor) return (runIn[2] ?? '').trim();
+  }
+  return null;
+}
+
+/** What the book says about a term, in a few lines; null when there is nothing to say. */
+export function brief(compendium: Compendium, kind: TermKind, english: string, glossary: Record<string, string>): string | null {
+  // A weapon: its properties, each with what it does — the bilingual property hint of the plan.
+  const weapon = kind === 'weapon' ? compendium.get('equipment', english) : undefined;
+  if (weapon !== undefined) {
+    const props = (weapon['properties'] as string[] | undefined) ?? [];
+    const lines = props.map((raw) => {
+      const m = /^([a-z][a-z -]*?)(\s+[\d(].*)?$/i.exec(raw.trim());
+      const prop = compendium.get('weapon-property', m?.[1] ?? raw);
+      if (prop === undefined) return raw;
+      const uk = glossary[termKey('property', prop.name)];
+      const label = uk === undefined ? raw : `${uk} (${m?.[1] ?? raw})${m?.[2] ?? ''}`;
+      return `${label}: ${shorten(plain(String(prop['description'] ?? '')), 160)}`;
+    });
+    return lines.length === 0 ? null : lines.join('\n');
+  }
+  const hit = resolveTerm(compendium, kind, english, glossary);
+  if (hit === null) return null;
+  const doc = compendium.all(hit.type as ContentType).find((d) => d.key === hit.key);
+  if (doc === undefined) return null;
+  const text = hit.anchor !== undefined
+    ? sectionText(String(doc['body'] ?? ''), hit.anchor)
+    : String(doc['description'] ?? doc['body'] ?? doc['lore'] ?? '');
+  return text === null || text.trim() === '' ? null : shorten(plain(text));
+}
+
+/** Briefs for every term the screens can show, keyed like the glossary. Computed once. */
+export function buildBriefs(compendium: Compendium, terms: GlossaryRow[], glossary: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const row of terms) {
+    // Players type conditions freely, and weapon properties appear wherever weapons do,
+    // so every condition and property gets one, not only those on the five sheets.
+    if (!row.onSheets && row.kind !== 'condition' && row.kind !== 'property') continue;
+    const text = brief(compendium, row.kind, row.english, glossary);
+    if (text !== null) out[row.key] = text;
+  }
+  return out;
+}

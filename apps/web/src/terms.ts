@@ -2,7 +2,7 @@
 // Ukrainian only, or English only. The words come from the owner's glossary; the choice of mode
 // is a per-viewer convenience, so it lives in this browser only.
 import { createContext, createElement, useContext, type ReactNode } from 'react';
-import { termUrl, type TermKind, type TermMode } from '@holotable/protocol';
+import { termKey, termUrl, type TermKind, type TermMode } from '@holotable/protocol';
 
 export type Term = (kind: TermKind, english: string) => string;
 
@@ -44,5 +44,24 @@ export const MODE_LABELS: Record<TermMode, string> = {
  * must stay where it is while someone reads a rule.
  */
 export function TermLink({ kind, english, children }: { kind: TermKind; english: string; children: ReactNode }): ReactNode {
-  return createElement('a', { className: 'ref-link', href: termUrl(kind, english), target: '_blank', rel: 'noreferrer' }, children);
+  const brief = useBrief(kind, english);
+  return createElement(
+    'a',
+    {
+      className: 'ref-link',
+      href: termUrl(kind, english),
+      target: '_blank',
+      rel: 'noreferrer',
+      ...(brief === undefined ? {} : { title: brief }),
+    },
+    children,
+  );
+}
+
+/** What the book says about each term, in a few lines (F-051). Empty until the server sends it. */
+export const BriefContext = createContext<Record<string, string>>({});
+
+/** The hover hint for a term, or nothing when the book has no text for it. */
+export function useBrief(kind: TermKind, english: string): string | undefined {
+  return useContext(BriefContext)[termKey(kind, english.trim())];
 }

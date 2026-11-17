@@ -102,7 +102,8 @@ export type FromServer =
   | Ack
   | GlossaryMessage
   | History
-  | GlossaryIndex;
+  | GlossaryIndex
+  | Briefs;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -440,6 +441,15 @@ export interface RefDoc {
 /** Heading anchor inside a rule: "Prone" → "prone", "Exhaustion Level" → "exhaustion-level". */
 export function anchorOf(heading: string): string {
   return heading.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Server → client on connect: a few lines from the book for each term the screens show,
+ * keyed like the glossary (F-051). Shown on hover, without leaving the page.
+ */
+export interface Briefs {
+  type: 'briefs';
+  briefs: Record<string, string>;
 }
 
 /** Address of the reference page a term opens (F-050). The reference finds the document. */

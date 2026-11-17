@@ -14,7 +14,7 @@ import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
 import { usedOf, showTerm, termUrl, type TermMode } from '@holotable/protocol';
-import { TermContext, TermLink, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
+import { BriefContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, type FeedRow,
@@ -49,6 +49,7 @@ export function App(): JSX.Element {
 
   return (
     <TermContext.Provider value={term}>
+    <BriefContext.Provider value={snapshot.briefs}>
     <main className={gm ? 'gm' : 'player'}>
       <header>
         <h1>{header}</h1>
@@ -153,6 +154,7 @@ export function App(): JSX.Element {
         в журнал (ADR 0002).
       </footer>
     </main>
+    </BriefContext.Provider>
     </TermContext.Provider>
   );
 }
@@ -308,7 +310,7 @@ export function Managed({
               >
                 {term('condition', u)} <span aria-hidden="true">×</span>
               </button>
-              <a className="chip-help" href={termUrl('condition', u)} aria-label={`Що таке «${u}»`}>?</a>
+              <ConditionHelp name={u} />
             </span>
           ))}
         </div>
@@ -416,6 +418,16 @@ export function HitDice({
         );
       })}
     </div>
+  );
+}
+
+/** The "?" next to a condition: the rule's text on hover, the rule itself on tap. */
+function ConditionHelp({ name }: { name: string }): JSX.Element {
+  const brief = useBrief('condition', name);
+  return (
+    <a className="chip-help" href={termUrl('condition', name)} aria-label={`Що таке «${name}»`} {...(brief === undefined ? {} : { title: brief })}>
+      ?
+    </a>
   );
 }
 
