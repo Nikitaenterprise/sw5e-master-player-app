@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CharacterState, GameEvent, SheetSummary } from '@holotable/protocol';
+import type { CharacterState, GameEvent, SessionClosed, SheetSummary } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -53,6 +53,14 @@ export function App(): JSX.Element {
       {gm && <Rests rest={(kind) => controls.current?.sendRest(kind)} />}
 
       {gm && (
+        <Session
+          session={snapshot.session}
+          lastClosed={snapshot.lastClosed}
+          close={() => controls.current?.closeSession()}
+        />
+      )}
+
+      {gm && (
         <Feed
           events={snapshot.events}
           undo={(row) => controls.current?.sendChange(row.character, undoOf(row), undoNote(row))}
@@ -73,7 +81,7 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-023. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 1 · F-024. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
@@ -246,6 +254,52 @@ function Rests({ rest }: { rest: (kind: 'short' | 'long') => void }): JSX.Elemen
       <p className="hint">
         Кубики здоровʼя лишаються гравцям: скільки витратити й що випало — вирішують вони.
       </p>
+    </section>
+  );
+}
+
+const nn = (n: number): string => String(n).padStart(2, '0');
+
+/** One sentence about the last session closing — what the GM sees after the button. */
+export function closedText(c: SessionClosed): string {
+  const head = `Сесію ${nn(c.closed)} закрито, почалась сесія ${nn(c.opened)}.`;
+  return c.save.saved
+    ? `${head} Збережено в git: коміт ${c.save.commit}.`
+    : `${head} У git НЕ збережено: ${c.save.reason}.`;
+}
+
+/**
+ * End of the evening. The log rolls over to the next session and state/ is committed
+ * to git, so the campaign has a history the owner can push and restore. Nobody's hit
+ * points change: state carries over, only the log file is new.
+ */
+export function Session({
+  session,
+  lastClosed,
+  close,
+}: {
+  session: number;
+  lastClosed: SessionClosed | null;
+  close: () => void;
+}): JSX.Element {
+  return (
+    <section className="session">
+      <h2>Сесія {session === 0 ? '…' : nn(session)}</h2>
+      {lastClosed !== null && (
+        <p className={lastClosed.save.saved ? 'saved' : 'refusal'}>{closedText(lastClosed)}</p>
+      )}
+      <div className="buttons">
+        <button
+          type="button"
+          disabled={session === 0}
+          onClick={() => {
+            if (confirm(`Закрити сесію ${nn(session)} і зберегти її в git?`)) close();
+          }}
+        >
+          Закрити сесію
+          <small>зберегти в git і почати наступну; ХП і пули не скидаються</small>
+        </button>
+      </div>
     </section>
   );
 }

@@ -17,12 +17,14 @@ import {
   type Author,
   type Client,
   type FromServer,
+  sessionCommitMessage,
 } from '@holotable/protocol';
 import { Log } from './log.js';
 import { State } from './state.js';
 import { computeSummaries, computeRestPlans, applyRest } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
+import { commitState } from './git.js';
 
 const SITE_ROOT = join(import.meta.dirname, '..', '..', 'web', 'dist');
 
@@ -44,7 +46,8 @@ export interface Server {
   port: number;
   connectedCount: () => number;
   state: State;
-  sessionNumber: number;
+  /** Live: changes when the GM closes a session. */
+  readonly sessionNumber: number;
   close: () => Promise<void>;
 }
 
@@ -55,6 +58,13 @@ export interface Options {
   charactersDir?: string;
   /** Session number. Defaults to the latest existing log. */
   sessionNumber?: number;
+  /**
+   * Repository the "close session" button commits to, and the state folder inside it.
+   * Default: this repository and its state/. Tests point both at a scratch repository,
+   * so no test can ever commit into the owner's history.
+   */
+  repoDir?: string;
+  stateDir?: string;
 }
 
 const ROOT = join(import.meta.dirname, '..', '..', '..');
@@ -74,6 +84,9 @@ export async function start(
   // up on the next restart without touching a file in state/.
   const sheets = computeSummaries(ROOT, charactersDir);
   const restPlans = computeRestPlans(ROOT, charactersDir);
+  const repoDir = options.repoDir ?? ROOT;
+  const stateDir = options.stateDir ?? join(ROOT, 'state');
+  let closing = false;
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -123,7 +136,7 @@ export async function start(
           since: Date.now(),
           socket,
         });
-        send(socket, { type: 'welcome', me: id, clients: list() });
+        send(socket, { type: 'welcome', me: id, clients: list(), session: log.sessionNumber });
         send(socket, { type: 'state', characters: state.all() });
         send(socket, { type: 'sheets', sheets });
         broadcastClients();
@@ -158,6 +171,31 @@ export async function start(
           if (typeof result === 'string') continue;
           broadcastAll({ type: 'event', event: result, state: state.one(slug) ?? {} });
         }
+        return;
+      }
+
+      // Closing a session: roll the log over first, then commit. The rollover is the part
+      // that must not fail — a missing git cannot be allowed to keep the table from
+      // starting the next session — so git only gets to report how it went.
+      if ((data as { type?: unknown }).type === 'close-session') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'сесію закриває майстер' });
+          return;
+        }
+        if (closing) {
+          send(socket, { type: 'refused', reason: 'сесія вже закривається' });
+          return;
+        }
+        closing = true;
+        const closed = log.sessionNumber;
+        const events = log.read().events.length;
+        const opened = log.next();
+        void commitState(repoDir, stateDir, sessionCommitMessage(closed, events))
+          .catch((error: unknown) => ({ saved: false as const, reason: String(error) }))
+          .then((save) => {
+            closing = false;
+            broadcastAll({ type: 'session-closed', closed, opened, events, save });
+          });
         return;
       }
 
@@ -222,7 +260,9 @@ export async function start(
     port: actualPort,
     connectedCount: () => connected.size,
     state,
-    sessionNumber: log.sessionNumber,
+    get sessionNumber() {
+      return log.sessionNumber;
+    },
     close: () =>
       new Promise<void>((done) => {
         for (const { socket } of connected.values()) socket.terminate();

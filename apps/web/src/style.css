@@ -215,3 +215,20 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 .rests button:hover { border-color: var(--accent); }
 .rests button small { font-weight: 400; font-size: .7rem; color: var(--muted); }
 .rests .hint { margin: .5rem 0 0; }
+
+/* ── Close session (F-024) ─────────────────────────────────────────────── */
+.session .buttons { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .5rem; }
+.session button {
+  flex: 1 1 12rem; display: flex; flex-direction: column; gap: .2rem; align-items: flex-start;
+  background: var(--panel); border: 1px solid var(--border); border-radius: .5rem;
+  padding: .6rem .8rem; color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+}
+.session button:hover:not(:disabled) { border-color: var(--accent); }
+.session button:disabled { opacity: .5; cursor: default; }
+.session button small { font-weight: 400; font-size: .7rem; color: var(--muted); }
+.session .saved {
+  margin: 0; padding: .6rem .85rem; border-radius: .45rem;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  font-size: .85rem;
+}

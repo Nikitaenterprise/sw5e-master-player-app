@@ -31,13 +31,42 @@ export interface Rest {
   kind: 'short' | 'long';
 }
 
-export type ToServer = Hello | Intent | Rest;
+/**
+ * GM → server: the session is over (F-024). The server commits state/ to git and opens
+ * the next session log. Character state carries over unchanged.
+ */
+export interface CloseSession {
+  type: 'close-session';
+}
+
+export type ToServer = Hello | Intent | Rest | CloseSession;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
   type: 'welcome';
   me: string;
   clients: Client[];
+  /** Number of the session being played: the NN in state/events/session-NN.jsonl. */
+  session: number;
+}
+
+/** What happened to the git commit when a session was closed. */
+export type SessionSave =
+  | { saved: true; commit: string }
+  | { saved: false; reason: string };
+
+/**
+ * Server → everyone: a session was closed and the next one opened. The session is
+ * closed even when git failed — the log has already rolled over — and `save` says
+ * honestly whether the commit happened.
+ */
+export interface SessionClosed {
+  type: 'session-closed';
+  closed: number;
+  opened: number;
+  /** How many events the closed session holds. */
+  events: number;
+  save: SessionSave;
 }
 
 /** Server → everyone. Someone connected or dropped — here is the new list. */
@@ -59,7 +88,8 @@ export type FromServer =
   | FullState
   | EventHappened
   | Sheets
-  | Refusal;
+  | Refusal
+  | SessionClosed;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -175,6 +205,22 @@ export interface FullState {
 export interface Refusal {
   type: 'refused';
   reason: string;
+}
+
+/** Commit message for a closed session. Ukrainian: the owner reads git history. */
+export function sessionCommitMessage(closed: number, events: number): string {
+  const nn = String(closed).padStart(2, '0');
+  return `Сесія ${nn} закрита: ${events} ${plural(events, 'зміна', 'зміни', 'змін')}`;
+}
+
+/** Ukrainian plural form: one for 1 and 21, few for 2-4 and 22, many for 5-20 and 11-14. */
+export function plural(n: number, one: string, few: string, many: string): string {
+  const tens = n % 100;
+  const units = n % 10;
+  if (tens >= 11 && tens <= 14) return many;
+  if (units === 1) return one;
+  if (units >= 2 && units <= 4) return few;
+  return many;
 }
 
 /** Default port. Changed through HOLOTABLE_PORT. */

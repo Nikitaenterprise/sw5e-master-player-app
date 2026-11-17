@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import type { CharacterState, Client, FromServer, GameEvent, Role, SheetSummary, ToServer } from '@holotable/protocol';
+import type { CharacterState, Client, FromServer, GameEvent, Role, SessionClosed, SheetSummary, ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -22,6 +22,10 @@ export interface Snapshot {
   events: GameEvent[];
   /** The server's last refusal — so the player can see why it did not work. */
   refusal: string | null;
+  /** Number of the session being played. 0 until the server has said. */
+  session: number;
+  /** The last session closing, with whether git saved it (F-024). */
+  lastClosed: SessionClosed | null;
 }
 
 export const EMPTY: Snapshot = {
@@ -32,6 +36,8 @@ export const EMPTY: Snapshot = {
   sheets: {},
   events: [],
   refusal: null,
+  session: 0,
+  lastClosed: null,
 };
 
 /** Reads role and character from the URL: ?as=gm or ?as=player&character=krinzh-dor */
@@ -52,6 +58,8 @@ export interface Controls {
   sendChange: (character: string, changes: CharacterState, note?: string) => void;
   /** Announce a rest for the whole party. The server refuses it from a player. */
   sendRest: (kind: 'short' | 'long') => void;
+  /** Close the session: commit state/ to git and open the next one. GM only. */
+  closeSession: () => void;
   disconnect: () => void;
 }
 
@@ -97,7 +105,12 @@ export function connect(
       }
       switch (m.type) {
         case 'welcome':
-          update({ connection: { status: 'online' }, me: m.me, clients: m.clients });
+          update({
+            connection: { status: 'online' },
+            me: m.me,
+            clients: m.clients,
+            session: typeof m.session === 'number' ? m.session : 0,
+          });
           break;
         case 'clients':
           update({ clients: m.clients });
@@ -114,6 +127,10 @@ export function connect(
             events: [m.event, ...snapshot.events].slice(0, 100),
             refusal: null,
           });
+          break;
+        case 'session-closed':
+          // The feed is the session's story; a new session starts with a clean page.
+          update({ session: m.opened, lastClosed: m, events: [] });
           break;
         case 'refused':
           update({ refusal: m.reason });
@@ -150,6 +167,11 @@ export function connect(
       if (socket?.readyState !== 1) return;
       const rest: ToServer = { type: 'rest', kind };
       socket.send(JSON.stringify(rest));
+    },
+    closeSession: () => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'close-session' };
+      socket.send(JSON.stringify(message));
     },
     disconnect: () => {
       closed = true;

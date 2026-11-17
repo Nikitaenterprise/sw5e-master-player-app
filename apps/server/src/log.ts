@@ -4,27 +4,60 @@
 // a day at home, and the laptop can die mid-session. Appending one line with
 // fsync is atomic: at most one event is lost, never the session. No database
 // gives that simple a guarantee for the same price.
-import { appendFileSync, openSync, fsyncSync, closeSync, readFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { appendFileSync, openSync, fsyncSync, closeSync, readFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GameEvent } from '@holotable/protocol';
 
 export class Log {
-  readonly file: string;
-  readonly sessionNumber: number;
+  private currentFile: string;
+  private currentNumber: number;
 
-  constructor(dir: string, sessionNumber?: number) {
+  constructor(
+    readonly dir: string,
+    sessionNumber?: number,
+  ) {
     mkdirSync(dir, { recursive: true });
-    this.sessionNumber = sessionNumber ?? Log.last(dir);
-    this.file = join(dir, `session-${String(this.sessionNumber).padStart(2, '0')}.jsonl`);
+    this.currentNumber = sessionNumber ?? Log.last(dir);
+    this.currentFile = Log.fileFor(dir, this.currentNumber);
+  }
+
+  get file(): string {
+    return this.currentFile;
+  }
+
+  get sessionNumber(): number {
+    return this.currentNumber;
+  }
+
+  static fileFor(dir: string, n: number): string {
+    return join(dir, `session-${String(n).padStart(2, '0')}.jsonl`);
+  }
+
+  /** Numbers of all session logs in the folder, ascending. */
+  static numbers(dir: string): number[] {
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+      .map((name) => /^session-(\d+)\.jsonl$/.exec(name)?.[1])
+      .filter((n): n is string => n !== undefined)
+      .map(Number)
+      .sort((a, b) => a - b);
+  }
+
+  /**
+   * Closes the current session and opens the next one (F-024). The new file is created
+   * empty right away: otherwise a restart before the first event would find the closed
+   * session as the latest and keep writing into it.
+   */
+  next(): number {
+    this.currentNumber += 1;
+    this.currentFile = Log.fileFor(this.dir, this.currentNumber);
+    if (!existsSync(this.currentFile)) writeFileSync(this.currentFile, '', 'utf8');
+    return this.currentNumber;
   }
 
   /** Number of the latest session in the folder, or 1 when there are no logs yet. */
   static last(dir: string): number {
-    if (!existsSync(dir)) return 1;
-    const numbers = readdirSync(dir)
-      .map((name) => /^session-(\d+)\.jsonl$/.exec(name)?.[1])
-      .filter((n): n is string => n !== undefined)
-      .map(Number);
+    const numbers = Log.numbers(dir);
     return numbers.length === 0 ? 1 : Math.max(...numbers);
   }
 
@@ -48,8 +81,28 @@ export class Log {
    * is exactly the "at most one lost event" promised above.
    */
   read(): { events: GameEvent[]; corruptLines: number } {
-    if (!existsSync(this.file)) return { events: [], corruptLines: 0 };
-    const lines = readFileSync(this.file, 'utf8').split('\n').filter((r) => r.trim() !== '');
+    return Log.readFile(this.file);
+  }
+
+  /**
+   * Reads every session up to and including the current one, in order. The state of
+   * the party is the sum of all sessions played, not of the last one: closing a
+   * session must not hand everyone their hit points back.
+   */
+  readAll(): { events: GameEvent[]; corruptLines: number } {
+    const events: GameEvent[] = [];
+    let corruptLines = 0;
+    for (const n of Log.numbers(this.dir).filter((k) => k <= this.currentNumber)) {
+      const part = Log.readFile(Log.fileFor(this.dir, n));
+      events.push(...part.events);
+      corruptLines += part.corruptLines;
+    }
+    return { events, corruptLines };
+  }
+
+  private static readFile(file: string): { events: GameEvent[]; corruptLines: number } {
+    if (!existsSync(file)) return { events: [], corruptLines: 0 };
+    const lines = readFileSync(file, 'utf8').split('\n').filter((r) => r.trim() !== '');
     const events: GameEvent[] = [];
     let corrupt = 0;
     for (const line of lines) {

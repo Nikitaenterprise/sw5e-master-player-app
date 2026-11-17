@@ -28,7 +28,7 @@ export class State {
     for (const [slug, base] of State.baseline(charactersDir)) {
       this.characters.set(slug, base);
     }
-    for (const event of log.read().events) this.applyChange(event);
+    for (const event of log.readAll().events) this.applyChange(event);
   }
 
   /** Starting state from the source exports: only the fields we know how to change. */
