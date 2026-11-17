@@ -11,7 +11,8 @@
 // and then talks to it over HTTP.
 import { describe, it, expect } from 'vitest';
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 
 const root = join(import.meta.dirname, '..');
@@ -89,6 +90,29 @@ describe('F-036 · застосунок справді стартує', () => {
         linked,
         `пакет ${name} не підключений у node_modules — запусти ВСТАНОВИТИ.bat`,
       ).toBe(true);
+    }
+  });
+
+  it('кожен .bat спершу перевіряє версію Node — з тієї самої межі, що в package.json', async () => {
+    // Vite 8 and Vitest 5 need Node 22.12. npm only warns about that, and the build then
+    // fails with something unreadable — so the launchers say it first, in one sentence.
+    const { meets, requiredRange } = (await import(pathToFileURL(join(root, 'tools', 'check-node.mjs')).href)) as {
+      meets: (version: string, range: string) => boolean;
+      requiredRange: (root: string) => string;
+    };
+    expect(requiredRange(root)).toBe('>=22.12');
+    expect(meets('22.12.0', '>=22.12')).toBe(true);
+    expect(meets('v22.11.9', '>=22.12')).toBe(false);
+    expect(meets('24.1.0', '>=22.12')).toBe(true);
+    expect(meets(process.versions.node, requiredRange(root)), 'тести самі мусять іти на годящому Node').toBe(true);
+    for (const bat of ['ВСТАНОВИТИ.bat', 'ЗАПУСТИТИ.bat', 'ТЕСТ-4-ЕКРАНИ.bat', 'ПЕРЕВІРИТИ.bat']) {
+      const text = readFileSync(join(root, bat), 'utf8');
+      const check = text.indexOf('node tools\\check-node.mjs');
+      expect(check, `${bat} не перевіряє версію Node`).toBeGreaterThan(-1);
+      for (const later of ['npm install', 'npm start', 'npm run check']) {
+        const at = text.indexOf(later);
+        if (at !== -1) expect(check, `${bat}: перевірка Node мусить іти перед «${later}»`).toBeLessThan(at);
+      }
     }
   });
 });

@@ -45,7 +45,7 @@ Excel з ініціативою, лист корабля в PowerPoint і обм
 
 ## Як це зроблено
 
-Node 22, TypeScript, Vite + React, Vitest. Нуль нативних залежностей: застосунок
+Node 22.12+, TypeScript 6, Vite 8 + React 19, Vitest 5. Нуль нативних залежностей: застосунок
 мусить встановитись на Windows без Build Tools.
 
 Чотири рішення, на яких усе тримається (повні — в `docs/decisions/`):

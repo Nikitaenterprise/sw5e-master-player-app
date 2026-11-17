@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
 import type { CharacterState, GameEvent, SessionClosed, SheetSummary } from '@holotable/protocol';
 import {
   connect,
@@ -115,7 +115,7 @@ function PlayerSheet({
 }: {
   character: string | undefined;
   snapshot: Snapshot;
-  controls: React.RefObject<Controls | null>;
+  controls: RefObject<Controls | null>;
 }): JSX.Element {
   if (character === undefined) {
     return (
@@ -502,7 +502,7 @@ function Why({
   sheet: SheetSummary;
   what: string;
   signedTotal: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }): JSX.Element {
   const e = sheet.explain?.[what];
   if (e === undefined) return <>{children}</>;

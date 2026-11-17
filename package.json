@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Екран майстра і синхронні листи персонажів для офлайнових сесій SW5e",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "workspaces": [
     "packages/*",
@@ -20,16 +20,16 @@
     "demo": "npm run start"
   },
   "devDependencies": {
-    "@types/node": "^22.9.0",
+    "@types/node": "^22.20.5",
     "@types/qrcode": "^1.5.6",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@types/ws": "^8.5.13",
-    "@vitejs/plugin-react": "^4.3.3",
-    "tsx": "^4.19.2",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.11",
-    "vitest": "^2.1.5"
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
   },
   "dependencies": {
     "minisearch": "^7.2.0"

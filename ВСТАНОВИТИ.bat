@@ -1,6 +1,19 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
+where node >nul 2>nul
+if errorlevel 1 (
+  echo.
+  echo   Не знайдено Node. Візьми його на nodejs.org, кнопка LTS, і запусти цей файл ще раз.
+  echo.
+  pause
+  exit /b 1
+)
+node tools\check-node.mjs
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
 echo.
 echo   Встановлення залежностей. Один раз, хвилина-дві.
 echo.
@@ -14,7 +27,7 @@ if exist "node_modules" (
 call npm install
 if errorlevel 1 (
   echo.
-  echo   ПОМИЛКА. Найчастіша причина: не встановлений Node 22 або новіший.
+  echo   ПОМИЛКА. Найчастіша причина: не встановлений Node 22.12 або новіший.
   echo   Візьми його на nodejs.org, кнопка LTS, і запусти цей файл ще раз.
   echo.
   pause
