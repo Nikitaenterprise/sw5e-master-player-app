@@ -80,6 +80,8 @@ export function App(): JSX.Element {
           glossary={snapshot.glossary}
           save={(key, value) => controls.current?.setTerm(key, value)}
           demo={snapshot.demo}
+          found={snapshot.glossaryFound}
+          searchAll={(q) => controls.current?.searchTerms(q)}
         />
       ) : gm ? (
         <section>

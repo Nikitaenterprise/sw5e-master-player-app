@@ -4,7 +4,7 @@
 // state/i18n/uk/terms.json by the server, and sent to every screen at once — so a
 // word changed here changes on the players' phones too. An empty field removes the
 // word, and the term goes back to English.
-import { useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import type { GlossaryRow, TermKind } from '@holotable/protocol';
 
 export const KIND_LABELS: Record<TermKind, string> = {
@@ -21,6 +21,8 @@ export const KIND_LABELS: Record<TermKind, string> = {
   power: 'сила',
   feat: 'риса',
   background: 'передісторія',
+  item: 'предмет',
+  monster: 'істота',
 };
 
 /** Rows in the order the GM needs them: untranslated terms from the sheets first. */
@@ -34,18 +36,35 @@ export function GlossaryEditor({
   glossary,
   save,
   demo = false,
+  found = { q: '', rows: [] },
+  searchAll,
+  initialQuery = '',
 }: {
   rows: GlossaryRow[];
   glossary: Record<string, string>;
   save: (key: string, value: string) => void;
+  /** Compendium-wide matches for the current search (F-052). */
+  found?: { q: string; rows: GlossaryRow[] };
+  /** Ask the server for compendium-wide matches. */
+  searchAll?: (q: string) => void;
+  /** What the search box starts with. */
+  initialQuery?: string;
   /** In the demo the glossary is still the real file — say so (F-037 keeps only sessions apart). */
   demo?: boolean;
 }): JSX.Element {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [onlyMissing, setOnlyMissing] = useState(false);
   const missingOnSheets = rows.filter((r) => r.onSheets && glossary[r.key] === undefined).length;
   const q = query.trim().toLowerCase();
-  const shown = orderRows(rows, glossary)
+  // Beyond the glossary: the whole compendium, asked of the server as the GM types.
+  useEffect(() => {
+    if (searchAll === undefined || q.length < 2) return;
+    const timer = setTimeout(() => searchAll(q), 250);
+    return () => clearTimeout(timer);
+  }, [q]);
+  const known = new Set(rows.map((r) => r.key));
+  const extra = found.q === q ? found.rows.filter((r) => !known.has(r.key)) : [];
+  const shown = orderRows([...rows, ...extra], glossary)
     .filter((r) => !onlyMissing || glossary[r.key] === undefined)
     .filter((r) => q === '' || r.english.toLowerCase().includes(q) || (glossary[r.key] ?? '').toLowerCase().includes(q));
 
@@ -71,7 +90,10 @@ export function GlossaryEditor({
           <input type="checkbox" checked={onlyMissing} onChange={(e) => setOnlyMissing(e.target.checked)} /> лише
           неперекладені
         </label>
-        <span className="hint">показано {shown.length} з {rows.length}</span>
+        <span className="hint">
+          показано {shown.length} з {rows.length}
+          {extra.length > 0 ? ` · ще ${extra.length} з усього компендіуму` : ''}
+        </span>
       </div>
       <table className="glossary-table">
         <tbody>

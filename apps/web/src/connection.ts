@@ -40,6 +40,8 @@ export interface Snapshot {
   glossaryIndex: GlossaryRow[];
   /** A few lines from the book per term, for hover hints (F-051). */
   briefs: Record<string, string>;
+  /** The last compendium-wide glossary search and what it found (F-052). */
+  glossaryFound: { q: string; rows: GlossaryRow[] };
 }
 
 export const EMPTY: Snapshot = {
@@ -58,6 +60,7 @@ export const EMPTY: Snapshot = {
   glossary: {},
   glossaryIndex: [],
   briefs: {},
+  glossaryFound: { q: '', rows: [] },
 };
 
 /**
@@ -131,6 +134,8 @@ export interface Controls {
   closeSession: () => void;
   /** Set one glossary word; an empty word removes it. GM only (F-033). */
   setTerm: (key: string, value: string) => void;
+  /** Look for terms anywhere in the compendium, to translate them. GM only (F-052). */
+  searchTerms: (q: string) => void;
   /**
    * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
    * demo's button). The page stays, and so does its queue of unsent changes.
@@ -226,6 +231,9 @@ export function connect(
         case 'briefs':
           update({ briefs: m.briefs });
           break;
+        case 'glossary-found':
+          update({ glossaryFound: { q: m.q, rows: m.rows } });
+          break;
         case 'glossary-index':
           update({ glossaryIndex: m.rows });
           break;
@@ -291,6 +299,11 @@ export function connect(
       if (socket?.readyState !== 1) return;
       const rest: ToServer = { type: 'rest', kind };
       socket.send(JSON.stringify(rest));
+    },
+    searchTerms: (q) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'glossary-search', q };
+      socket.send(JSON.stringify(message));
     },
     setTerm: (key, value) => {
       if (socket?.readyState !== 1) return;

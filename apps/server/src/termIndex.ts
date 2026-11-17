@@ -16,12 +16,17 @@ function fromRule(compendium: Compendium, key: string, pattern: RegExp): string[
   return [...body.matchAll(pattern)].map((m) => String(m[1]));
 }
 
-export function buildTermIndex(
+/** Every name the glossary can hold, with its English, and which of them the sheets show. */
+export interface TermCatalog {
+  english: Map<string, { kind: TermKind; english: string }>;
+  onSheets: Set<string>;
+}
+
+export function buildTermCatalog(
   compendium: Compendium,
   sheets: Record<string, SheetSummary>,
   skills: readonly string[],
-  glossary: Record<string, string>,
-): GlossaryRow[] {
+): TermCatalog {
   const english = new Map<string, { kind: TermKind; english: string }>();
   const onSheets = new Set<string>();
   const know = (kind: TermKind, name: string, sheet = false): void => {
@@ -43,7 +48,10 @@ export function buildTermIndex(
     ['feat', 'feat'], ['background', 'background'], ['maneuver', 'maneuver'],
   ];
   for (const [kind, type] of byType) for (const doc of compendium.all(type)) know(kind, String(doc.name ?? ''));
-  for (const doc of compendium.all('equipment')) if (doc['category'] === 'weapon') know('weapon', String(doc.name));
+  for (const doc of compendium.all('equipment')) know(doc['category'] === 'weapon' ? 'weapon' : 'item', String(doc.name));
+  // Glossary level 2 (F-052): enhanced items and the bestiary.
+  for (const doc of compendium.all('enhanced-item')) know('item', String(doc.name));
+  for (const doc of compendium.all('monster')) know('monster', String(doc.name));
 
   // Then what the five sheets actually show.
   for (const s of Object.values(sheets)) {
@@ -62,14 +70,42 @@ export function buildTermIndex(
     if (s.details.background !== null) know('background', s.details.background, true);
   }
 
+  return { english, onSheets };
+}
+
+/** One row of the editor for a key: its kind, its English, whether a sheet shows it. */
+export function rowOf(catalog: TermCatalog, key: string): GlossaryRow {
+  const found = catalog.english.get(key);
+  const kind = (found?.kind ?? key.split('.')[0]) as TermKind;
+  // A key nobody can name any more (a typo, a removed item) still shows, by its slug.
+  const name = found?.english ?? key.slice(key.indexOf('.') + 1).replace(/-/g, ' ');
+  return { key, kind, english: name, onSheets: catalog.onSheets.has(key) };
+}
+
+/** The editor's list: every word already in the glossary, and every term the sheets show. */
+export function buildTermIndex(
+  compendium: Compendium,
+  sheets: Record<string, SheetSummary>,
+  skills: readonly string[],
+  glossary: Record<string, string>,
+  catalog: TermCatalog = buildTermCatalog(compendium, sheets, skills),
+): GlossaryRow[] {
+  const { onSheets } = catalog;
   const rows: GlossaryRow[] = [];
   const keys = new Set([...Object.keys(glossary), ...onSheets]);
-  for (const key of keys) {
-    const found = english.get(key);
-    const kind = (found?.kind ?? key.split('.')[0]) as TermKind;
-    // A key nobody can name any more (a typo, a removed item) still shows, by its slug.
-    const name = found?.english ?? key.slice(key.indexOf('.') + 1).replace(/-/g, ' ');
-    rows.push({ key, kind, english: name, onSheets: onSheets.has(key) });
-  }
+  for (const key of keys) rows.push(rowOf(catalog, key));
   return rows.sort((a, b) => a.kind.localeCompare(b.kind) || a.english.localeCompare(b.english));
+}
+
+/** Catalog terms matching a search, for adding to the glossary (F-052). Untranslated first. */
+export function searchCatalog(catalog: TermCatalog, q: string, glossary: Record<string, string>, limit = 60): GlossaryRow[] {
+  const wanted = q.trim().toLowerCase();
+  if (wanted.length < 2) return [];
+  const rows: GlossaryRow[] = [];
+  for (const [key, { english }] of catalog.english) {
+    if (english.toLowerCase().includes(wanted) || (glossary[key] ?? '').toLowerCase().includes(wanted)) rows.push(rowOf(catalog, key));
+  }
+  return rows
+    .sort((a, b) => Number(glossary[a.key] !== undefined) - Number(glossary[b.key] !== undefined) || a.english.localeCompare(b.english))
+    .slice(0, limit);
 }

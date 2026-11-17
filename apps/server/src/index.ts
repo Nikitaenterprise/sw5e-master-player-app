@@ -32,13 +32,13 @@ import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
 import { loadGlossary, saveGlossary } from './glossary.js';
-import { buildTermIndex } from './termIndex.js';
+import { buildTermCatalog, buildTermIndex, searchCatalog } from './termIndex.js';
 import { searchReference, presentDoc, resolveTerm, buildBriefs } from './reference.js';
 import { loadCompendium, CONTENT_TYPES, type ContentType } from '@holotable/compendium';
 
 const TERM_KINDS: readonly string[] = [
   'ability', 'skill', 'condition', 'damage', 'property', 'species', 'class', 'archetype', 'weapon', 'maneuver',
-  'power', 'feat', 'background',
+  'power', 'feat', 'background', 'item', 'monster',
 ];
 const isTermKind = (k: string): k is TermKind => TERM_KINDS.includes(k);
 
@@ -136,7 +136,10 @@ export async function start(
   if (glossary.problem !== null) console.log(`  Увага: ${glossary.problem}`);
   // The editor's list of terms: computed once, like the sheets (F-033).
   const compendium = loadCompendium({ root: ROOT });
-  const termIndex = buildTermIndex(compendium, sheets, SKILLS, glossary.terms);
+  // Every name the glossary can hold (F-052), and the editor's list built from it.
+  const catalog = buildTermCatalog(compendium, sheets, SKILLS);
+  // Rebuilt after every glossary edit: a word just added for a creature must be findable.
+  let termIndex = buildTermIndex(compendium, sheets, SKILLS, glossary.terms, catalog);
   // A few lines from the book per term, for hover hints (F-051). Computed once.
   const briefs = buildBriefs(compendium, termIndex, glossary.terms);
 
@@ -304,6 +307,17 @@ export async function start(
 
       // A word in the glossary (F-033): the GM edits, the file is written, and every
       // screen gets the new glossary at once.
+      // Finding any compendium term to translate (F-052). Read-only, GM only.
+      if ((data as { type?: unknown }).type === 'glossary-search') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'глосарій править майстер' });
+          return;
+        }
+        const q = String((data as { q?: unknown }).q ?? '').slice(0, 100);
+        send(socket, { type: 'glossary-found', q, rows: searchCatalog(catalog, q, glossary.terms) });
+        return;
+      }
+
       if ((data as { type?: unknown }).type === 'glossary-set') {
         const edit = parseGlossarySet(data);
         if (typeof edit === 'string') {
@@ -324,7 +338,11 @@ export async function start(
           return;
         }
         glossary.terms = next;
+        termIndex = buildTermIndex(compendium, sheets, SKILLS, next, catalog);
         broadcastAll({ type: 'glossary', terms: next });
+        for (const c of connected.values()) {
+          if (c.role === 'gm') send(c.socket, { type: 'glossary-index', rows: termIndex });
+        }
         return;
       }
 

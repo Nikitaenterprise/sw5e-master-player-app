@@ -46,7 +46,13 @@ export interface GlossarySet {
   value: string;
 }
 
-export type ToServer = Hello | Intent | Rest | CloseSession | GlossarySet;
+/** GM → server: find terms anywhere in the compendium, to add them to the glossary (F-052). */
+export interface GlossarySearch {
+  type: 'glossary-search';
+  q: string;
+}
+
+export type ToServer = Hello | Intent | Rest | CloseSession | GlossarySet | GlossarySearch;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -103,7 +109,8 @@ export type FromServer =
   | GlossaryMessage
   | History
   | GlossaryIndex
-  | Briefs;
+  | Briefs
+  | GlossaryFound;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -347,7 +354,9 @@ export function plural(n: number, one: string, few: string, many: string): strin
 export type TermKind =
   | 'ability' | 'skill' | 'condition' | 'damage' | 'property'
   | 'species' | 'class' | 'archetype' | 'weapon' | 'maneuver'
-  | 'power' | 'feat' | 'background';
+  | 'power' | 'feat' | 'background'
+  // Glossary level 2 (F-052): items that are not weapons, and the bestiary.
+  | 'item' | 'monster';
 
 /** Glossary key of a term: "skill.sleight-of-hand", "maneuver.parry-improved". */
 export function termKey(kind: TermKind, english: string): string {
@@ -382,6 +391,13 @@ export interface GlossaryRow {
 /** Server → GM on connect: every term worth translating, for the editor (F-033). */
 export interface GlossaryIndex {
   type: 'glossary-index';
+  rows: GlossaryRow[];
+}
+
+/** Server → GM: compendium terms matching a glossary search, translated or not (F-052). */
+export interface GlossaryFound {
+  type: 'glossary-found';
+  q: string;
   rows: GlossaryRow[];
 }
 

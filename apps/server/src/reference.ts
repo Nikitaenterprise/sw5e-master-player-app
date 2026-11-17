@@ -40,19 +40,23 @@ const KIND_TO_DOC: Record<TermKind, { type: ContentType; rule?: string }> = {
   skill: { type: 'rule', rule: 'phb-using-ability-scores' },
   ability: { type: 'rule', rule: 'phb-using-ability-scores' },
   damage: { type: 'rule', rule: 'phb-combat' },
+  item: { type: 'enhanced-item' },
+  monster: { type: 'monster' },
 };
 
 /** The glossary kind a document type is named under, for its Ukrainian name. */
 const DOC_TO_KIND: Partial<Record<string, TermKind>> = {
   'weapon-property': 'property', species: 'species', class: 'class', archetype: 'archetype', power: 'power',
   feat: 'feat', background: 'background', maneuver: 'maneuver', equipment: 'weapon',
+  'enhanced-item': 'item', monster: 'monster',
 };
 
 const MIN_QUERY = 2;
 const LIMIT = 30;
 
-function ukName(glossary: Record<string, string>, type: string, name: string): string | undefined {
-  const kind = DOC_TO_KIND[type];
+function ukName(glossary: Record<string, string>, type: string, name: string, category?: unknown): string | undefined {
+  // Equipment is a weapon or an item in the glossary, depending on what it is.
+  const kind = type === 'equipment' && category !== undefined && category !== 'weapon' ? 'item' : DOC_TO_KIND[type];
   return kind === undefined ? undefined : glossary[termKey(kind, name)];
 }
 
@@ -83,7 +87,7 @@ export function searchReference(
   }
 
   for (const hit of compendium.search(query, { limit: LIMIT })) {
-    const uk = ukName(glossary, hit.type, hit.name);
+    const uk = ukName(glossary, hit.type, hit.name, compendium.get(hit.type, hit.key)?.['category']);
     add({ type: hit.type, key: hit.key, name: hit.name, typeLabel: TYPE_LABELS[hit.type] ?? hit.type, ...(uk === undefined ? {} : { uk }) });
   }
   return hits;
@@ -118,7 +122,8 @@ export function resolveTerm(
     if (rule === undefined) return null;
     return { type: 'rule', key: rule.key, name, typeLabel: kindLabel(kind), anchor: slug ?? anchorOf(name), ...named };
   }
-  const doc = compendium.get(target.type, slug ?? name);
+  // An item is an enhanced item or a plain piece of equipment.
+  const doc = compendium.get(target.type, slug ?? name) ?? (kind === 'item' ? compendium.get('equipment', slug ?? name) : undefined);
   if (doc !== undefined) return { type: doc.type, key: doc.key, name: doc.name, typeLabel: TYPE_LABELS[doc.type] ?? doc.type, ...named };
   const section = ruleSection(compendium, name);
   if (section === null) return null;
@@ -146,7 +151,7 @@ export function ruleSection(compendium: Compendium, english: string): { key: str
 }
 
 function kindLabel(kind: TermKind): string {
-  return { condition: 'умова', skill: 'навичка', ability: 'характеристика', damage: 'тип шкоди' }[kind as string] ?? 'правило';
+  return ({ condition: 'умова', skill: 'навичка', ability: 'характеристика', damage: 'тип шкоди' } as Record<string, string>)[kind] ?? 'правило';
 }
 
 const FACT_LABELS: Record<string, string> = {
@@ -257,7 +262,7 @@ export function presentDoc(doc: CompendiumDoc, glossary: Record<string, string>,
   const ordered = [...TEXT_FIELDS.filter((f) => texts.has(f)), ...[...texts.keys()].filter((f) => !TEXT_FIELDS.includes(f))];
   const main = ordered.map((f) => ({ ...(f === 'description' || f === 'body' ? {} : { title: FACT_LABELS[f] ?? f }), text: texts.get(f) as string }));
 
-  const uk = ukName(glossary, doc.type, doc.name);
+  const uk = ukName(glossary, doc.type, doc.name, doc['category']);
   return {
     type: doc.type,
     key: doc.key,
