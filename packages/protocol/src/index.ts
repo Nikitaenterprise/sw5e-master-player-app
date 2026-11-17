@@ -407,6 +407,40 @@ export interface GlossaryMessage {
   terms: Record<string, string>;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Reference (F-049): search the rules and read a document, over plain HTTP.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One search result: a compendium document, or a section of a rule (anchor). */
+export interface RefHit {
+  type: string;
+  key: string;
+  name: string;
+  /** The Ukrainian name from the glossary, when there is one. */
+  uk?: string;
+  /** For a part of a long rule — a condition in the conditions chapter — the heading to open at. */
+  anchor?: string;
+  /** What kind of thing it is, in Ukrainian words for the reader: a power, an item, a rule. */
+  typeLabel: string;
+}
+
+/** A document as the reference page shows it: short facts, then the book's text. */
+export interface RefDoc {
+  type: string;
+  key: string;
+  name: string;
+  uk?: string;
+  typeLabel: string;
+  facts: { label: string; value: string }[];
+  /** Markdown, as the books write it. `title` is a sub-heading, e.g. a species trait. */
+  sections: { title?: string; text: string }[];
+}
+
+/** Heading anchor inside a rule: "Prone" → "prone", "Exhaustion Level" → "exhaustion-level". */
+export function anchorOf(heading: string): string {
+  return heading.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 /** Default port. Changed through HOLOTABLE_PORT. */
 export const DEFAULT_PORT = 7777;
 

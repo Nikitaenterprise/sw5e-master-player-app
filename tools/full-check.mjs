@@ -27,6 +27,10 @@ try {
   ok('демо 2×2 з кнопкою wifi', demo.includes('обірвати wifi'));
   const printData = await (await fetch(`http://localhost:${port}/sheets.json`)).json();
   ok('F-030 дані для друку: пʼять листів по HTTP', Object.keys(printData.sheets).length === 5 && printData.sheets['krinzh-dor'].details.speed.walk === 30);
+  const refHits = await (await fetch(`http://localhost:${port}/api/search?q=${encodeURIComponent('Витонченість')}`)).json();
+  const refDoc = await (await fetch(`http://localhost:${port}/api/doc/power/force-push-pull`)).json();
+  ok('F-049 довідник: «Витонченість» → Finesse, сторінка сили з текстом книги',
+    refHits[0]?.key === 'finesse' && refDoc.sections?.[0]?.text?.includes('Force'));
   const asset = page.match(/assets\/index-[^"]+\.js/)?.[0];
   const js = await (await fetch(`http://localhost:${port}/${asset}`)).text();
   ok('клієнтський бандл роздається', js.length > 100000, `${Math.round(js.length / 1024)} КБ`);

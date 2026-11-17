@@ -125,7 +125,7 @@ describe('F-030 · лист персонажа на A4', () => {
     const print = css.slice(css.lastIndexOf('@media print'));
     expect(print, 'аркуш, що не влазить, мусить перейти на другу сторінку, а не обрізатись').not.toContain('overflow: hidden');
     const main = readFileSync(join(root, 'apps', 'web', 'src', 'main.tsx'), 'utf8');
-    expect(main).toContain("get('as') === 'print'");
+    expect(main, '?as=print відкриває сторінку друку').toMatch(/page === 'print' \? <PrintPage \/>/);
     expect(renderToStaticMarkup(createElement(Rests, { rest: () => undefined })), 'відпочинок не зламаний').toContain('Довгий');
     const app = readFileSync(join(root, 'apps', 'web', 'src', 'App.tsx'), 'utf8');
     expect(app).toContain('href="/?as=print"');

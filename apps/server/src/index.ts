@@ -32,7 +32,11 @@ import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
 import { loadGlossary, saveGlossary } from './glossary.js';
 import { buildTermIndex } from './termIndex.js';
-import { loadCompendium } from '@holotable/compendium';
+import { searchReference, presentDoc } from './reference.js';
+import { loadCompendium, CONTENT_TYPES, type ContentType } from '@holotable/compendium';
+
+const isContentType = (t: string | undefined): t is ContentType =>
+  t !== undefined && (CONTENT_TYPES as readonly string[]).includes(t);
 import { SKILLS } from '../../../packages/engine/src/skills.js';
 
 const SITE_ROOT = join(import.meta.dirname, '..', '..', 'web', 'dist');
@@ -124,7 +128,8 @@ export async function start(
   const glossary = loadGlossary(stateDir);
   if (glossary.problem !== null) console.log(`  Увага: ${glossary.problem}`);
   // The editor's list of terms: computed once, like the sheets (F-033).
-  const termIndex = buildTermIndex(loadCompendium({ root: ROOT }), sheets, SKILLS, glossary.terms);
+  const compendium = loadCompendium({ root: ROOT });
+  const termIndex = buildTermIndex(compendium, sheets, SKILLS, glossary.terms);
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -148,6 +153,26 @@ export async function start(
       const data: PrintData = { session: log.sessionNumber, sheets, characters: state.all(), glossary: glossary.terms };
       response.writeHead(200, { 'content-type': TYPES['.json'] as string, 'cache-control': 'no-store' });
       response.end(JSON.stringify(data));
+      return;
+    }
+    // The reference (F-049): plain HTTP too, for phones as much as for the GM.
+    const url = new URL(req.url ?? '/', 'http://local');
+    if (url.pathname === '/api/search') {
+      const hits = searchReference(compendium, url.searchParams.get('q') ?? '', glossary.terms, termIndex);
+      response.writeHead(200, { 'content-type': TYPES['.json'] as string });
+      response.end(JSON.stringify(hits));
+      return;
+    }
+    const docPath = /^\/api\/doc\/([a-z-]+)\/([^/]+)$/.exec(url.pathname);
+    if (docPath !== null) {
+      const doc = isContentType(docPath[1]) ? compendium.get(docPath[1], decodeURIComponent(docPath[2] ?? '')) : undefined;
+      if (doc === undefined) {
+        response.writeHead(404, { 'content-type': TYPES['.json'] as string });
+        response.end(JSON.stringify({ error: 'такого в довіднику немає' }));
+        return;
+      }
+      response.writeHead(200, { 'content-type': TYPES['.json'] as string });
+      response.end(JSON.stringify(presentDoc(doc, glossary.terms)));
       return;
     }
     void serveFile(req, response, connected.size);

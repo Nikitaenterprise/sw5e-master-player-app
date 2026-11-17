@@ -69,6 +69,7 @@ export function App(): JSX.Element {
       {gm && (
         <nav className="views">
           {editingGlossary ? <a href="/?as=gm">← до екрана майстра</a> : <a href="/?as=gm&view=glossary">Глосарій термінів →</a>}
+          <a href="/?as=ref" target="_blank" rel="noreferrer">Довідник →</a>
         </nav>
       )}
 
@@ -125,6 +126,12 @@ export function App(): JSX.Element {
             controls.current?.sendChange(row.character, undoOf(row), undoNote(row), { [row.field]: row.to })
           }
         />
+      )}
+
+      {!gm && (
+        <nav className="views">
+          <a href="/?as=ref">Довідник: сили, предмети, правила →</a>
+        </nav>
       )}
 
       <section>

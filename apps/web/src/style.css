@@ -362,3 +362,32 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 .glossary-table .word input:focus, .glossary-tools > input:focus { outline: none; border-color: var(--accent); }
 .glossary-table .word input::placeholder { color: var(--bad); opacity: .7; }
 .glossary-table tr.missing.on-sheets .english { color: var(--bad); }
+
+/* ── Reference (F-049) ─────────────────────────────────────────────────── */
+.ref-search {
+  width: 100%; box-sizing: border-box; background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: .5rem; padding: .6rem .8rem; font: inherit; font-size: 1rem;
+}
+.ref-search:focus { outline: none; border-color: var(--accent); }
+.ref-hits { margin-top: .75rem; gap: .3rem; }
+.ref-hits li { padding: 0; }
+.ref-hits button {
+  width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: .75rem;
+  background: none; border: none; color: var(--text); font: inherit; text-align: left; padding: .55rem .8rem; cursor: pointer;
+}
+.ref-hits small { color: var(--muted); white-space: nowrap; }
+.ref-back { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: .35rem; font: inherit; padding: .2rem .6rem; cursor: pointer; }
+.ref-title { font-size: 1.25rem; text-transform: none; letter-spacing: 0; color: var(--text); margin: .75rem 0 0; }
+.ref-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .4rem .9rem; margin: .5rem 0 1rem; }
+.ref-facts dt { color: var(--muted); font-size: .75rem; }
+.ref-facts dd { margin: 0; }
+.ref-section h3 { margin: 1rem 0 .3rem; font-size: 1rem; }
+.md p { margin: .45rem 0; }
+.md h2, .md h3, .md h4, .md h5, .md h6 { text-transform: none; letter-spacing: 0; color: var(--text); margin: 1rem 0 .35rem; font-size: 1rem; scroll-margin-top: 1rem; }
+.md h2 { font-size: 1.15rem; }
+.md-list { display: block; padding-left: 1.2rem; list-style: disc; }
+.md-list li { display: list-item; background: none; border: none; padding: .1rem 0; border-radius: 0; }
+.md-table { border-collapse: collapse; font-size: .85rem; margin: .5rem 0; display: block; overflow-x: auto; }
+.md-table th, .md-table td { border: 1px solid var(--border); padding: .25rem .5rem; text-align: left; }
+.md blockquote { margin: .5rem 0; padding-left: .8rem; border-left: 3px solid var(--border); color: var(--muted); }
+.ref-target { color: var(--accent) !important; }

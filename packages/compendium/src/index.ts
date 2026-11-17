@@ -109,7 +109,8 @@ export class Compendium {
       type: doc.type,
       // Only the first few thousand characters: lore is long, and a match deep inside
       // a wall of text is not what anyone is looking for at the table.
-      text: String(doc['description'] ?? doc['lore'] ?? doc['summary'] ?? '').slice(0, 3000),
+      // Rules keep their text in `body`; without it a rule was findable by name only.
+      text: String(doc['description'] ?? doc['body'] ?? doc['lore'] ?? doc['summary'] ?? '').slice(0, 3000),
     })));
   }
 
