@@ -93,7 +93,8 @@ export type FromServer =
   | Refusal
   | SessionClosed
   | Ack
-  | GlossaryMessage;
+  | GlossaryMessage
+  | History;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -247,6 +248,18 @@ export interface SheetSummary {
    */
   warnings: string[];
 }
+
+/**
+ * Server → GM on connect: the latest events of the current session, oldest first
+ * (F-047). The feed is rebuilt from the log, so reloading the GM page loses nothing.
+ */
+export interface History {
+  type: 'history';
+  events: GameEvent[];
+}
+
+/** How many past events the GM gets on connect — the feed shows the latest few anyway. */
+export const HISTORY_LIMIT = 100;
 
 /** Server → client: the computed sheets. Sent once, on connect. */
 export interface Sheets {

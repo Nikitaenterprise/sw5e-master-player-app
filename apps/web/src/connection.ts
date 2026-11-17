@@ -179,6 +179,11 @@ export function connect(
         case 'sheets':
           update({ sheets: m.sheets });
           break;
+        case 'history':
+          // Replaces, never appends: after a reconnect the server's log is the truth,
+          // and appending would show every line twice.
+          update({ events: [...m.events].reverse().slice(0, 100) });
+          break;
         case 'glossary':
           update({ glossary: m.terms });
           break;

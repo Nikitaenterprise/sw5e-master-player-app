@@ -20,6 +20,7 @@ import {
   type FromServer,
   sessionCommitMessage,
   rebase,
+  HISTORY_LIMIT,
 } from '@holotable/protocol';
 import { Log } from './log.js';
 import { State } from './state.js';
@@ -176,6 +177,10 @@ export async function start(
         send(socket, { type: 'state', characters: state.all() });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
+        // The GM's feed comes from the log, not from what this page happened to see.
+        if (hello.role === 'gm') {
+          send(socket, { type: 'history', events: log.read().events.slice(-HISTORY_LIMIT) });
+        }
         broadcastClients();
         return;
       }

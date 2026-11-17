@@ -66,6 +66,10 @@ try {
   ok('F-019 чужого персонажа змінити не можна', await wait(p2, (g) => g.some((m) => m.type === 'refused' && m.reason.includes('не твій'))));
   p1.ws.send(JSON.stringify({ type: 'intent', character: 'sandra-vong', id: 's2', base: { hitDiceUsed: { d6: 1 }, hitPointsLost: lost + 5 }, changes: { hitDiceUsed: { d6: 2 }, hitPointsLost: lost + 1 }, note: 'кубик здоровʼя d6: 4 +0 = 4 ХП' }));
   ok('F-044 витрата кубика — одна подія з двома полями', await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.changes.length === 2)));
+  const reloaded = await client({ role: 'gm' });
+  ok('F-047 нова сторінка майстра одразу має стрічку з журналу',
+    await wait(reloaded, (g) => g.some((m) => m.type === 'history' && m.events.some((e) => e.intent === 's1'))));
+  reloaded.ws.close();
   gm.ws.send(JSON.stringify({ type: 'rest', kind: 'long' }));
   ok('F-023 довгий відпочинок', await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.note === 'довгий відпочинок' && m.event.character === 'sandra-vong')));
   const last = [...gm.got].reverse().find((m) => m.type === 'event' && m.event.character === 'sandra-vong');
