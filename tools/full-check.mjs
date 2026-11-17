@@ -31,6 +31,8 @@ try {
   const refDoc = await (await fetch(`http://localhost:${port}/api/doc/power/force-push-pull`)).json();
   ok('F-049 довідник: «Витонченість» → Finesse, сторінка сили з текстом книги',
     refHits[0]?.key === 'finesse' && refDoc.sections?.[0]?.text?.includes('Force'));
+  const termHit = await (await fetch(`http://localhost:${port}/api/term?kind=condition&name=Prone`)).json();
+  ok('F-050 посилання «Prone» → правило умов на розділі prone', termHit.key === 'phb-appendix-a-conditions' && termHit.anchor === 'prone');
   const asset = page.match(/assets\/index-[^"]+\.js/)?.[0];
   const js = await (await fetch(`http://localhost:${port}/${asset}`)).text();
   ok('клієнтський бандл роздається', js.length > 100000, `${Math.round(js.length / 1024)} КБ`);

@@ -1,8 +1,8 @@
 // How game terms are shown on screen (F-025): Ukrainian with the English in brackets,
 // Ukrainian only, or English only. The words come from the owner's glossary; the choice of mode
 // is a per-viewer convenience, so it lives in this browser only.
-import { createContext, useContext } from 'react';
-import type { TermKind, TermMode } from '@holotable/protocol';
+import { createContext, createElement, useContext, type ReactNode } from 'react';
+import { termUrl, type TermKind, type TermMode } from '@holotable/protocol';
 
 export type Term = (kind: TermKind, english: string) => string;
 
@@ -38,3 +38,11 @@ export const MODE_LABELS: Record<TermMode, string> = {
   uk: 'Укр',
   en: 'En',
 };
+
+/**
+ * A term that opens its page in the reference (F-050). In a new tab: the GM screen
+ * must stay where it is while someone reads a rule.
+ */
+export function TermLink({ kind, english, children }: { kind: TermKind; english: string; children: ReactNode }): ReactNode {
+  return createElement('a', { className: 'ref-link', href: termUrl(kind, english), target: '_blank', rel: 'noreferrer' }, children);
+}

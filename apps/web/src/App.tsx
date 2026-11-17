@@ -13,8 +13,8 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, type TermMode } from '@holotable/protocol';
-import { TermContext, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
+import { usedOf, showTerm, termUrl, type TermMode } from '@holotable/protocol';
+import { TermContext, TermLink, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, type FeedRow,
@@ -300,14 +300,16 @@ export function Managed({
         <div className="chips">
           {conditions.length === 0 && <span className="empty">немає</span>}
           {conditions.map((u) => (
-            <button
-              key={u}
-              type="button"
-              className="chip"
-              onClick={() => sendChange({ conditions: conditions.filter((i) => i !== u) })}
-            >
-              {term('condition', u)} <span aria-hidden="true">×</span>
-            </button>
+            <span key={u} className="chip-pair">
+              <button
+                type="button"
+                className="chip"
+                onClick={() => sendChange({ conditions: conditions.filter((i) => i !== u) })}
+              >
+                {term('condition', u)} <span aria-hidden="true">×</span>
+              </button>
+              <a className="chip-help" href={termUrl('condition', u)} aria-label={`Що таке «${u}»`}>?</a>
+            </span>
           ))}
         </div>
         <form
@@ -780,12 +782,16 @@ export function Card({
         <ul className="attacks">
           {sheet.attacks.map((a, i) => (
             <li key={a.name}>
-              <span className="what">{term('weapon', a.name)}</span>
+              <span className="what"><TermLink kind="weapon" english={a.name}>{term('weapon', a.name)}</TermLink></span>
               <span className="hit">
                 <Why sheet={sheet} what={`attack:${i}`} signedTotal>{signed(a.toHit)}</Why>
               </span>
               <span className="dmg">
-                {a.damageType === undefined ? a.damage : `${a.damageDice} ${term('damage', a.damageType)}`}
+                {a.damageType === undefined ? a.damage : (
+                  <>
+                    {a.damageDice} <TermLink kind="damage" english={a.damageType}>{term('damage', a.damageType)}</TermLink>
+                  </>
+                )}
               </span>
             </li>
           ))}
@@ -796,7 +802,7 @@ export function Card({
         <ul className="maneuvers">
           {sheet.maneuvers.map((m) => (
             <li key={m.name}>
-              <span className="what">{term('maneuver', m.name)}</span>
+              <span className="what"><TermLink kind="maneuver" english={m.name}>{term('maneuver', m.name)}</TermLink></span>
               <span className="cost">{m.cost === 0 ? '—' : `${m.cost} куб.`}</span>
               {m.saveDC !== null && <span className="dc">DC {m.saveDC}</span>}
             </li>
@@ -812,7 +818,7 @@ export function Card({
           <ul>
             {sheet.skills.map((k) => (
               <li key={k.name} className={k.proficiency === 'none' ? undefined : 'proficient'}>
-                <span className="what">{term('skill', k.name)}</span>
+                <span className="what"><TermLink kind="skill" english={k.name}>{term('skill', k.name)}</TermLink></span>
                 <Why sheet={sheet} what={`skill:${k.name}`} signedTotal>{signed(k.modifier)}</Why>
               </li>
             ))}
@@ -820,7 +826,16 @@ export function Card({
         </details>
       )}
 
-      {conditions.length > 0 && <p className="conditions">{conditions.map((c) => term('condition', c)).join(', ')}</p>}
+      {conditions.length > 0 && (
+        <p className="conditions">
+          {conditions.map((c, i) => (
+            <span key={c}>
+              {i > 0 && ', '}
+              <TermLink kind="condition" english={c}>{term('condition', c)}</TermLink>
+            </span>
+          ))}
+        </p>
+      )}
     </article>
   );
 }

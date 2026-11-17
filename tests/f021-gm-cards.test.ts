@@ -96,7 +96,8 @@ describe('F-021 · огляд майстра: п’ять карточок', () 
     expect(html).toContain('Rally');
     expect(html).toContain('DC 14');
     // Parry is general because of its upgrade (F-017), so 14 rather than 12.
-    const parry = /Parry<\/span><span class="cost">1 куб\.<\/span><span class="dc">DC (\d+)/.exec(html);
+    // The name may be a link to the reference since F-050.
+    const parry = /Parry(?:<\/a>)?<\/span><span class="cost">1 куб\.<\/span><span class="dc">DC (\d+)/.exec(html);
     expect(parry?.[1], 'DC Parry з перетипізацією').toBe('14');
     expect(html, 'Disarming Blow лишається фізичним').toMatch(/Disarming Blow.*?DC 12/);
   });

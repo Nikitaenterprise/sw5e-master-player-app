@@ -112,12 +112,14 @@ describe('F-025 · терміни українською', () => {
       { value: (kind: TermKind, english: string) => showTerm(terms, 'both', kind, english) },
       createElement(Card, { slug: 'krinzh-dor', state: { conditions: ['Prone'] }, sheet: sheets['krinzh-dor'] }),
     ));
-    expect(html).toContain('Кел-Дор (Kel Dor) · Учений (Scholar) 4 · Покликання Політика (Politician Pursuit)');
-    expect(html).toContain('Згуртування (Rally)');
-    expect(html).toContain('Кріопістолет (Cryo pistol)');
-    expect(html).toContain('1d4 + 2 крижана (cold)');
-    expect(html).toContain('Переконання (Persuasion)');
-    expect(html).toContain('Збитий з ніг (Prone)');
+    // Read as text: since F-050 terms are links, i.e. tags inside the line.
+    const text = html.replace(/<[^>]+>/g, '');
+    expect(text).toContain('Кел-Дор (Kel Dor) · Учений (Scholar) 4 · Покликання Політика (Politician Pursuit)');
+    expect(text).toContain('Згуртування (Rally)');
+    expect(text).toContain('Кріопістолет (Cryo pistol)');
+    expect(text).toContain('1d4 + 2 крижана (cold)');
+    expect(text).toContain('Переконання (Persuasion)');
+    expect(text).toContain('Збитий з ніг (Prone)');
   });
 
   it('сервер надсилає глосарій при підключенні', async () => {

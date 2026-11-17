@@ -4,7 +4,7 @@
 // there, and it works on a phone between turns. The browser's Back button walks back
 // through what was opened, because every step is a real address.
 import { useEffect, useState, type JSX } from 'react';
-import type { RefDoc, RefHit, TermMode } from '@holotable/protocol';
+import { termUrl, type RefDoc, type RefHit, type TermKind, type TermMode } from '@holotable/protocol';
 import { Markdown } from './markdown.js';
 import { readMode } from './terms.js';
 
@@ -13,15 +13,20 @@ export interface RefPlace {
   q: string;
   doc: { type: string; key: string } | null;
   anchor: string | null;
+  /** A term from a sheet, not yet resolved to its document (F-050). */
+  term?: { kind: TermKind; name: string };
 }
 
 export function placeFromUrl(search: string, hash: string): RefPlace {
   const p = new URLSearchParams(search);
   const doc = /^([a-z-]+)\/(.+)$/.exec(p.get('doc') ?? '');
+  const term = p.get('term');
+  const name = p.get('name');
   return {
     q: p.get('q') ?? '',
     doc: doc === null ? null : { type: doc[1] as string, key: doc[2] as string },
     anchor: hash.replace(/^#/, '') || null,
+    ...(term !== null && name !== null ? { term: { kind: term as TermKind, name } } : {}),
   };
 }
 
@@ -57,6 +62,25 @@ export function ReferencePage(): JSX.Element {
     history.replaceState(null, '', urlOf(search));
     setPlace(search);
   };
+  // A link from a sheet names a term; ask the server which page that is, then show it
+  // under its real address. Unknown — fall back to a search for the name.
+  useEffect(() => {
+    const term = place.term;
+    if (term === undefined) return;
+    fetch(`/api/term?kind=${term.kind}&name=${encodeURIComponent(term.name)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<RefHit>) : Promise.reject(new Error('not found'))))
+      .then((hit) => {
+        const next: RefPlace = { q: '', doc: { type: hit.type, key: hit.key }, anchor: hit.anchor ?? null };
+        history.replaceState(null, '', urlOf(next));
+        setPlace(next);
+      })
+      .catch(() => {
+        const next: RefPlace = { q: term.name, doc: null, anchor: null };
+        history.replaceState(null, '', urlOf(next));
+        setPlace(next);
+      });
+  }, [place.term]);
+
   useEffect(() => {
     const back = (): void => setPlace(placeFromUrl(location.search, location.hash));
     window.addEventListener('popstate', back);
@@ -69,7 +93,9 @@ export function ReferencePage(): JSX.Element {
         <h1>Довідник</h1>
         <p className="hint">Сили, предмети, риси, маневри, види, правила. Шукай англійською або українською.</p>
       </header>
-      {place.doc === null ? (
+      {place.term !== undefined ? (
+        <p className="hint">Шукаю «{place.term.name}»…</p>
+      ) : place.doc === null ? (
         <Search
           q={place.q}
           setQ={(q) => {
@@ -174,7 +200,16 @@ export function DocBody({ doc, mode }: { doc: RefDoc; mode: TermMode }): JSX.Ele
           {doc.facts.map((f) => (
             <div key={f.label}>
               <dt>{f.label}</dt>
-              <dd>{f.value}</dd>
+              <dd>
+                {f.links === undefined
+                  ? f.value
+                  : f.links.map((l, i) => (
+                      <span key={i}>
+                        {i > 0 && ', '}
+                        {l.kind === undefined || l.english === undefined ? l.text : <a href={termUrl(l.kind, l.english)}>{l.text}</a>}
+                      </span>
+                    ))}
+              </dd>
             </div>
           ))}
         </dl>

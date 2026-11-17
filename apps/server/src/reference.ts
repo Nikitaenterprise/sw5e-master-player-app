@@ -78,30 +78,8 @@ export function searchReference(
     const uk = glossary[row.key];
     const matches = (uk !== undefined && normalizeName(uk).includes(q)) || normalizeName(row.english).startsWith(q);
     if (!matches) continue;
-    const target = KIND_TO_DOC[row.kind];
-    if (target.rule !== undefined) {
-      const rule = compendium.get('rule', target.rule);
-      if (rule === undefined) continue;
-      add({
-        type: 'rule', key: rule.key, name: row.english, typeLabel: kindLabel(row.kind),
-        anchor: anchorOf(row.english),
-        ...(uk === undefined ? {} : { uk }),
-      });
-      continue;
-    }
-    const doc = compendium.get(target.type, row.english);
-    if (doc === undefined) {
-      // No page of its own — Unarmed Strike is one: open the rule that talks about it.
-      const section = ruleSection(compendium, row.english);
-      if (section !== null) {
-        add({ type: 'rule', key: section.key, name: row.english, typeLabel: 'правило', anchor: section.anchor, ...(uk === undefined ? {} : { uk }) });
-      }
-      continue;
-    }
-    add({
-      type: doc.type, key: doc.key, name: doc.name, typeLabel: TYPE_LABELS[doc.type] ?? doc.type,
-      ...(uk === undefined ? {} : { uk }),
-    });
+    const hit = resolveTerm(compendium, row.kind, row.english, glossary);
+    if (hit !== null) add(hit);
   }
 
   for (const hit of compendium.search(query, { limit: LIMIT })) {
@@ -109,6 +87,42 @@ export function searchReference(
     add({ type: hit.type, key: hit.key, name: hit.name, typeLabel: TYPE_LABELS[hit.type] ?? hit.type, ...(uk === undefined ? {} : { uk }) });
   }
   return hits;
+}
+
+/**
+ * The page a term opens (F-050): its own document, or the rule section it lives in —
+ * conditions, skills, abilities and damage types are sections of rule chapters, and
+ * a thing with no page of its own (Unarmed Strike) opens where the rules talk about it.
+ */
+export function resolveTerm(
+  compendium: Compendium,
+  kind: TermKind,
+  english: string,
+  glossary: Record<string, string>,
+): RefHit | null {
+  const name = english.trim();
+  // A player may type a condition in Ukrainian. The glossary knows the word:
+  // its key's slug is the English term's anchor and, for documents, usually its key.
+  let slug: string | null = null;
+  if (!/[a-z]/i.test(name)) {
+    const wanted = normalizeName(name);
+    const key = Object.keys(glossary).find((k) => k.startsWith(`${kind}.`) && normalizeName(glossary[k] ?? '') === wanted);
+    if (key !== undefined) slug = key.slice(kind.length + 1);
+  }
+  const uk = slug === null ? glossary[termKey(kind, name)] : name;
+  const named = uk === undefined ? {} : { uk };
+  const target = KIND_TO_DOC[kind];
+  if (target === undefined) return null;
+  if (target.rule !== undefined) {
+    const rule = compendium.get('rule', target.rule);
+    if (rule === undefined) return null;
+    return { type: 'rule', key: rule.key, name, typeLabel: kindLabel(kind), anchor: slug ?? anchorOf(name), ...named };
+  }
+  const doc = compendium.get(target.type, slug ?? name);
+  if (doc !== undefined) return { type: doc.type, key: doc.key, name: doc.name, typeLabel: TYPE_LABELS[doc.type] ?? doc.type, ...named };
+  const section = ruleSection(compendium, name);
+  if (section === null) return null;
+  return { type: 'rule', key: section.key, name, typeLabel: 'правило', anchor: section.anchor, ...named };
 }
 
 /** Heading or bold run-in at the start of a rules line: its text. */
@@ -191,7 +205,7 @@ function objectText(value: Record<string, unknown>): string | null {
   return parts.length === 0 ? null : parts.join(', ');
 }
 
-export function presentDoc(doc: CompendiumDoc, glossary: Record<string, string>): RefDoc {
+export function presentDoc(doc: CompendiumDoc, glossary: Record<string, string>, compendium?: Compendium): RefDoc {
   const facts: RefDoc['facts'] = [];
   const sections: RefDoc['sections'] = [];
   const texts = new Map<string, string>();
@@ -207,7 +221,17 @@ export function presentDoc(doc: CompendiumDoc, glossary: Record<string, string>)
     }
     if (Array.isArray(value)) {
       if (value.every((v) => typeof v === 'string' || typeof v === 'number')) {
-        if (value.length > 0) facts.push({ label, value: value.join(', ') });
+        if (value.length === 0) continue;
+        // A weapon's properties each lead to their own page (F-050): "reload 16" → Reload.
+        if (field === 'properties') {
+          const links = value.map(String).map((text) => {
+            const prop = compendium?.get('weapon-property', /^([a-z][a-z -]*?)(?:\s+[\d(].*)?$/i.exec(text.trim())?.[1] ?? text);
+            return prop === undefined ? { text } : { text, kind: 'property' as const, english: prop.name };
+          });
+          facts.push({ label, value: value.join(', '), links });
+          continue;
+        }
+        facts.push({ label, value: value.join(', ') });
         continue;
       }
       const named = value.filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null);

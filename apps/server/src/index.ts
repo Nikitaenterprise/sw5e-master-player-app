@@ -19,6 +19,7 @@ import {
   type Client,
   type FromServer,
   type PrintData,
+  type TermKind,
   sessionCommitMessage,
   rebase,
   parseGlossarySet,
@@ -32,8 +33,14 @@ import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
 import { loadGlossary, saveGlossary } from './glossary.js';
 import { buildTermIndex } from './termIndex.js';
-import { searchReference, presentDoc } from './reference.js';
+import { searchReference, presentDoc, resolveTerm } from './reference.js';
 import { loadCompendium, CONTENT_TYPES, type ContentType } from '@holotable/compendium';
+
+const TERM_KINDS: readonly string[] = [
+  'ability', 'skill', 'condition', 'damage', 'property', 'species', 'class', 'archetype', 'weapon', 'maneuver',
+  'power', 'feat', 'background',
+];
+const isTermKind = (k: string): k is TermKind => TERM_KINDS.includes(k);
 
 const isContentType = (t: string | undefined): t is ContentType =>
   t !== undefined && (CONTENT_TYPES as readonly string[]).includes(t);
@@ -163,6 +170,13 @@ export async function start(
       response.end(JSON.stringify(hits));
       return;
     }
+    if (url.pathname === '/api/term') {
+      const kind = url.searchParams.get('kind') ?? '';
+      const hit = isTermKind(kind) ? resolveTerm(compendium, kind, url.searchParams.get('name') ?? '', glossary.terms) : null;
+      response.writeHead(hit === null ? 404 : 200, { 'content-type': TYPES['.json'] as string });
+      response.end(JSON.stringify(hit ?? { error: 'такого в довіднику немає' }));
+      return;
+    }
     const docPath = /^\/api\/doc\/([a-z-]+)\/([^/]+)$/.exec(url.pathname);
     if (docPath !== null) {
       const doc = isContentType(docPath[1]) ? compendium.get(docPath[1], decodeURIComponent(docPath[2] ?? '')) : undefined;
@@ -172,7 +186,7 @@ export async function start(
         return;
       }
       response.writeHead(200, { 'content-type': TYPES['.json'] as string });
-      response.end(JSON.stringify(presentDoc(doc, glossary.terms)));
+      response.end(JSON.stringify(presentDoc(doc, glossary.terms, compendium)));
       return;
     }
     void serveFile(req, response, connected.size);

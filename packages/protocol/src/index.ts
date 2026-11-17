@@ -431,7 +431,8 @@ export interface RefDoc {
   name: string;
   uk?: string;
   typeLabel: string;
-  facts: { label: string; value: string }[];
+  /** `links`, when present, split the value into parts that open their own page (F-050). */
+  facts: { label: string; value: string; links?: { text: string; kind?: TermKind; english?: string }[] }[];
   /** Markdown, as the books write it. `title` is a sub-heading, e.g. a species trait. */
   sections: { title?: string; text: string }[];
 }
@@ -439,6 +440,11 @@ export interface RefDoc {
 /** Heading anchor inside a rule: "Prone" → "prone", "Exhaustion Level" → "exhaustion-level". */
 export function anchorOf(heading: string): string {
   return heading.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+/** Address of the reference page a term opens (F-050). The reference finds the document. */
+export function termUrl(kind: TermKind, english: string): string {
+  return `/?as=ref&term=${kind}&name=${encodeURIComponent(english.trim())}`;
 }
 
 /** Default port. Changed through HOLOTABLE_PORT. */
