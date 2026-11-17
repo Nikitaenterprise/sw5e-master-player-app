@@ -43,6 +43,17 @@ export interface SkillValue {
   modifier: number;
 }
 
+/**
+ * An ability increase the books give as a choice, and the sheet does not record (F-043).
+ * Kept structurally so a hand edit can be matched against it.
+ */
+export interface PendingChoice {
+  /** Where it comes from, in the words the GM reads: the feat or species, by name. */
+  source: string;
+  amount: number;
+  options: AbilityName[] | 'any';
+}
+
 export interface ComputedSheet {
   name: string;
   level: number;
@@ -57,6 +68,8 @@ export interface ComputedSheet {
   casting: CastingResult[];
   /** Superiority dice and maneuvers, per class that grants them. */
   superiority: SuperiorityResult[];
+  /** Ability increases that are a choice nobody has made in the sheet. */
+  pendingChoices: PendingChoice[];
   /** Initiative is the Dexterity modifier; nothing in the five sheets changes it yet. */
   initiative: number;
   passivePerception: number;
@@ -84,6 +97,7 @@ function speciesIncrease(
   raw: RawCharacter,
   compendium: Compendium,
   warnings: string[],
+  pending: PendingChoice[],
 ): Record<AbilityName, number> {
   const out = emptyAbilityMap();
   const chosen = raw.species.abilityScoreImprovement ?? {};
@@ -114,6 +128,7 @@ function speciesIncrease(
   for (const increase of option.increases) {
     const names = increase.abilities ?? [];
     if (increase.anyAbilityCount !== undefined) {
+      pending.push({ source: `вид «${raw.species.name}»`, amount: increase.amount, options: 'any' });
       warnings.push(
         `вид «${raw.species.name}» дає +${increase.amount} на вільний вибір `
         + `(${increase.anyAbilityCount} раз), і в листі цього вибору немає`,
@@ -129,6 +144,11 @@ function speciesIncrease(
       out[ability] += increase.amount;
       continue;
     }
+    pending.push({
+      source: `вид «${raw.species.name}»`,
+      amount: increase.amount,
+      options: names.map((n) => toAbility(String(n))).filter((a): a is AbilityName => a !== undefined),
+    });
     warnings.push(
       `вид «${raw.species.name}» дає +${increase.amount} на вибір між `
       + `${names.join(' і ')}, і в листі цього вибору немає`,
@@ -192,6 +212,7 @@ function featIncrease(
   raw: RawCharacter,
   compendium: Compendium,
   warnings: string[],
+  pending: PendingChoice[],
 ): Record<AbilityName, number> {
   const out = emptyAbilityMap();
   for (const name of listFeats(raw)) {
@@ -211,6 +232,13 @@ function featIncrease(
       out[ability] += 1;
       continue;
     }
+    pending.push({
+      source: `риса «${name}»`,
+      amount: 1,
+      options: options.includes('any')
+        ? 'any'
+        : options.map((o) => toAbility(String(o))).filter((a): a is AbilityName => a !== undefined),
+    });
     const where = options.includes('any') ? 'будь-якої характеристики' : options.join(' / ');
     warnings.push(
       `риса «${name}» дає +1 на вибір (${where}), і в листі цього вибору немає`,
@@ -250,9 +278,10 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
   const level = totalLevel(raw);
   const bonus = proficiencyBonus(raw, compendium, level, warnings);
 
-  const fromSpecies = speciesIncrease(raw, compendium, warnings);
+  const pendingChoices: PendingChoice[] = [];
+  const fromSpecies = speciesIncrease(raw, compendium, warnings, pendingChoices);
   const fromLevels = improvementIncrease(raw, warnings);
-  const fromFeats = featIncrease(raw, compendium, warnings);
+  const fromFeats = featIncrease(raw, compendium, warnings, pendingChoices);
   const tweaks = raw.tweaks?.abilityScores ?? {};
 
   const abilities = {} as Record<AbilityName, AbilityBreakdown>;
@@ -375,6 +404,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     weapons,
     casting,
     superiority,
+    pendingChoices,
     initiative: abilities.Dexterity.modifier,
     passivePerception: 10 + skills.Perception.modifier,
     warnings,
@@ -404,3 +434,4 @@ export type {
 export type { HitPointsResult, HitDiceGroup } from './hitPoints.js';
 export type { AbilityName, SkillName };
 export { explainSheet, ABILITY_UK, type Explanation, type Part, type SheetExplanations } from './explain.js';
+export { computeHandEdits, isDebt, type HandEdit, type HandEditVerdict } from './handEdits.js';

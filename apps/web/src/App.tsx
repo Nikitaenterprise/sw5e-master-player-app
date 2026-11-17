@@ -100,7 +100,7 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 1 · F-042. Наведи на число на карточці — побачиш, з чого воно складається. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 1 · F-043. Наведи на число — побачиш, з чого воно складається; ✎ — ручна правка. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
@@ -505,11 +505,53 @@ function Why({
   children: ReactNode;
 }): JSX.Element {
   const e = sheet.explain?.[what];
-  if (e === undefined) return <>{children}</>;
-  return (
+  // Hand edits on this number that are debt (F-043): marked, so they cannot pass as normal.
+  const debt = (sheet.handEdits ?? []).filter((h) => h.key === what && h.verdict !== 'customItem');
+  const number = e === undefined ? <>{children}</> : (
     <span className="why" title={explanationText(e, signedTotal)}>
       {children}
     </span>
+  );
+  if (debt.length === 0) return number;
+  return (
+    <>
+      {number}
+      <span className={`hand-edit ${debt.some((h) => h.verdict === 'unknown') ? 'unknown' : ''}`} title={debt.map((h) => h.text).join('\n')}>
+        ✎
+      </span>
+    </>
+  );
+}
+
+const VERDICT: Record<SheetSummary['handEdits'][number]['verdict'], string> = {
+  unknown: 'походження невідоме',
+  choice: 'невнесений вибір',
+  redundant: 'зайва',
+  customItem: 'власний предмет',
+};
+
+/** Every hand edit of the character, debt first (F-043). */
+function HandEdits({ sheet }: { sheet: SheetSummary }): JSX.Element | null {
+  const all = sheet.handEdits ?? [];
+  const debt = all.filter((h) => h.verdict !== 'customItem');
+  if (all.length === 0) return null;
+  const order = ['unknown', 'choice', 'redundant', 'customItem'];
+  return (
+    <details className="hand-edits">
+      <summary>
+        Ручні правки — {debt.length}
+        {all.length > debt.length ? ` (+${all.length - debt.length} власних предметів)` : ''}
+      </summary>
+      <ul>
+        {[...all]
+          .sort((a, b) => order.indexOf(a.verdict) - order.indexOf(b.verdict))
+          .map((h, i) => (
+            <li key={i} className={h.verdict}>
+              <b>{VERDICT[h.verdict]}</b> · {h.text}
+            </li>
+          ))}
+      </ul>
+    </details>
   );
 }
 
@@ -677,6 +719,8 @@ export function Card({
           ))}
         </ul>
       )}
+
+      <HandEdits sheet={sheet} />
 
       {(sheet.skills?.length ?? 0) > 0 && (
         <details className="skills">

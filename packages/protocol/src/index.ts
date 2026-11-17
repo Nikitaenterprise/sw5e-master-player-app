@@ -232,6 +232,12 @@ export interface SheetSummary {
    */
   explain: Record<string, Explanation>;
   /**
+   * Every hand edit in the sheet, with a verdict (F-043): unknown origin, redundant,
+   * a choice the sheet never recorded, or the stats of a custom item. `key` is the
+   * same as in `explain`, so the card can mark the number it changes.
+   */
+  handEdits: { key: string; text: string; verdict: 'unknown' | 'redundant' | 'choice' | 'customItem' }[];
+  /**
    * What the engine could not work out on its own, verbatim. The GM card shows a
    * marker, because a number nobody can explain is the thing that costs a session.
    */

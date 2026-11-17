@@ -16,7 +16,7 @@ import { loadCompendium } from '@holotable/compendium';
 // are imported by path. Giving them a package.json would mean a new link in
 // node_modules, which means the owner has to run ВСТАНОВИТИ.bat again before the app
 // starts — and "double-click to run" is a hard requirement, not a nicety.
-import { computeSheet, explainSheet, restPlan, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
+import { computeSheet, computeHandEdits, explainSheet, restPlan, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 
 const ABILITIES = [
@@ -110,6 +110,7 @@ function summarize(
     powers,
     skills: Object.entries(sheet.skills).map(([name, v]) => ({ name, modifier: v.modifier, proficiency: v.proficiency })),
     explain,
+    handEdits: computeHandEdits(raw, sheet).map((e) => ({ key: e.key, text: e.text, verdict: e.verdict })),
     warnings: sheet.warnings,
   };
 }

@@ -254,3 +254,12 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 .card .skills ul { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: .1rem .8rem; }
 .card .skills li { display: flex; justify-content: space-between; color: var(--muted); }
 .card .skills li.proficient { color: var(--text); font-weight: 600; }
+
+/* ── Hand edits as debt (F-043) ────────────────────────────────────────── */
+.hand-edit { margin-left: .15rem; font-size: .75em; color: var(--muted); cursor: help; vertical-align: super; }
+.hand-edit.unknown { color: var(--bad); }
+.card .hand-edits { margin-top: .5rem; font-size: .78rem; }
+.card .hand-edits summary { cursor: pointer; color: var(--bad); }
+.card .hand-edits ul { margin: .3rem 0 0; padding-left: 1rem; color: var(--muted); }
+.card .hand-edits li.unknown b { color: var(--bad); }
+.card .hand-edits li.redundant b, .card .hand-edits li.choice b { color: var(--text); }

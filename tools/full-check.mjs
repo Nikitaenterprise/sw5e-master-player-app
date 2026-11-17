@@ -48,6 +48,8 @@ try {
   ok('F-021 Крінж-Дор 4×d4 суперіориті, 5 маневрів', sheets['krinzh-dor'].superiority?.quantity === 4 && sheets['krinzh-dor'].maneuvers.length === 5);
   ok('F-021 Нигра DC техніки 13', sheets['nigra-4'].techPoints?.dc === 13);
   ok('F-042 підказка Переконання Сандри = +5', sheets['sandra-vong'].explain['skill:Persuasion'].total === 5);
+  ok('F-043 ручна правка КБ Анама — походження невідоме', sheets['anam-melekh'].handEdits.some((h) => h.key === 'armorClass' && h.verdict === 'unknown'));
+  ok('F-043 зайва правка Мудрості Сандри', sheets['sandra-vong'].handEdits.some((h) => h.key === 'ability:Wisdom' && h.verdict === 'redundant'));
   ok('F-044 у Сандри 4×d6', JSON.stringify(sheets['sandra-vong'].hitDice) === '[{"size":"d6","count":4}]');
   const state = gm.got.find((m) => m.type === 'state').characters;
   const lost = state['sandra-vong'].hitPointsLost;
