@@ -115,7 +115,7 @@ const fighter = (
   name = id,
 ): Fighter => ({
   id, kind: 'character', character: id, name, modifier, roll,
-  total: roll === null ? null : roll + modifier, dexterity,
+  total: roll === null ? null : roll + modifier, said: null, counts: 'player', dexterity,
 });
 
 const combatOf = (fighters: Fighter[], turn: string | null = null, round = 1): CombatState => ({
@@ -204,12 +204,12 @@ describe('F-054 · бій: ініціатива і чий хід', () => {
     expect(idle).not.toContain('Наступний хід');
 
     const waiting = renderToStaticMarkup(createElement(MyInitiative, {
-      combat, character: 'krinzh-dor', roll: nothing,
+      combat, character: 'krinzh-dor', counts: 'app', roll: nothing,
     }));
     expect(waiting).toContain('Що випало на d20');
     expect(waiting.replace(/<[^>]+>/g, ' '), 'застосунок каже, що додасть').toContain('додам +2');
     const rolled = renderToStaticMarkup(createElement(MyInitiative, {
-      combat, character: 'sandra-vong', roll: nothing,
+      combat, character: 'sandra-vong', counts: 'app', roll: nothing,
     }));
     expect(rolled.replace(/<[^>]+>/g, ' ')).toContain('Зараз твій хід');
     expect(rolled).not.toContain('Що випало на d20');

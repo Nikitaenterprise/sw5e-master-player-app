@@ -438,3 +438,21 @@ a.ref-link:hover { color: var(--accent); }
 .my-initiative .add.roll input { flex: 0 0 6rem; width: 6rem; }
 .my-initiative .state-row small { color: var(--muted); font-size: .75rem; }
 .my-initiative .turn-now { color: var(--accent); font-weight: 600; margin: .4rem 0 0; }
+
+/* ── Who counts the modifiers (F-064, ADR 0007) ────────────────────────── */
+.counts ul { display: flex; flex-direction: column; gap: .25rem; }
+.counts li {
+  display: flex; align-items: center; gap: .6rem; padding: .35rem .7rem;
+  background: var(--panel); border: 1px solid var(--border); border-radius: .4rem;
+}
+.counts .who { flex: 1; min-width: 7rem; }
+.counts .switch { display: flex; gap: .2rem; }
+.counts .switch button {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: .3rem; font: inherit; font-size: .78rem; padding: .15rem .55rem; cursor: pointer;
+}
+.counts .switch button.on { color: var(--text); border-color: var(--accent); }
+.counts .hint { margin: .5rem 0 0; }
+/* Two numbers that disagree are not an error — the sheet can be the stale one. */
+.combat .order .total.differs b, .combat .order .total.differs small { color: var(--waiting); }
+.feed .mark.differs { color: var(--waiting); }

@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type CharacterState, type Client, type CombatState, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -44,6 +44,8 @@ export interface Snapshot {
   glossaryFound: { q: string; rows: GlossaryRow[] };
   /** The fight: order, whose turn, which round. Null when there is none (F-054). */
   combat: CombatState | null;
+  /** Who adds the modifiers, per character (F-064). Missing means the default. */
+  counts: Record<string, WhoCounts>;
 }
 
 export const EMPTY: Snapshot = {
@@ -64,6 +66,7 @@ export const EMPTY: Snapshot = {
   briefs: {},
   glossaryFound: { q: '', rows: [] },
   combat: null,
+  counts: {},
 };
 
 /**
@@ -141,8 +144,13 @@ export interface Controls {
   searchTerms: (q: string) => void;
   /** Start the fight: the party goes into the turn order. GM only (F-054). */
   startCombat: () => void;
-  /** Send what came up on a d20. A player may send only their own character's roll. */
-  rollInitiative: (character: string, roll: number) => void;
+  /**
+   * Send what came up on a d20, and the sum the person worked out when they are the one
+   * counting (ADR 0007). A player may send only their own character's roll.
+   */
+  rollInitiative: (character: string, roll: number, said?: number) => void;
+  /** Switch who counts for one character: the person or the app. GM only (F-064). */
+  setCounts: (character: string, who: WhoCounts) => void;
   /** Move the turn on, or back when a button was pressed too early. GM only. */
   advanceTurn: (direction: 'next' | 'back') => void;
   /** End the fight. The order goes away, nobody's numbers change. GM only. */
@@ -248,6 +256,9 @@ export function connect(
         case 'glossary-index':
           update({ glossaryIndex: m.rows });
           break;
+        case 'counts':
+          update({ counts: m.counts });
+          break;
         case 'combat':
           // Always the whole fight, never a patch: the server is the one that knows the
           // order, and a screen that reconnects mid-fight must not stitch it together.
@@ -329,9 +340,17 @@ export function connect(
       const message: ToServer = { type: 'combat-start' };
       socket.send(JSON.stringify(message));
     },
-    rollInitiative: (whom, roll) => {
+    rollInitiative: (whom, roll, said) => {
       if (socket?.readyState !== 1) return;
-      const message: ToServer = { type: 'combat-roll', character: whom, roll };
+      const message: ToServer = {
+        type: 'combat-roll', character: whom, roll,
+        ...(said === undefined ? {} : { said }),
+      };
+      socket.send(JSON.stringify(message));
+    },
+    setCounts: (whom, who) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'counts-set', character: whom, who };
       socket.send(JSON.stringify(message));
     },
     advanceTurn: (direction) => {

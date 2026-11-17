@@ -11,6 +11,7 @@
 // by the same person, on the same character, within a short window, are shown as one
 // row — with the oldest `from` and the newest `to`, which is also exactly what undoing
 // the whole run means.
+import { MISMATCH_MARK } from '@holotable/protocol';
 import type { Author, CharacterState, GameEvent, StateField, StateValue } from '@holotable/protocol';
 
 /** Notes that start with this mark an undo, so the feed can show it as one. */
@@ -33,7 +34,16 @@ export interface FeedRow {
   /** How many changes were folded into this row. 1 means nothing was folded. */
   count: number;
   isUndo: boolean;
+  /** The note the change carried, when it had one — a hit die, a rest, an undo. */
+  note?: string;
 }
+
+/**
+ * Whether this row is a roll where the person's sum and the app's differ (F-064). Not
+ * an error: the sheet can be the stale one, and the table may have had a bonus the app
+ * never heard of. The GM looks and decides.
+ */
+export const isMismatch = (row: FeedRow): boolean => (row.note ?? '').startsWith(MISMATCH_MARK);
 
 interface Entry extends Omit<FeedRow, 'count'> {}
 
@@ -51,6 +61,7 @@ const flatten = (events: GameEvent[]): Entry[] => {
         from: change.from,
         to: change.to,
         isUndo,
+        ...(event.note === undefined ? {} : { note: event.note }),
       });
     }
   }

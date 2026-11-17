@@ -17,6 +17,7 @@ import {
   parseRest,
   parseCombatRoll,
   parseCombatTurn,
+  parseCountsSet,
   type Author,
   type Client,
   type FromServer,
@@ -35,6 +36,7 @@ import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
 import { loadGlossary, saveGlossary } from './glossary.js';
+import { loadTable, saveTable } from './table.js';
 import { buildTermCatalog, buildTermIndex, searchCatalog } from './termIndex.js';
 import { searchReference, presentDoc, resolveTerm, buildBriefs } from './reference.js';
 import { loadCompendium, CONTENT_TYPES, type ContentType } from '@holotable/compendium';
@@ -145,8 +147,12 @@ export async function start(
   let termIndex = buildTermIndex(compendium, sheets, SKILLS, glossary.terms, catalog);
   // A few lines from the book per term, for hover hints (F-051). Computed once.
   const briefs = buildBriefs(compendium, termIndex, glossary.terms);
+  // Who counts the modifiers, per character (F-064, ADR 0007). A plain file in state/,
+  // like the glossary, so the owner can fix it by hand.
+  const table = loadTable(stateDir);
+  if (table.problem !== null) console.log(`  Увага: ${table.problem}`);
   // The fight (F-054): replayed from the log, so a restart mid-combat changes nothing.
-  const combat = new CombatTracker(log, sheets);
+  const combat = new CombatTracker(log, sheets, () => table.counts);
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -244,6 +250,7 @@ export async function start(
         send(socket, { type: 'briefs', briefs });
         // The fight comes with the greeting: a reloaded page must not lose the queue.
         send(socket, { type: 'combat', combat: combat.view() });
+        send(socket, { type: 'counts', counts: table.counts });
         // The GM's feed comes from the log, not from what this page happened to see.
         if (hello.role === 'gm') {
           send(socket, { type: 'history', events: log.read().events.slice(-HISTORY_LIMIT) });
@@ -292,6 +299,35 @@ export async function start(
         return;
       }
 
+      // Who counts for whom (F-064). The GM decides it, everyone is told, and the fight
+      // is re-sent because every fighter carries their own answer to this question.
+      if (kind === 'counts-set') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'перемикає майстер' });
+          return;
+        }
+        const wanted = parseCountsSet(data);
+        if (typeof wanted === 'string') {
+          send(socket, { type: 'refused', reason: wanted });
+          return;
+        }
+        if (state.one(wanted.character) === undefined) {
+          send(socket, { type: 'refused', reason: 'немає такого персонажа' });
+          return;
+        }
+        const next = { ...table.counts, [wanted.character]: wanted.who };
+        try {
+          saveTable(stateDir, next);
+        } catch (error) {
+          send(socket, { type: 'refused', reason: `не записалось: ${(error as Error).message}` });
+          return;
+        }
+        table.counts = next;
+        broadcastAll({ type: 'counts', counts: next });
+        broadcastAll({ type: 'combat', combat: combat.view() });
+        return;
+      }
+
       if (kind === 'combat-roll') {
         const parsed = parseCombatRoll(data);
         if (typeof parsed === 'string') {
@@ -302,7 +338,7 @@ export async function start(
           send(socket, { type: 'refused', reason: 'ініціативу кидає власник персонажа або майстер' });
           return;
         }
-        const rolled = combat.roll(authorOf(), parsed.character, parsed.roll);
+        const rolled = combat.roll(authorOf(), parsed.character, parsed.roll, parsed.said);
         if (typeof rolled === 'string') {
           send(socket, { type: 'refused', reason: rolled });
           return;

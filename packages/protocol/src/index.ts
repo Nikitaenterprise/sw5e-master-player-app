@@ -62,7 +62,8 @@ export type ToServer =
   | CombatStart
   | CombatRoll
   | CombatTurn
-  | CombatEnd;
+  | CombatEnd
+  | CountsSet;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -121,7 +122,8 @@ export type FromServer =
   | GlossaryIndex
   | Briefs
   | GlossaryFound
-  | CombatMessage;
+  | CombatMessage
+  | CountsMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -673,8 +675,16 @@ export interface Fighter {
   modifier: number;
   /** What came up on the d20, as the person typed it. Null until the die is thrown. */
   roll: number | null;
-  /** roll + modifier, or null while the roll is missing. */
+  /** roll + modifier as the app works it out, or null while the roll is missing. */
   total: number | null;
+  /**
+   * The sum the person worked out themselves (ADR 0007). Null when the app counts for
+   * them. When it is here, it is the number that counts — `total` stays beside it so
+   * the GM can see both and decide.
+   */
+  said: number | null;
+  /** Who adds the modifiers for this fighter: the person or the app. */
+  counts: WhoCounts;
   /** Dexterity modifier — the tie-break, so an equal total never shuffles by itself. */
   dexterity: number;
 }
@@ -701,6 +711,8 @@ export interface CombatRoll {
   type: 'combat-roll';
   character: string;
   roll: number;
+  /** The total the person worked out, when they are the one counting (ADR 0007). */
+  said?: number;
 }
 
 /** GM → server: move the turn on, or step back when the button was pressed too early. */
@@ -738,6 +750,8 @@ export interface CombatEvent {
   character?: string;
   /** combat.rolled: the d20 as the person typed it. */
   roll?: number;
+  /** combat.rolled: the total the person worked out themselves (ADR 0007). */
+  said?: number;
   /** combat.turn: whose turn it is now, and which round. */
   turn?: string | null;
   round?: number;
@@ -768,7 +782,13 @@ export function parseCombatRoll(data: unknown): CombatRoll | string {
   if (typeof character !== 'string' || character === '') return 'не вказано персонажа';
   const problem = checkInitiativeRoll(o['roll']);
   if (problem !== null) return problem;
-  return { type: 'combat-roll', character, roll: o['roll'] as number };
+  const roll: CombatRoll = { type: 'combat-roll', character, roll: o['roll'] as number };
+  if (o['said'] !== undefined) {
+    const trouble = checkDeclaredTotal(o['said']);
+    if (trouble !== null) return trouble;
+    roll.said = o['said'] as number;
+  }
+  return roll;
 }
 
 /** Parses a turn message: forward, or back when someone pressed too early. */
@@ -782,6 +802,14 @@ export function parseCombatTurn(data: unknown): CombatTurn | string {
 }
 
 /**
+ * The number that counts for this fighter (ADR 0007): the one the person worked out,
+ * and the app's own only when nobody worked it out by hand.
+ */
+export function initiativeOf(fighter: Fighter): number | null {
+  return fighter.said ?? fighter.total;
+}
+
+/**
  * The turn order. The higher total goes first; an equal total is settled by Dexterity
  * and then by name, so every screen and every restart put people in the same order
  * instead of leaving it to chance. Whoever has not rolled waits at the end of the list:
@@ -789,8 +817,10 @@ export function parseCombatTurn(data: unknown): CombatTurn | string {
  */
 export function initiativeOrder(fighters: Fighter[]): Fighter[] {
   return [...fighters].sort((a, b) => {
-    if ((a.total === null) !== (b.total === null)) return a.total === null ? 1 : -1;
-    if (a.total !== null && b.total !== null && a.total !== b.total) return b.total - a.total;
+    const left = initiativeOf(a);
+    const right = initiativeOf(b);
+    if ((left === null) !== (right === null)) return left === null ? 1 : -1;
+    if (left !== null && right !== null && left !== right) return right - left;
     if (a.dexterity !== b.dexterity) return b.dexterity - a.dexterity;
     return a.name.localeCompare(b.name, 'uk');
   });
@@ -798,7 +828,7 @@ export function initiativeOrder(fighters: Fighter[]): Fighter[] {
 
 /** Fighters actually taking turns: the ones whose die has been thrown. */
 export function rotation(combat: CombatState): Fighter[] {
-  return combat.order.filter((f) => f.total !== null);
+  return combat.order.filter((f) => initiativeOf(f) !== null);
 }
 
 /**
@@ -827,4 +857,75 @@ export function nextTurn(
   const behind = queue[at - 1];
   if (behind !== undefined) return { turn: behind.id, round: combat.round };
   return combat.round <= 1 ? { turn: combat.turn, round: 1 } : { turn: last.id, round: combat.round - 1 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Who counts (F-064, ADR 0007). The person rolls the die, adds their own modifiers
+// and says the sum; the app works out its own number for comparison and shows the GM
+// both. Per character, because at one table one player wants the arithmetic and
+// another wants it left alone.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Who adds the modifiers: the person at the table, or the app. */
+export type WhoCounts = 'player' | 'app';
+
+/**
+ * What a character gets when nobody has said otherwise. The person counts: that is the
+ * point of ADR 0007, and the switch exists for the exceptions, not for the rule.
+ */
+export const COUNTS_DEFAULT: WhoCounts = 'player';
+
+/** Who counts for this character, with the default applied. */
+export function whoCounts(counts: Record<string, WhoCounts>, character: string): WhoCounts {
+  return counts[character] ?? COUNTS_DEFAULT;
+}
+
+/** GM → server: switch one character between counting themselves and the app counting. */
+export interface CountsSet {
+  type: 'counts-set';
+  character: string;
+  who: WhoCounts;
+}
+
+/** Server → everyone: who counts for whom. A character missing here uses the default. */
+export interface CountsMessage {
+  type: 'counts';
+  counts: Record<string, WhoCounts>;
+}
+
+/** Parses the switch. Returns the message, or why it was refused. */
+export function parseCountsSet(data: unknown): CountsSet | string {
+  if (typeof data !== 'object' || data === null) return 'перемикач не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'counts-set') return 'не перемикач «хто рахує»';
+  const character = o['character'];
+  if (typeof character !== 'string' || character === '') return 'не вказано персонажа';
+  const who = o['who'];
+  if (who !== 'player' && who !== 'app') return 'рахує або гравець, або застосунок';
+  return { type: 'counts-set', character, who };
+}
+
+/**
+ * Checks a sum a person worked out. Deliberately wide: the app is not the judge of
+ * what is plausible at the table — a buff, a condition or advantage can put the number
+ * anywhere, and the GM sees both numbers anyway. Only nonsense is refused.
+ */
+export function checkDeclaredTotal(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < -99 || value > 999) {
+    return 'сума мусить бути цілим числом';
+  }
+  return null;
+}
+
+/**
+ * The mark a note starts with when the person's sum and the app's differ. The GM's feed
+ * shows it; it is never called a mistake, because the app is quite capable of being the
+ * one that is wrong — a stale sheet, a bonus it never heard of (ADR 0007).
+ */
+export const MISMATCH_MARK = '≠';
+
+/** The note for a roll the person counted themselves. */
+export function countedNote(what: string, roll: number, said: number, byApp: number): string {
+  const head = `${what}: випало ${roll}, гравець каже ${said}`;
+  return said === byApp ? `${head} (лист: ${byApp})` : `${MISMATCH_MARK} ${head}, лист каже ${byApp}`;
 }

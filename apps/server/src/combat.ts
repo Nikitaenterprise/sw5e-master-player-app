@@ -10,27 +10,33 @@
 // shown something that is not already on disk.
 import { randomUUID } from 'node:crypto';
 import {
+  checkDeclaredTotal,
   checkInitiativeRoll,
   initiativeOrder,
   nextTurn,
+  whoCounts,
   type Author,
   type CombatEvent,
   type CombatState,
   type Fighter,
   type SheetSummary,
+  type WhoCounts,
 } from '@holotable/protocol';
 import type { Log } from './log.js';
 
 export class CombatTracker {
   private fighting = false;
   private characters: string[] = [];
-  private readonly rolls = new Map<string, number>();
+  /** What each person threw, and the sum they worked out themselves (ADR 0007). */
+  private readonly rolls = new Map<string, { roll: number; said?: number }>();
   private turn: string | null = null;
   private round = 1;
 
   constructor(
     private readonly log: Log,
     private readonly sheets: Record<string, SheetSummary>,
+    /** Read live, not copied: the GM flips the switch mid-fight and it must take. */
+    private readonly counts: () => Record<string, WhoCounts> = () => ({}),
   ) {
     for (const event of log.readAll().combat) this.replay(event);
   }
@@ -58,13 +64,23 @@ export class CombatTracker {
     return this.write({ type: 'combat.started', author, characters: [...characters] });
   }
 
-  /** One person's d20. The caller has already checked they are allowed to send it. */
-  roll(author: Author, character: string, roll: number): CombatEvent | string {
+  /**
+   * One person's d20, and the sum they worked out when they are the one counting. The
+   * caller has already checked they are allowed to send it.
+   */
+  roll(author: Author, character: string, roll: number, said?: number): CombatEvent | string {
     if (!this.fighting) return 'бою немає — спершу «Почати бій»';
     if (!this.characters.includes(character)) return 'цього персонажа немає в бою';
     const problem = checkInitiativeRoll(roll);
     if (problem !== null) return problem;
-    return this.write({ type: 'combat.rolled', author, character, roll });
+    if (said !== undefined) {
+      const trouble = checkDeclaredTotal(said);
+      if (trouble !== null) return trouble;
+    }
+    return this.write({
+      type: 'combat.rolled', author, character, roll,
+      ...(said === undefined ? {} : { said }),
+    });
   }
 
   /** Move the turn on, or back. Refused while nobody has rolled: there is no queue yet. */
@@ -87,7 +103,8 @@ export class CombatTracker {
   /** A fighter built from the sheet: the modifier and the tie-break are computed here. */
   private fighterOf(slug: string): Fighter {
     const sheet = this.sheets[slug];
-    const roll = this.rolls.get(slug) ?? null;
+    const thrown = this.rolls.get(slug);
+    const roll = thrown?.roll ?? null;
     const modifier = sheet?.initiative ?? 0;
     return {
       id: slug,
@@ -96,7 +113,11 @@ export class CombatTracker {
       name: sheet?.name ?? slug,
       modifier,
       roll,
+      // The app's own arithmetic stays here even when the person counted: the GM sees
+      // both numbers side by side and decides which one the table goes with (ADR 0007).
       total: roll === null ? null : roll + modifier,
+      said: thrown?.said ?? null,
+      counts: whoCounts(this.counts(), slug),
       dexterity: sheet?.abilityModifiers['Dexterity'] ?? 0,
     };
   }
@@ -119,7 +140,10 @@ export class CombatTracker {
         break;
       case 'combat.rolled':
         if (event.character !== undefined && event.roll !== undefined) {
-          this.rolls.set(event.character, event.roll);
+          this.rolls.set(event.character, {
+            roll: event.roll,
+            ...(event.said === undefined ? {} : { said: event.said }),
+          });
         }
         break;
       case 'combat.turn':

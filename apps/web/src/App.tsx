@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, Fighter, GameEvent, SessionClosed, SheetSummary } from '@holotable/protocol';
+import type { CharacterState, CombatState, Fighter, GameEvent, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -13,11 +13,11 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, checkInitiativeRoll, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
-  collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, type FeedRow,
+  collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, isMismatch, type FeedRow,
 } from './feed.js';
 
 export function App(): JSX.Element {
@@ -78,7 +78,7 @@ export function App(): JSX.Element {
         <CombatBoard
           combat={snapshot.combat}
           start={() => controls.current?.startCombat()}
-          roll={(whom, value) => controls.current?.rollInitiative(whom, value)}
+          roll={(whom, value, said) => controls.current?.rollInitiative(whom, value, said)}
           move={(direction) => controls.current?.advanceTurn(direction)}
           end={() => controls.current?.endCombat()}
         />
@@ -106,6 +106,14 @@ export function App(): JSX.Element {
         </section>
       ) : (
         <PlayerSheet character={character} snapshot={snapshot} controls={controls} />
+      )}
+
+      {gm && !editingGlossary && (
+        <CountsSwitch
+          characters={Object.keys(snapshot.characters).sort((a, b) => name(a).localeCompare(name(b), 'uk'))}
+          counts={snapshot.counts}
+          set={(slug, who) => controls.current?.setCounts(slug, who)}
+        />
       )}
 
       {gm && !editingGlossary && <Rests rest={(kind) => controls.current?.sendRest(kind)} />}
@@ -161,7 +169,7 @@ export function App(): JSX.Element {
       </section>
 
       <footer>
-        Фаза 4 · F-054. Ініціативу кидають руками: впиши, що випало на d20 — модифікатор додасться сам. Наведи на число — побачиш, з чого воно складається; ✎ — ручна правка. Терміни — з глосарію state/i18n/uk/terms.json. Числа на карточках рахує рушій при старті сервера, на диску
+        Фаза 4 · F-064. Кубик кидає гравець і сам додає свої модифікатори (ADR 0007); застосунок рахує своє число для звірки й показує майстрові обидва. Наведи на число — побачиш, з чого воно складається; ✎ — ручна правка. Терміни — з глосарію state/i18n/uk/terms.json. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
@@ -230,7 +238,8 @@ function PlayerSheet({
         <MyInitiative
           combat={snapshot.combat}
           character={character}
-          roll={(value) => controls.current?.rollInitiative(character, value)}
+          counts={whoCounts(snapshot.counts, character)}
+          roll={(value, said) => controls.current?.rollInitiative(character, value, said)}
         />
       )}
       {sheet !== undefined && sheet.hitDice.length > 0 && (
@@ -238,6 +247,7 @@ function PlayerSheet({
           state={state}
           dice={sheet.hitDice}
           constitutionModifier={sheet.abilityModifiers['Constitution'] ?? 0}
+          counts={whoCounts(snapshot.counts, character)}
           send={(changes, note) => controls.current?.sendChange(character, changes, note, baseFor(state, changes))}
         />
       )}
@@ -362,19 +372,31 @@ export function HitDice({
   state,
   dice,
   constitutionModifier,
+  counts = 'app',
   send,
 }: {
   state: CharacterState;
   dice: { size: string; count: number }[];
   constitutionModifier: number;
+  /** Who adds Constitution: the person or the app (F-064, ADR 0007). */
+  counts?: WhoCounts;
   send: (changes: CharacterState, note?: string) => void;
 }): JSX.Element {
   const [rolling, setRolling] = useState<string | null>(null);
   const [roll, setRoll] = useState('');
+  const [healed, setHealed] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
+  const counted = counts === 'player';
 
   const submit = (size: string, count: number): void => {
-    const result = spendHitDie(state, size, count, Number(roll), constitutionModifier);
+    if (counted && healed.trim() === '') {
+      setProblem('впиши, скільки вилікував');
+      return;
+    }
+    const result = spendHitDie(
+      state, size, count, Number(roll), constitutionModifier,
+      counted ? Number(healed) : undefined,
+    );
     if (typeof result === 'string') {
       setProblem(result);
       return;
@@ -382,6 +404,7 @@ export function HitDice({
     send(result.changes, result.note);
     setRolling(null);
     setRoll('');
+    setHealed('');
     setProblem(null);
   };
 
@@ -418,7 +441,7 @@ export function HitDice({
                   submit(size, count);
                 }}
               >
-                <span className="hint">{rollHint(size, constitutionModifier)}</span>
+                <span className="hint">{rollHint(size, constitutionModifier, counted)}</span>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -429,6 +452,16 @@ export function HitDice({
                   aria-label={`Що випало на ${size}`}
                   autoFocus
                 />
+                {counted && (
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={healed}
+                    onChange={(ev) => setHealed(ev.target.value)}
+                    aria-label="Скільки вилікував"
+                    placeholder="вилікував"
+                  />
+                )}
                 <button type="submit">лікуватись</button>
                 {problem !== null && <span className="refusal">{problem}</span>}
               </form>
@@ -455,22 +488,45 @@ function ConditionHelp({ name }: { name: string }): JSX.Element {
  * types what came up. The same check runs here and on the server, so a refusal is seen
  * before the message leaves the phone.
  */
-function RollInput({ label, submit }: { label: string; submit: (value: number) => void }): JSX.Element {
-  const [text, setText] = useState('');
+function RollInput({
+  label,
+  sum,
+  submit,
+}: {
+  label: string;
+  /** The second field — the sum the person worked out themselves (ADR 0007). */
+  sum: 'none' | 'optional' | 'required';
+  submit: (roll: number, said?: number) => void;
+}): JSX.Element {
+  const [die, setDie] = useState('');
+  const [total, setTotal] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   return (
     <form
       className="add roll"
       onSubmit={(ev) => {
         ev.preventDefault();
-        const value = text.trim() === '' ? Number.NaN : Number(text);
+        const value = die.trim() === '' ? Number.NaN : Number(die);
         const trouble = checkInitiativeRoll(value);
         if (trouble !== null) {
           setProblem(trouble);
           return;
         }
-        submit(value);
-        setText('');
+        let said: number | undefined;
+        if (sum !== 'none' && total.trim() !== '') {
+          said = Number(total);
+          const bad = checkDeclaredTotal(said);
+          if (bad !== null) {
+            setProblem(bad);
+            return;
+          }
+        } else if (sum === 'required') {
+          setProblem('впиши, скільки вийшло разом');
+          return;
+        }
+        submit(value, said);
+        setDie('');
+        setTotal('');
         setProblem(null);
       }}
     >
@@ -479,11 +535,21 @@ function RollInput({ label, submit }: { label: string; submit: (value: number) =
         inputMode="numeric"
         min={1}
         max={INITIATIVE_DIE}
-        value={text}
-        onChange={(ev) => setText(ev.target.value)}
+        value={die}
+        onChange={(ev) => setDie(ev.target.value)}
         aria-label={label}
         placeholder={`d${INITIATIVE_DIE}`}
       />
+      {sum !== 'none' && (
+        <input
+          type="number"
+          inputMode="numeric"
+          value={total}
+          onChange={(ev) => setTotal(ev.target.value)}
+          aria-label="Скільки вийшло разом"
+          placeholder="разом"
+        />
+      )}
       <button type="submit">ініціатива</button>
       {problem !== null && <span className="refusal">{problem}</span>}
     </form>
@@ -498,21 +564,29 @@ function OrderRow({
 }: {
   fighter: Fighter;
   current: boolean;
-  roll: (character: string, value: number) => void;
+  roll: (character: string, value: number, said?: number) => void;
 }): JSX.Element {
   return (
     <li className={`${current ? 'now' : ''}${fighter.total === null ? ' unrolled' : ''}`.trim() || undefined}>
       <span className="who">{name(fighter.character)}</span>
-      {fighter.total === null ? (
+      {fighter.roll === null ? (
         <RollInput
           label={`Кидок ініціативи за ${name(fighter.character)}`}
-          submit={(value) => roll(fighter.character, value)}
+          sum={fighter.counts === 'player' ? 'optional' : 'none'}
+          submit={(value, said) => roll(fighter.character, value, said)}
         />
-      ) : (
+      ) : fighter.said === null ? (
         <span className="total">
           <b>{fighter.total}</b>
           <small>
             {fighter.roll} {signed(fighter.modifier)}
+          </small>
+        </span>
+      ) : (
+        <span className={fighter.said === fighter.total ? 'total' : 'total differs'}>
+          <b>{fighter.said}</b>
+          <small title="Число гравця, а поруч — те, що виходить за листом">
+            {fighter.said === fighter.total ? '' : '≠ '}лист: {fighter.total} ({fighter.roll} {signed(fighter.modifier)})
           </small>
         </span>
       )}
@@ -538,7 +612,7 @@ export function CombatBoard({
 }: {
   combat: CombatState | null;
   start: () => void;
-  roll: (character: string, value: number) => void;
+  roll: (character: string, value: number, said?: number) => void;
   move: (direction: 'next' | 'back') => void;
   end: () => void;
 }): JSX.Element {
@@ -600,11 +674,14 @@ export function CombatBoard({
 export function MyInitiative({
   combat,
   character,
+  counts,
   roll,
 }: {
   combat: CombatState;
   character: string;
-  roll: (value: number) => void;
+  /** Who counts for this character (F-064): the person or the app. */
+  counts: WhoCounts;
+  roll: (value: number, said?: number) => void;
 }): JSX.Element {
   const mine = combat.order.find((f) => f.character === character);
   const current = combat.order.find((f) => f.id === combat.turn);
@@ -613,19 +690,25 @@ export function MyInitiative({
       <h3>Бій · раунд {combat.round}</h3>
       {mine === undefined ? (
         <p className="hint">Тебе в цьому бою немає.</p>
-      ) : mine.total === null ? (
+      ) : mine.roll === null ? (
         <>
           <p className="hint">
-            Кинь d{INITIATIVE_DIE} і впиши, що випало — додам {signed(mine.modifier)} за ініціативу.
+            {counts === 'player'
+              ? `Кинь d${INITIATIVE_DIE}, додай свої модифікатори сам і впиши обидва числа.`
+              : `Кинь d${INITIATIVE_DIE} і впиши, що випало — додам ${signed(mine.modifier)} за ініціативу.`}
           </p>
-          <RollInput label={`Що випало на d${INITIATIVE_DIE}`} submit={roll} />
+          <RollInput
+            label={`Що випало на d${INITIATIVE_DIE}`}
+            sum={counts === 'player' ? 'required' : 'none'}
+            submit={roll}
+          />
         </>
       ) : (
         <p className="state-row">
           <span className="label">Твоя ініціатива</span>
-          <b className="value">{mine.total}</b>
+          <b className="value">{mine.said ?? mine.total}</b>
           <small>
-            {mine.roll} {signed(mine.modifier)}
+            {mine.said === null ? `${mine.roll} ${signed(mine.modifier)}` : `випало ${mine.roll}`}
           </small>
         </p>
       )}
@@ -637,6 +720,55 @@ export function MyInitiative({
             : `Зараз хід: ${name(current.character)}.`}
       </p>
     </div>
+  );
+}
+
+/**
+ * Who counts, player by player (F-064, ADR 0007).
+ *
+ * The default is that the person counts, because adding your own modifiers — and
+ * remembering where they come from — is half of what people come to the table for. The
+ * switch is here for the exceptions: someone new, someone young, someone who would
+ * rather the arithmetic went away. It is the GM's to flip, and it holds between
+ * sessions: it lives in a file in state/, not in this page.
+ */
+export function CountsSwitch({
+  characters,
+  counts,
+  set,
+}: {
+  characters: string[];
+  counts: Record<string, WhoCounts>;
+  set: (character: string, who: WhoCounts) => void;
+}): JSX.Element {
+  return (
+    <section className="counts">
+      <h2>Хто рахує кидки</h2>
+      <ul>
+        {characters.map((slug) => {
+          const who = whoCounts(counts, slug);
+          return (
+            <li key={slug}>
+              <span className="who">{name(slug)}</span>
+              <span className="switch" role="group" aria-label={`Хто рахує за ${name(slug)}`}>
+                <button type="button" className={who === 'player' ? 'on' : undefined} onClick={() => set(slug, 'player')}>
+                  гравець
+                </button>
+                <button type="button" className={who === 'app' ? 'on' : undefined} onClick={() => set(slug, 'app')}>
+                  застосунок
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="hint">
+        «Гравець» — кидає кубик, додає свої модифікатори сам і вписує суму; застосунок
+        рахує своє число й показує тобі поруч, для звірки. «Застосунок» — додає модифікатор
+        сам, як раніше. Різниця в числах — не обовʼязково помилка гравця: лист буває
+        застарілим, а за столом буває бонус, про який застосунок не знає.
+      </p>
+    </section>
   );
 }
 
@@ -754,6 +886,11 @@ export function Feed({
               <span className="what">
                 {subjectText(row, LABELS[row.field], name)}
                 {row.isUndo && <i className="mark"> ↩ відкат</i>}
+                {isMismatch(row) && (
+                  <i className="mark differs" title={row.note}>
+                    {' '}≠ числа розійшлись
+                  </i>
+                )}
               </span>
               <span className="change">
                 {valueText(row.from)} → <b>{valueText(row.to)}</b>

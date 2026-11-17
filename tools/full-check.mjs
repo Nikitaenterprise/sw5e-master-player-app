@@ -98,6 +98,21 @@ try {
   const midFight = await client({ role: 'gm' });
   ok('F-054 нова сторінка майстра одразу бачить бій', await wait(midFight, (g) => g.some((m) => m.type === 'combat' && m.combat?.turn === 'sandra-vong')));
   midFight.ws.close();
+  gm.ws.send(JSON.stringify({ type: 'counts-set', character: 'nigra-4', who: 'app' }));
+  ok('F-064 майстер перемкнув Нигру на «рахує застосунок»',
+    await wait(gm, (g) => g.some((m) => m.type === 'counts' && m.counts['nigra-4'] === 'app')) &&
+    await wait(p2, (g) => g.some((m) => m.type === 'counts' && m.counts['nigra-4'] === 'app')));
+  p2.ws.send(JSON.stringify({ type: 'combat-roll', character: 'nigra-4', roll: 10 }));
+  ok('F-064 за кого рахує застосунок — одне число',
+    await wait(gm, (g) => g.some((m) => m.type === 'combat' && m.combat?.order.some((f) =>
+      f.character === 'nigra-4' && f.said === null && f.total === 10 + sheets['nigra-4'].initiative))));
+  p1.ws.send(JSON.stringify({ type: 'combat-roll', character: 'sandra-vong', roll: 9, said: 19 }));
+  ok('F-064 у черзі число гравця, а лист поруч',
+    await wait(gm, (g) => g.some((m) => m.type === 'combat' && m.combat?.order[0]?.character === 'sandra-vong'
+      && m.combat.order[0].said === 19 && m.combat.order[0].total === 9 + sheets['sandra-vong'].initiative)));
+  p1.ws.send(JSON.stringify({ type: 'counts-set', character: 'sandra-vong', who: 'app' }));
+  ok('F-064 перемикає тільки майстер',
+    await wait(p1, (g) => g.some((m) => m.type === 'refused' && m.reason === 'перемикає майстер')));
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');
