@@ -145,13 +145,21 @@ describe('F-076 · екіпаж «Мандрівної Зорі»: посади,
   });
 
   it('кают вистачає на пʼятьох і на гостей, а турель одна — бо кріплення одне', () => {
-    const quarters = ship.modifications.find((m) => m.name.startsWith('Quarters,'));
-    expect(quarters?.name, 'Living селив би чотирьох — на одного менше за екіпаж').toBe('Quarters, Basic');
+    const quarters = ship.modifications.filter((m) => m.name.startsWith('Quarters,')).map((m) => m.name);
+    expect(quarters, 'обидві каюти на місці').toEqual(['Quarters, Basic', 'Quarters, Living']);
     const basic = compendium.all('starship-modification').find((d) => d.name === 'Quarters, Basic') as Record<string, any>;
     expect(String(basic['description']), 'Basic селить удвічі більше за місткість сюїти').toContain('twice the ship');
-    const suiteCapacity = 4; // Medium, from Starship Size Suite Capacity — checked in F-075
-    expect(suiteCapacity * 2, 'вісім місць на пʼятьох постійних і двох гостей')
+    const living = compendium.all('starship-modification').find((d) => d.name === 'Quarters, Living') as Record<string, any>;
+    expect(String(living['description']), 'Living знімає два рівні виснаження').toContain('exhaustion level is reduced by 2');
+    // Medium suite capacity is 4 (checked in F-075): Basic sleeps twice that, Living
+    // sleeps that — twelve beds for five regulars and the odd guest.
+    const suiteCapacity = 4;
+    const beds = suiteCapacity * 2 + suiteCapacity;
+    expect(beds, 'дванадцять місць на пʼятьох постійних і гостей')
       .toBeGreaterThanOrEqual((ship.crew ?? []).length + 2);
+    // The second bedroom costs nothing: it took the free stock-suite slot the Equipment
+    // Room used to hold, and that room only ever granted slots the ship never needed.
+    expect(ship.modifications.find((m) => m.name === 'Quarters, Living')?.stock, 'Living — безкоштовна стокова сюїта').toBe(true);
 
     const weapons = ship.equipment.filter((e) => e.category === 'weapon');
     const turrets = weapons.filter((w) => w.mounting === 'turret').reduce((n, w) => n + w.quantity, 0);

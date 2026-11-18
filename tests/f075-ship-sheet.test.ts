@@ -164,12 +164,15 @@ describe('F-075 · лист корабля: формат, дані, звірка
     const bySize = Number(tableCell(ruleBody('Modifications'), 'Modification Capacity by Ship Size', /^Medium$/, 1));
     expect(bySize, 'таблиця Modification Capacity by Ship Size').toBe(30);
     expect(size['modifications']['baseModificationSlots']).toBe(30);
+    // The owner's paper sheet says 34: thirty by size plus four from an Equipment Room.
+    // The room is gone (its free suite slot went to a second bedroom, F-076), so the
+    // ship has the plain thirty — and uses thirteen of them.
     const equipmentRoom = compendium.all('starship-modification').find((d) => d.name === 'Equipment Room') as Record<string, any>;
-    expect(String(equipmentRoom['description']), 'кімната спорядження дає +4').toContain('4 modification slots');
-    expect(bySize + 4, 'слотів 34, а не 30').toBe(34);
+    expect(String(equipmentRoom['description']), 'кімната спорядження давала б +4').toContain('4 modification slots');
+    expect(ship.modifications.some((m) => m.name === 'Equipment Room'), 'кімнати спорядження більше немає').toBe(false);
     const used = ship.modifications.reduce((sum, m) => sum + m.quantity, 0);
-    expect(used, 'зайнято 13 модифікацій, вільних 21').toBe(13);
-    expect(34 - used).toBe(21);
+    expect(used, 'зайнято 13 модифікацій').toBe(13);
+    expect(bySize - used, 'вільних 17 із 30').toBe(17);
   });
 
   it('трюм 75 тонн і паливо 30 одиниць — із таблиць розміру', () => {
