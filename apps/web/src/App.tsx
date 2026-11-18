@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, CompanionSummary, HolotableEffect, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, CompanionSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -109,6 +109,9 @@ export function App(): JSX.Element {
       ) : gm ? (
         <section>
           <h2>Партія — {Object.keys(snapshot.characters).length}</h2>
+          {snapshot.homebrewProblems.map((p) => (
+            <p key={p} className="refusal">{p}</p>
+          ))}
           <div className="cards">
             {Object.entries(snapshot.characters)
               .sort(([a], [b]) => name(a).localeCompare(name(b), 'uk'))
@@ -122,6 +125,7 @@ export function App(): JSX.Element {
                   setConditions={(list) => controls.current?.sendChange(slug, { conditions: list })}
                   {...companionOf(snapshot, slug, (c, changes) => controls.current?.sendChange(c, changes))}
                   setEffects={(list) => controls.current?.sendChange(slug, { holotableEffects: list })}
+                  items={snapshot.homebrew[slug] ?? []}
                 />
               ))}
           </div>
@@ -265,7 +269,10 @@ function PlayerSheet({
         />
       )}
       <Managed state={state} waiting={waiting} sendChange={sendChange} />
-      <Effects list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]} />
+      <Effects
+        list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
+        items={snapshot.homebrew[character] ?? []}
+      />
       {(() => {
         const mine = companionOf(snapshot, character, (c, changes) => controls.current?.sendChange(c, changes)).companion;
         return mine === undefined ? null : <CompanionBlock {...mine} />;
@@ -743,6 +750,12 @@ function RollMode({ mode }: { mode: 'advantage' | 'disadvantage' | 'both' | unde
   return <i className={`roll-mode ${mode}`} title={words}>{mark}</i>;
 }
 
+/** The effects with all of this item's effects added, each named after the item (F-066). */
+export const withItem = (list: HolotableEffect[], item: HomebrewItem): HolotableEffect[] => [
+  ...list,
+  ...item.effects.map((e) => ({ ...e, id: effectId(), source: item.name })),
+];
+
 const effectId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 /**
@@ -751,7 +764,16 @@ const effectId = (): string => `${Date.now().toString(36)}-${Math.random().toStr
  * disadvantage), and until when. Numbers it changes show up at once, with the effect
  * named in "where does this number come from".
  */
-export function Effects({ list, set }: { list: HolotableEffect[]; set?: (list: HolotableEffect[]) => void }): JSX.Element | null {
+export function Effects({
+  list,
+  set,
+  items = [],
+}: {
+  list: HolotableEffect[];
+  set?: (list: HolotableEffect[]) => void;
+  /** Homebrew items with effects (F-066): the GM puts an item's effects on in one click. */
+  items?: HomebrewItem[];
+}): JSX.Element | null {
   const term = useTerm();
   const skill = (x: string): string => term('skill', x);
   const [open, setOpen] = useState(false);
@@ -761,9 +783,31 @@ export function Effects({ list, set }: { list: HolotableEffect[]; set?: (list: H
   const [bonus, setBonus] = useState('1');
   const [until, setUntil] = useState<HolotableEffect['until']>('fight');
   const [problem, setProblem] = useState<string | null>(null);
-  if (list.length === 0 && set === undefined) return null;
+  if (list.length === 0 && set === undefined && items.length === 0) return null;
+  // An item's effects are on when every one of them is: the button then says so.
+  const isOn = (item: HomebrewItem): boolean => list.some((e) => e.source === item.name);
   return (
     <div className="effects">
+      {items.length > 0 && (
+        <div className="homebrew-items">
+          {items.map((item) => (
+            <span key={item.name} className="homebrew-item" title={item.effects.map((e) => effectText({ ...e, id: '', source: item.name }, skill)).join('\n')}>
+              {item.name}
+              {item.quantity !== 1 && <small> ×{item.quantity}</small>}
+              {item.note !== '' && <small className="item-note"> — {item.note}</small>}
+              {set !== undefined && (
+                <button
+                  type="button"
+                  disabled={isOn(item)}
+                  onClick={() => set(withItem(list, item))}
+                >
+                  {isOn(item) ? 'діє' : 'накласти'}
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
       {list.map((e) => (
         <span key={e.id} className="effect">
           {effectText(e, skill)}
@@ -1867,6 +1911,7 @@ export function Card({
   setConditions,
   companion,
   setEffects,
+  items,
 }: {
   slug: string;
   state: CharacterState;
@@ -1878,6 +1923,8 @@ export function Card({
   companion?: { summary: CompanionSummary; state: CharacterState; change: (changes: CharacterState) => void };
   /** Put effects on and take them off (F-065). Absent — the effects are only shown. */
   setEffects?: (list: HolotableEffect[]) => void;
+  /** Homebrew items the character carries that give effects (F-066). */
+  items?: HomebrewItem[];
 }): JSX.Element {
   const term = useTerm();
   const conditions = (Array.isArray(state.conditions) ? state.conditions : []) as string[];
@@ -2065,7 +2112,11 @@ export function Card({
 
       {left === 0 && <p className="down-line">Без свідомості · {deathSavesText(state)}</p>}
       {companion !== undefined && <CompanionBlock {...companion} />}
-      <Effects list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]} {...(setEffects === undefined ? {} : { set: setEffects })} />
+      <Effects
+        list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
+        {...(setEffects === undefined ? {} : { set: setEffects })}
+        {...(items === undefined ? {} : { items })}
+      />
       <ExhaustionLine level={exhaustion} />
       {setConditions !== undefined ? (
         <Conditions list={conditions} choices={conditionChoices ?? []} set={setConditions} />

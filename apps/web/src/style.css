@@ -588,3 +588,13 @@ a.ref-link:hover { color: var(--accent); }
 .roll-mode { font-style: normal; font-size: .7rem; margin-left: .15rem; }
 .roll-mode.advantage { color: var(--accent); }
 .roll-mode.disadvantage { color: var(--bad); }
+
+/* ── Homebrew items (F-066) ────────────────────────────────────────────── */
+.homebrew-items { display: flex; flex-wrap: wrap; gap: .3rem .6rem; flex-basis: 100%; }
+.homebrew-item { display: inline-flex; align-items: baseline; gap: .25rem; color: var(--text); }
+.homebrew-item .item-note { color: var(--muted); }
+.homebrew-item button {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem;
+  padding: 0 .4rem; font: inherit; font-size: .72rem; cursor: pointer;
+}
+.homebrew-item button:disabled { color: var(--muted); cursor: default; }

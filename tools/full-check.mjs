@@ -149,6 +149,10 @@ try {
   ok('F-059 кінець бою: підсумок у стрічці майстра', await wait(gm, (g) => g.some((m) => m.type === 'fight-summary' && m.summary.rounds >= 1)));
   ok('F-059 знято лише позначену умову',
     await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.note === 'кінець бою' && JSON.stringify(m.state.conditions) === '["Poisoned"]')));
+  const brew = gm.got.find((m) => m.type === 'homebrew');
+  ok('F-066 хомбрю-предмети: файл без помилок, Стимулятор у Нигри, Bracelet у Крінж-Дора',
+    brew?.problems?.length === 0 && brew.items['nigra-4']?.some((i) => i.name === 'Стимулятор')
+      && brew.items['krinzh-dor']?.some((i) => i.name === 'Bracelet'));
   const comp = gm.got.find((m) => m.type === 'companions');
   ok('F-039 дроїд Нигри приходить окремо від партії, з правилами книги',
     comp?.companions?.['nigra-4-droid']?.name === 'BOBR-1488' && comp.rules.length === 2

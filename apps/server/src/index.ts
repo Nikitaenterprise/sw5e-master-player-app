@@ -6,6 +6,7 @@
 // devices on the local network see the same thing in real time.
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { dirname, join, normalize, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -48,6 +49,8 @@ import { Log } from './log.js';
 import { State } from './state.js';
 import { CombatTracker } from './combat.js';
 import { summarizeFights } from './summary.js';
+import { loadHomebrew, itemsOf } from './homebrew.js';
+import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 import { computeSummaries, computeSummary, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
@@ -185,6 +188,14 @@ export async function start(
   const table = loadTable(tableDir);
   if (table.problem !== null) console.log(`  Увага: ${table.problem}`);
   // The fight (F-054): replayed from the log, so a restart mid-combat changes nothing.
+  // Homebrew items with effects (F-066): the owner's file, matched with each sheet.
+  const homebrew = loadHomebrew(stateDir);
+  for (const problem of homebrew.problems) console.log(`  Увага: ${problem}`);
+  const homebrewItems: Record<string, ReturnType<typeof itemsOf>> = {};
+  for (const slug of Object.keys(sheets)) {
+    const raw = JSON.parse(readFileSync(join(charactersDir, `${slug}.json`), 'utf8')) as RawCharacter;
+    homebrewItems[slug] = itemsOf(raw, homebrew);
+  }
   const companions = computeCompanions(sheets, companionsDir);
   const companionRuleText = companionRules(ROOT);
   const ownerOf = (slug: string): string | undefined => companions[slug]?.owner;
@@ -305,6 +316,7 @@ export async function start(
           ...(demo ? { demo: true } : {}),
         });
         send(socket, { type: 'companions', companions, rules: companionRuleText });
+        send(socket, { type: 'homebrew', items: homebrewItems, problems: homebrew.problems });
         send(socket, { type: 'state', characters: state.all(), companions: state.companions() });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });

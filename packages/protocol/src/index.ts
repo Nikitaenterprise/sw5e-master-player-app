@@ -132,7 +132,8 @@ export type FromServer =
   | CombatMessage
   | CountsMessage
   | FightSummaryMessage
-  | CompanionsMessage;
+  | CompanionsMessage
+  | HomebrewMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -245,6 +246,26 @@ export const UNTIL_TEXT: Record<HolotableEffect['until'], string> = {
 export function effectText(e: HolotableEffect, skill?: (english: string) => string): string {
   const what = e.bonus !== undefined ? `${e.bonus > 0 ? '+' : ''}${e.bonus}` : e.mode === 'advantage' ? 'перевага' : 'недолік';
   return `${e.source}: ${effectTargetText(e.target, skill)} ${what} · ${UNTIL_TEXT[e.until]}`;
+}
+
+/**
+ * A homebrew item a character carries that gives effects (F-066): from the owner's file
+ * state/homebrew/items.json, matched by name with the sheet's equipment.
+ */
+export interface HomebrewItem {
+  name: string;
+  quantity: number;
+  /** The owner's one-line reminder of what it does. */
+  note: string;
+  effects: Omit<HolotableEffect, 'id' | 'source'>[];
+}
+
+/** Server → everyone on connect: each character's homebrew items with effects. */
+export interface HomebrewMessage {
+  type: 'homebrew';
+  items: Record<string, HomebrewItem[]>;
+  /** What is wrong with the file, in Ukrainian, if anything. */
+  problems: string[];
 }
 
 /** Effects that end with this: the fight, or a rest (a long rest ends the short-rest ones too). */

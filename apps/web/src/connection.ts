@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type HomebrewItem, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -55,6 +55,10 @@ export interface Snapshot {
   combat: CombatState | null;
   /** Who adds the modifiers, per character (F-064). Missing means the default. */
   counts: Record<string, WhoCounts>;
+  /** Each character's homebrew items with effects, from the owner's file (F-066). */
+  homebrew: Record<string, HomebrewItem[]>;
+  /** What is wrong with the homebrew file, if anything — shown to the GM. */
+  homebrewProblems: string[];
 }
 
 export const EMPTY: Snapshot = {
@@ -78,6 +82,8 @@ export const EMPTY: Snapshot = {
   companions: {},
   companionStates: {},
   companionRules: [],
+  homebrew: {},
+  homebrewProblems: [],
   glossaryFound: { q: '', rows: [] },
   combat: null,
   counts: {},
@@ -278,6 +284,9 @@ export function connect(
           break;
         case 'companions':
           update({ companions: m.companions, companionRules: m.rules });
+          break;
+        case 'homebrew':
+          update({ homebrew: m.items, homebrewProblems: m.problems });
           break;
         case 'fight-summary':
           update({ fights: [...snapshot.fights, m.summary] });
