@@ -362,3 +362,18 @@ export function buildBriefs(compendium: Compendium, terms: GlossaryRow[], glossa
   }
   return out;
 }
+
+/**
+ * The book's exhaustion table, level by level (F-056): index 0 is level 1. Read from the
+ * conditions chapter, so a change in the books carries straight through.
+ */
+export function exhaustionTable(compendium: Compendium): string[] {
+  const body = String(compendium.get('rule', 'phb-appendix-a-conditions')?.['body'] ?? '');
+  const section = sectionText(body, 'exhaustion-level') ?? '';
+  const out: string[] = [];
+  for (const line of section.split('\n')) {
+    const m = /^\|\s*(\d+)\s*\|\s*(.+?)\s*\|\s*$/.exec(line.trim());
+    if (m !== null) out[Number(m[1]) - 1] = String(m[2]);
+  }
+  return out.filter((e) => e !== undefined);
+}

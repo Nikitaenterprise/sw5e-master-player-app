@@ -488,3 +488,22 @@ a.ref-link:hover { color: var(--accent); }
   font-size: .78rem; font-weight: 600; text-align: center;
 }
 .combat .add-enemies .add button, .combat .enemy-hits button { flex: 0 0 auto; display: inline-block; }
+
+/* ── Conditions on participants (F-056) ────────────────────────────────── */
+.conditions-edit { display: flex; flex-wrap: wrap; gap: .3rem .5rem; align-items: center; margin-top: .4rem; font-size: .8rem; }
+.conditions-edit .cond {
+  display: inline-flex; align-items: center; gap: .2rem; padding: .05rem .2rem .05rem .5rem;
+  border: 1px solid color-mix(in srgb, var(--waiting) 55%, transparent); border-radius: 1rem;
+}
+.conditions-edit .cond button, .combat .conditions-edit .cond button {
+  flex: 0 0 auto; display: inline-block; background: none; border: none; color: var(--muted);
+  padding: 0 .25rem; font-size: .85rem; cursor: pointer; width: auto;
+}
+.conditions-edit select {
+  background: var(--panel); color: var(--muted); border: 1px dashed var(--border); border-radius: 1rem;
+  padding: .1rem .5rem; font: inherit; font-size: .78rem;
+}
+.exhaustion-line { margin: .3rem 0 0; font-size: .78rem; color: var(--waiting); }
+.cond-effect { display: block; flex-basis: 100%; font-size: .72rem; color: var(--muted); margin: -.1rem 0 .3rem .4rem; }
+.chips .chip-pair { flex-wrap: wrap; }
+.foe-conditions { color: var(--waiting); }

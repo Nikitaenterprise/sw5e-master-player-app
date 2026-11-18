@@ -20,6 +20,7 @@ import {
   parseEnemiesAdd,
   parseEnemyDamage,
   parseEnemyRemove,
+  parseEnemyConditions,
   combatForPlayer,
   parseCountsSet,
   type Author,
@@ -42,7 +43,7 @@ import { commitState } from './git.js';
 import { loadGlossary, saveGlossary } from './glossary.js';
 import { loadTable, saveTable } from './table.js';
 import { buildTermCatalog, buildTermIndex, searchCatalog } from './termIndex.js';
-import { searchReference, presentDoc, resolveTerm, buildBriefs } from './reference.js';
+import { searchReference, presentDoc, resolveTerm, buildBriefs, exhaustionTable } from './reference.js';
 import { loadCompendium, CONTENT_TYPES, type ContentType } from '@holotable/compendium';
 
 const TERM_KINDS: readonly string[] = [
@@ -152,6 +153,8 @@ export async function start(
   let termIndex = buildTermIndex(compendium, sheets, SKILLS, glossary.terms, catalog);
   // A few lines from the book per term, for hover hints (F-051). Computed once.
   const briefs = buildBriefs(compendium, termIndex, glossary.terms);
+  // What each level of exhaustion does, from the book's table (F-056).
+  const exhaustion = exhaustionTable(compendium);
   // Who counts the modifiers, per character (F-064, ADR 0007). A plain file in state/,
   // like the glossary, so the owner can fix it by hand.
   // Who counts is the table's real choice — so the demo keeps its own, next to its log
@@ -267,7 +270,7 @@ export async function start(
         send(socket, { type: 'state', characters: state.all() });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
-        send(socket, { type: 'briefs', briefs });
+        send(socket, { type: 'briefs', briefs, exhaustion });
         // The fight comes with the greeting: a reloaded page must not lose the queue.
         send(socket, combatFor(hello.role));
         send(socket, { type: 'counts', counts: table.counts });
@@ -349,7 +352,7 @@ export async function start(
       }
 
       // Enemies from the bestiary (F-055): the GM's alone to bring in, hurt and send off.
-      if (kind === 'enemies-add' || kind === 'enemy-damage' || kind === 'enemy-remove') {
+      if (kind === 'enemies-add' || kind === 'enemy-damage' || kind === 'enemy-remove' || kind === 'enemy-conditions') {
         if (who.role !== 'gm') {
           send(socket, { type: 'refused', reason: 'ворогами керує майстер' });
           return;
@@ -358,6 +361,9 @@ export async function start(
         if (kind === 'enemies-add') {
           const add = parseEnemiesAdd(data);
           result = typeof add === 'string' ? add : combat.addEnemies(authorOf(), add.monster, add.count, add.hp);
+        } else if (kind === 'enemy-conditions') {
+          const set = parseEnemyConditions(data);
+          result = typeof set === 'string' ? set : combat.setConditions(authorOf(), set.enemy, set.conditions);
         } else if (kind === 'enemy-damage') {
           const hit = parseEnemyDamage(data);
           result = typeof hit === 'string' ? hit : combat.damage(authorOf(), hit.enemy, hit.amount);

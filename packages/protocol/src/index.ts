@@ -66,7 +66,8 @@ export type ToServer =
   | CountsSet
   | EnemiesAdd
   | EnemyDamage
-  | EnemyRemove;
+  | EnemyRemove
+  | EnemyConditions;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -482,6 +483,31 @@ export function anchorOf(heading: string): string {
 export interface Briefs {
   type: 'briefs';
   briefs: Record<string, string>;
+  /**
+   * What each exhaustion level does, from the book's table — index 0 is level 1
+   * (F-056). The effects add up: level 2 is level 1's effect and its own.
+   */
+  exhaustion?: string[];
+}
+
+/** The effects of an exhaustion level, all of them, as the book says they add up (F-056). */
+export function exhaustionEffects(table: string[], level: number): string[] {
+  return table.slice(0, Math.max(0, Math.min(level, table.length)));
+}
+
+/** Most conditions one participant may carry, and the longest name — a condition, not a note. */
+export const MAX_CONDITIONS = 12;
+export const CONDITION_MAX_LENGTH = 40;
+
+/** Checks a list of conditions. Returns why it is no good, or null. */
+export function checkConditions(list: unknown): string | null {
+  if (!Array.isArray(list) || list.some((c) => typeof c !== 'string')) return 'умови мусять бути списком рядків';
+  if (list.length > MAX_CONDITIONS) return `умов не більше ${MAX_CONDITIONS}`;
+  if (list.some((c) => (c as string).trim() === '' || (c as string).length > CONDITION_MAX_LENGTH)) {
+    return `умова — від 1 до ${CONDITION_MAX_LENGTH} знаків`;
+  }
+  if (new Set(list as string[]).size !== list.length) return 'одна умова двічі';
+  return null;
 }
 
 /** Address of the reference page a term opens (F-050). The reference finds the document. */
@@ -559,10 +585,9 @@ function checkFields(changes: Record<string, unknown>): CharacterState | string 
       if (problem !== null) return problem;
       checked[field] = value as HitDiceUsed;
     } else if (field === 'conditions') {
-      if (!Array.isArray(value) || value.some((z) => typeof z !== 'string')) {
-        return 'умови мусять бути списком рядків';
-      }
-      checked[field] = value as string[];
+      const problem = checkConditions(value);
+      if (problem !== null) return problem;
+      checked[field] = (value as string[]).map((c) => c.trim());
     } else if (field === 'hasInspiration') {
       if (typeof value !== 'boolean') return 'натхнення мусить бути так або ні';
       checked[field] = value;
@@ -698,6 +723,11 @@ export interface Fighter {
   status?: EnemyStatus;
   /** Enemies: the numbers, for the GM's screen only. Never sent to a player. */
   enemy?: EnemyInfo;
+  /**
+   * Enemies: conditions on them (F-056). Not a secret — a prone pirate is lying on the
+   * floor for everyone to see — so a player's screen gets these.
+   */
+  conditions?: string[];
 }
 
 /** What an enemy looks like from across the table: words, never numbers (F-055). */
@@ -762,6 +792,24 @@ export interface EnemyDamage {
   type: 'enemy-damage';
   enemy: string;
   amount: number;
+}
+
+/** GM → server: the conditions on one enemy, the whole list (F-056). */
+export interface EnemyConditions {
+  type: 'enemy-conditions';
+  enemy: string;
+  conditions: string[];
+}
+
+export function parseEnemyConditions(data: unknown): EnemyConditions | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'enemy-conditions') return 'не умови ворога';
+  const enemy = o['enemy'];
+  if (typeof enemy !== 'string' || enemy === '') return 'не вказано ворога';
+  const problem = checkConditions(o['conditions']);
+  if (problem !== null) return problem;
+  return { type: 'enemy-conditions', enemy, conditions: (o['conditions'] as string[]).map((c) => c.trim()) };
 }
 
 /** GM → server: an enemy leaves the fight — fled, or no longer worth a line. */
@@ -856,7 +904,9 @@ export interface CombatMessage {
 export type CombatEventType =
   | 'combat.started' | 'combat.rolled' | 'combat.turn' | 'combat.ended'
   // F-055: enemies come in, take damage, leave.
-  | 'combat.enemies-added' | 'combat.enemy-hp' | 'combat.enemy-removed';
+  | 'combat.enemies-added' | 'combat.enemy-hp' | 'combat.enemy-removed'
+  // F-056: conditions on an enemy.
+  | 'combat.enemy-conditions';
 
 /**
  * A combat line of the log (ADR 0002), living in the same file as the state lines and
@@ -888,6 +938,9 @@ export interface CombatEvent {
   /** combat.enemy-hp: hit points lost before and after — the pair that makes undo free. */
   from?: number;
   to?: number;
+  /** combat.enemy-conditions: the list before and after. */
+  conditionsFrom?: string[];
+  conditionsTo?: string[];
 }
 
 /** A line of the log: a change of character state, or something in the fight. */

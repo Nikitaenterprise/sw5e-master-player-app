@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
+import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
 import type { CharacterState, CombatState, Fighter, GameEvent, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
 import {
   connect,
@@ -13,8 +13,8 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
-import { BriefContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
+import { usedOf, showTerm, termUrl, exhaustionEffects, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, isMismatch, type FeedRow,
@@ -46,10 +46,16 @@ export function App(): JSX.Element {
   const header = editingGlossary ? 'Глосарій' : gm ? 'Екран майстра' : name(character);
   const [mode, setMode] = useState<TermMode>(readMode);
   const term: Term = (kind, english) => showTerm(snapshot.glossary, mode, kind, english);
+  // The book's conditions, for the GM's picker (F-056). Exhaustion has its own levels.
+  const conditionChoices = snapshot.glossaryIndex
+    .filter((r) => r.kind === 'condition' && r.english !== 'Exhaustion')
+    .map((r) => r.english)
+    .sort((a, b) => a.localeCompare(b));
 
   return (
     <TermContext.Provider value={term}>
     <BriefContext.Provider value={snapshot.briefs}>
+    <ExhaustionContext.Provider value={snapshot.exhaustionLevels}>
     <main className={gm ? 'gm' : 'player'}>
       <header>
         <h1>{header}</h1>
@@ -84,6 +90,8 @@ export function App(): JSX.Element {
           addEnemies={(monster, count, hp) => controls.current?.addEnemies(monster, count, hp)}
           damageEnemy={(enemy, amount) => controls.current?.damageEnemy(enemy, amount)}
           removeEnemy={(enemy) => controls.current?.removeEnemy(enemy)}
+          setEnemyConditions={(enemy, list) => controls.current?.setEnemyConditions(enemy, list)}
+          conditionChoices={conditionChoices}
         />
       )}
 
@@ -103,7 +111,14 @@ export function App(): JSX.Element {
             {Object.entries(snapshot.characters)
               .sort(([a], [b]) => name(a).localeCompare(name(b), 'uk'))
               .map(([slug, state]) => (
-                <Card key={slug} slug={slug} state={state} sheet={snapshot.sheets[slug]} />
+                <Card
+                  key={slug}
+                  slug={slug}
+                  state={state}
+                  sheet={snapshot.sheets[slug]}
+                  conditionChoices={conditionChoices}
+                  setConditions={(list) => controls.current?.sendChange(slug, { conditions: list })}
+                />
               ))}
           </div>
         </section>
@@ -177,6 +192,7 @@ export function App(): JSX.Element {
         в журнал (ADR 0002).
       </footer>
     </main>
+    </ExhaustionContext.Provider>
     </BriefContext.Provider>
     </TermContext.Provider>
   );
@@ -316,6 +332,8 @@ export function Managed({
         );
       })}
 
+      <ExhaustionLine level={typeof state.exhaustion === 'number' ? state.exhaustion : 0} />
+
       <div className="state-row">
         <span className="label">{LABELS.hasInspiration}</span>
         <b className="value">{state.hasInspiration === true ? 'так' : 'ні'}</b>
@@ -343,6 +361,7 @@ export function Managed({
                 {term('condition', u)} <span aria-hidden="true">×</span>
               </button>
               <ConditionHelp name={u} />
+              <ConditionEffect name={u} />
             </span>
           ))}
         </div>
@@ -559,6 +578,73 @@ function RollInput({
   );
 }
 
+/**
+ * Conditions on someone, as the GM edits them (F-056): each a link into the reference
+ * with the book's text on hover, a × to take it off, and the book's list to put one on.
+ * The same for a party member and an enemy — the list goes wherever `set` sends it.
+ */
+export function Conditions({
+  list,
+  choices,
+  set,
+}: {
+  list: string[];
+  choices: string[];
+  set: (list: string[]) => void;
+}): JSX.Element {
+  const term = useTerm();
+  const free = choices.filter((c) => !list.some((l) => l.toLowerCase() === c.toLowerCase()));
+  return (
+    <div className="conditions-edit">
+      {list.map((c) => (
+        <span key={c} className="cond">
+          <TermLink kind="condition" english={c}>{term('condition', c)}</TermLink>
+          <button type="button" title="зняти" aria-label={`Зняти «${c}»`} onClick={() => set(list.filter((x) => x !== c))}>
+            ×
+          </button>
+        </span>
+      ))}
+      {free.length > 0 && (
+        <select
+          value=""
+          aria-label="Накласти умову"
+          onChange={(e) => {
+            if (e.target.value !== '') set([...list, e.target.value]);
+          }}
+        >
+          <option value="">+ умова</option>
+          {free.map((c) => (
+            <option key={c} value={c}>
+              {term('condition', c)}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
+/** What the current exhaustion level does — every effect up to it, from the book (F-056). */
+export function ExhaustionLine({ level }: { level: number }): JSX.Element | null {
+  const table = useContext(ExhaustionContext);
+  if (level <= 0) return null;
+  const effects = exhaustionEffects(table, level);
+  return (
+    <p className="exhaustion-line">
+      <TermLink kind="condition" english="Exhaustion">Виснаження {level}</TermLink>
+      {effects.length > 0 && <>: {effects.join('; ')}</>}
+    </p>
+  );
+}
+
+/** The first line of what a condition does — under the player's chip, so nobody has to ask. */
+function ConditionEffect({ name }: { name: string }): JSX.Element | null {
+  const brief = useBrief('condition', name);
+  if (brief === undefined) return null;
+  const first = (brief.split('\n')[0] ?? '').replace(/^•\s*/, '');
+  return <small className="cond-effect">{first}</small>;
+}
+
 /** How a fighter is named on screen: a party member by name, an enemy by creature and number. */
 export function fighterName(fighter: Fighter, term: Term): string {
   if (fighter.kind !== 'enemy') return name(fighter.character);
@@ -577,10 +663,14 @@ function EnemyDetails({
   fighter,
   damage,
   remove,
+  setConditions,
+  conditionChoices = [],
 }: {
   fighter: Fighter;
   damage: (enemy: string, amount: number) => void;
   remove: (enemy: string) => void;
+  setConditions?: (enemy: string, list: string[]) => void;
+  conditionChoices?: string[];
 }): JSX.Element | null {
   const e = fighter.enemy;
   if (e === undefined) return null;
@@ -615,6 +705,9 @@ function EnemyDetails({
           ✕
         </button>
       </span>
+      {setConditions !== undefined && (
+        <Conditions list={fighter.conditions ?? []} choices={conditionChoices} set={(list) => setConditions(fighter.id, list)} />
+      )}
       {e.attacks.length > 0 && (
         <span className="enemy-attacks">
           {e.attacks.map((a) => (
@@ -729,12 +822,16 @@ function OrderRow({
   roll,
   damage,
   remove,
+  setConditions,
+  conditionChoices,
 }: {
   fighter: Fighter;
   current: boolean;
   roll: (character: string, value: number, said?: number) => void;
   damage?: (enemy: string, amount: number) => void;
   remove?: (enemy: string) => void;
+  setConditions?: (enemy: string, list: string[]) => void;
+  conditionChoices?: string[];
 }): JSX.Element {
   const term = useTerm();
   const who = fighterName(fighter, term);
@@ -771,7 +868,15 @@ function OrderRow({
         </span>
       )}
       {current && <i className="mark">← хід</i>}
-      {enemy && damage !== undefined && remove !== undefined && <EnemyDetails fighter={fighter} damage={damage} remove={remove} />}
+      {enemy && damage !== undefined && remove !== undefined && (
+        <EnemyDetails
+          fighter={fighter}
+          damage={damage}
+          remove={remove}
+          {...(setConditions === undefined ? {} : { setConditions })}
+          {...(conditionChoices === undefined ? {} : { conditionChoices })}
+        />
+      )}
     </li>
   );
 }
@@ -793,6 +898,8 @@ export function CombatBoard({
   addEnemies,
   damageEnemy,
   removeEnemy,
+  setEnemyConditions,
+  conditionChoices,
 }: {
   combat: CombatState | null;
   start: () => void;
@@ -803,6 +910,9 @@ export function CombatBoard({
   addEnemies?: (monster: string, count: number, hp?: number) => void;
   damageEnemy?: (enemy: string, amount: number) => void;
   removeEnemy?: (enemy: string) => void;
+  /** Conditions on enemies (F-056). */
+  setEnemyConditions?: (enemy: string, list: string[]) => void;
+  conditionChoices?: string[];
 }): JSX.Element {
   const term = useTerm();
   if (combat === null) {
@@ -831,6 +941,8 @@ export function CombatBoard({
             roll={roll}
             {...(damageEnemy === undefined ? {} : { damage: damageEnemy })}
             {...(removeEnemy === undefined ? {} : { remove: removeEnemy })}
+            {...(setEnemyConditions === undefined ? {} : { setConditions: setEnemyConditions })}
+            {...(conditionChoices === undefined ? {} : { conditionChoices })}
           />
         ))}
       </ol>
@@ -923,7 +1035,12 @@ export function MyInitiative({
         <ul className="foes">
           {foes.map((f) => (
             <li key={f.id} className={f.status === 'знешкоджений' ? 'down' : undefined}>
-              <span>{fighterName(f, term)}</span>
+              <span>
+                {fighterName(f, term)}
+                {(f.conditions ?? []).length > 0 && (
+                  <small className="foe-conditions"> · {(f.conditions ?? []).map((c) => term('condition', c)).join(', ')}</small>
+                )}
+              </span>
               <small>{f.status}</small>
             </li>
           ))}
@@ -1207,10 +1324,15 @@ export function Card({
   slug,
   state,
   sheet,
+  conditionChoices,
+  setConditions,
 }: {
   slug: string;
   state: CharacterState;
   sheet: SheetSummary | undefined;
+  /** The book's conditions to pick from, and how to set the list (F-056). Absent — read only. */
+  conditionChoices?: string[];
+  setConditions?: (list: string[]) => void;
 }): JSX.Element {
   const term = useTerm();
   const conditions = Array.isArray(state.conditions) ? state.conditions : [];
@@ -1394,15 +1516,20 @@ export function Card({
         </details>
       )}
 
-      {conditions.length > 0 && (
-        <p className="conditions">
-          {conditions.map((c, i) => (
-            <span key={c}>
-              {i > 0 && ', '}
-              <TermLink kind="condition" english={c}>{term('condition', c)}</TermLink>
-            </span>
-          ))}
-        </p>
+      <ExhaustionLine level={exhaustion} />
+      {setConditions !== undefined ? (
+        <Conditions list={conditions} choices={conditionChoices ?? []} set={setConditions} />
+      ) : (
+        conditions.length > 0 && (
+          <p className="conditions">
+            {conditions.map((c, i) => (
+              <span key={c}>
+                {i > 0 && ', '}
+                <TermLink kind="condition" english={c}>{term('condition', c)}</TermLink>
+              </span>
+            ))}
+          </p>
+        )
       )}
     </article>
   );

@@ -65,3 +65,6 @@ export const BriefContext = createContext<Record<string, string>>({});
 export function useBrief(kind: TermKind, english: string): string | undefined {
   return useContext(BriefContext)[termKey(kind, english.trim())];
 }
+
+/** What each exhaustion level does, from the book (F-056). Index 0 is level 1. */
+export const ExhaustionContext = createContext<string[]>([]);

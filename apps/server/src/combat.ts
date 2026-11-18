@@ -40,7 +40,7 @@ export class CombatTracker {
    * kept: which creature, its number at the table, hit points the GM rolled by hand,
    * and how many it has lost. AC, attacks and the average come from the book each time.
    */
-  private readonly enemies = new Map<string, { monster: string; number: number; hp?: number; lost: number }>();
+  private readonly enemies = new Map<string, { monster: string; number: number; hp?: number; lost: number; conditions: string[] }>();
 
   constructor(
     private readonly log: Log,
@@ -154,6 +154,14 @@ export class CombatTracker {
     return this.write({ type: 'combat.enemy-hp', author, enemy: id, from: enemy.lost, to });
   }
 
+  /** The conditions on one enemy, the whole list (F-056). Checked by the caller. */
+  setConditions(author: Author, id: string, conditions: string[]): CombatEvent | string {
+    const enemy = this.fighting ? this.enemies.get(id) : undefined;
+    if (enemy === undefined) return 'такого ворога в бою немає';
+    if (JSON.stringify(enemy.conditions) === JSON.stringify(conditions)) return 'нічого не змінилось';
+    return this.write({ type: 'combat.enemy-conditions', author, enemy: id, conditionsFrom: [...enemy.conditions], conditionsTo: [...conditions] });
+  }
+
   /** An enemy leaves the fight. The log keeps that it was here. */
   removeEnemy(author: Author, id: string): CombatEvent | string {
     if (!this.fighting || !this.enemies.has(id)) return 'такого ворога в бою немає';
@@ -179,7 +187,7 @@ export class CombatTracker {
 
   /** An enemy built from the bestiary, the way a party member is built from the sheet. */
   private enemyOf(id: string): Fighter {
-    const enemy = this.enemies.get(id) as { monster: string; number: number; hp?: number; lost: number };
+    const enemy = this.enemies.get(id) as { monster: string; number: number; hp?: number; lost: number; conditions: string[] };
     const doc = this.monsterOf(enemy.monster);
     const abilities = doc?.['abilities'] as Record<string, { modifier?: number }> | undefined;
     const modifier = abilities?.['dexterity']?.modifier ?? 0;
@@ -217,6 +225,7 @@ export class CombatTracker {
       number: enemy.number,
       status: enemyStatus(hp, maxHp),
       enemy: info,
+      conditions: [...enemy.conditions],
     };
   }
 
@@ -273,12 +282,17 @@ export class CombatTracker {
         break;
       case 'combat.enemies-added':
         for (const e of event.enemies ?? []) {
-          this.enemies.set(e.id, { monster: e.monster, number: e.number, ...(e.hp === undefined ? {} : { hp: e.hp }), lost: 0 });
+          this.enemies.set(e.id, { monster: e.monster, number: e.number, ...(e.hp === undefined ? {} : { hp: e.hp }), lost: 0, conditions: [] });
         }
         break;
       case 'combat.enemy-hp': {
         const enemy = event.enemy === undefined ? undefined : this.enemies.get(event.enemy);
         if (enemy !== undefined && event.to !== undefined) enemy.lost = event.to;
+        break;
+      }
+      case 'combat.enemy-conditions': {
+        const enemy = event.enemy === undefined ? undefined : this.enemies.get(event.enemy);
+        if (enemy !== undefined) enemy.conditions = [...(event.conditionsTo ?? [])];
         break;
       }
       case 'combat.enemy-removed':

@@ -40,6 +40,8 @@ export interface Snapshot {
   glossaryIndex: GlossaryRow[];
   /** A few lines from the book per term, for hover hints (F-051). */
   briefs: Record<string, string>;
+  /** What each exhaustion level does, from the book's table (F-056). */
+  exhaustionLevels: string[];
   /** The last compendium-wide glossary search and what it found (F-052). */
   glossaryFound: { q: string; rows: GlossaryRow[] };
   /** The fight: order, whose turn, which round. Null when there is none (F-054). */
@@ -64,6 +66,7 @@ export const EMPTY: Snapshot = {
   glossary: {},
   glossaryIndex: [],
   briefs: {},
+  exhaustionLevels: [],
   glossaryFound: { q: '', rows: [] },
   combat: null,
   counts: {},
@@ -161,6 +164,8 @@ export interface Controls {
   damageEnemy: (enemy: string, amount: number) => void;
   /** An enemy leaves the fight. */
   removeEnemy: (enemy: string) => void;
+  /** The conditions on one enemy, the whole list (F-056). */
+  setEnemyConditions: (enemy: string, conditions: string[]) => void;
   /**
    * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
    * demo's button). The page stays, and so does its queue of unsent changes.
@@ -254,7 +259,7 @@ export function connect(
           update({ glossary: m.terms });
           break;
         case 'briefs':
-          update({ briefs: m.briefs });
+          update({ briefs: m.briefs, exhaustionLevels: m.exhaustion ?? [] });
           break;
         case 'glossary-found':
           update({ glossaryFound: { q: m.q, rows: m.rows } });
@@ -377,6 +382,11 @@ export function connect(
     damageEnemy: (enemy, amount) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'enemy-damage', enemy, amount };
+      socket.send(JSON.stringify(message));
+    },
+    setEnemyConditions: (enemy, conditions) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'enemy-conditions', enemy, conditions };
       socket.send(JSON.stringify(message));
     },
     removeEnemy: (enemy) => {
