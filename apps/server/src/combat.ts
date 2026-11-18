@@ -23,6 +23,7 @@ import {
   type CombatState,
   type EnemyInfo,
   type Fighter,
+  type LastAttack,
   type SheetSummary,
   type WhoCounts,
 } from '@holotable/protocol';
@@ -35,6 +36,8 @@ export class CombatTracker {
   private readonly rolls = new Map<string, { roll: number; said?: number }>();
   private turn: string | null = null;
   private round = 1;
+  /** The last attack typed on a phone (F-057) — the decision; the sum is rebuilt from the sheet. */
+  private attack: { character: string; weapon: string; round: number; roll: number; said?: number } | null = null;
   /**
    * Enemies from the bestiary (F-055), in the order they came in. Only decisions are
    * kept: which creature, its number at the table, hit points the GM rolled by hand,
@@ -59,6 +62,7 @@ export class CombatTracker {
     return {
       round: this.round,
       turn: this.turn,
+      ...(this.attack === null ? {} : { lastAttack: this.lastAttackView(this.attack) }),
       order: initiativeOrder([
         ...this.characters.map((slug) => this.fighterOf(slug)),
         ...[...this.enemies.keys()].map((id) => this.enemyOf(id)),
@@ -117,6 +121,48 @@ export class CombatTracker {
   end(author: Author): CombatEvent | string {
     if (!this.fighting) return 'бою немає';
     return this.write({ type: 'combat.ended', author });
+  }
+
+  /**
+   * An attack typed on the "your turn" screen (F-057). Only on one's own turn: an attack
+   * typed out of turn is a slip of the finger, not a decision. The GM may type it for
+   * whoever is not at the table. Whether it hits is the GM's call — nothing changes here.
+   */
+  attackRoll(author: Author, character: string, weapon: string, roll: number, said?: number): CombatEvent | string {
+    if (!this.fighting) return 'бою немає';
+    if (!this.characters.includes(character)) return 'цього персонажа немає в бою';
+    if (this.turn !== character && author.kind !== 'gm') return 'зараз не твій хід';
+    if (!(this.sheets[character]?.attacks ?? []).some((a) => a.name === weapon)) return 'такої атаки на листі немає';
+    const problem = checkInitiativeRoll(roll);
+    if (problem !== null) return problem;
+    if (said !== undefined) {
+      const trouble = checkDeclaredTotal(said);
+      if (trouble !== null) return trouble;
+    }
+    return this.write({
+      type: 'combat.attack', author, character, weapon, roll, round: this.round,
+      ...(said === undefined ? {} : { said }),
+    });
+  }
+
+  /** "Turn over" from the phone (F-057): only the one whose turn it is, or the GM. */
+  turnDone(author: Author, character: string | undefined): CombatEvent | string {
+    if (!this.fighting) return 'бою немає';
+    if (author.kind !== 'gm' && (character === undefined || this.turn !== character)) return 'зараз не твій хід';
+    return this.move(author, 'next');
+  }
+
+  private lastAttackView(a: { character: string; weapon: string; round: number; roll: number; said?: number }): LastAttack {
+    const bonus = this.sheets[a.character]?.attacks.find((x) => x.name === a.weapon)?.toHit;
+    return {
+      character: a.character,
+      weapon: a.weapon,
+      round: a.round,
+      roll: a.roll,
+      said: a.said ?? null,
+      total: bonus === undefined ? null : a.roll + bonus,
+      counts: whoCounts(this.counts(), a.character),
+    };
   }
 
   /** Whether this id is an enemy in the fight going on now. */
@@ -260,7 +306,16 @@ export class CombatTracker {
 
   private replay(event: CombatEvent): void {
     switch (event.type) {
+      case 'combat.attack':
+        if (event.character !== undefined && event.weapon !== undefined && event.roll !== undefined) {
+          this.attack = {
+            character: event.character, weapon: event.weapon, roll: event.roll, round: event.round ?? this.round,
+            ...(event.said === undefined ? {} : { said: event.said }),
+          };
+        }
+        break;
       case 'combat.started':
+        this.attack = null;
         this.fighting = true;
         this.characters = [...(event.characters ?? [])];
         this.rolls.clear();
@@ -304,6 +359,7 @@ export class CombatTracker {
         }
         break;
       case 'combat.ended':
+        this.attack = null;
         this.fighting = false;
         this.characters = [];
         this.rolls.clear();

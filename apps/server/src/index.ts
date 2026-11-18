@@ -21,6 +21,7 @@ import {
   parseEnemyDamage,
   parseEnemyRemove,
   parseEnemyConditions,
+  parseAttackRoll,
   combatForPlayer,
   parseCountsSet,
   type Author,
@@ -373,6 +374,36 @@ export async function start(
         }
         if (typeof result === 'string') {
           send(socket, { type: 'refused', reason: result });
+          return;
+        }
+        broadcastCombat();
+        return;
+      }
+
+      // The phone's turn (F-057): an attack roll and "turn over". A player for their own
+      // character only; the GM for anyone.
+      if (kind === 'attack-roll') {
+        const parsed = parseAttackRoll(data);
+        if (typeof parsed === 'string') {
+          send(socket, { type: 'refused', reason: parsed });
+          return;
+        }
+        if (who.role === 'player' && who.character !== parsed.character) {
+          send(socket, { type: 'refused', reason: 'атакує власник персонажа або майстер' });
+          return;
+        }
+        const done = combat.attackRoll(authorOf(), parsed.character, parsed.weapon, parsed.roll, parsed.said);
+        if (typeof done === 'string') {
+          send(socket, { type: 'refused', reason: done });
+          return;
+        }
+        broadcastCombat();
+        return;
+      }
+      if (kind === 'turn-done') {
+        const done = combat.turnDone(authorOf(), who.role === 'player' ? who.character : undefined);
+        if (typeof done === 'string') {
+          send(socket, { type: 'refused', reason: done });
           return;
         }
         broadcastCombat();

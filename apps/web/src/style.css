@@ -507,3 +507,31 @@ a.ref-link:hover { color: var(--accent); }
 .cond-effect { display: block; flex-basis: 100%; font-size: .72rem; color: var(--muted); margin: -.1rem 0 .3rem .4rem; }
 .chips .chip-pair { flex-wrap: wrap; }
 .foe-conditions { color: var(--waiting); }
+
+/* ── Your turn on the phone (F-057) ────────────────────────────────────── */
+.my-turn {
+  margin-top: .8rem; padding: .8rem; border: 2px solid var(--accent); border-radius: .6rem;
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+}
+.my-turn h2 { color: var(--accent); font-size: 1.15rem; text-transform: none; letter-spacing: 0; margin: 0 0 .5rem; }
+.my-turn h3 { margin: .6rem 0 .3rem; font-size: .85rem; color: var(--muted); }
+.turn-attacks, .turn-maneuvers { gap: .3rem; }
+.turn-attacks li { flex-wrap: wrap; gap: .4rem; }
+.turn-attacks .what { flex: 1 1 100%; }
+.turn-attacks .what small, .turn-maneuvers small { color: var(--muted); }
+.turn-attacks .add.roll { display: flex; gap: .3rem; }
+.turn-attacks .add.roll input { width: 4.5rem; flex: 0 0 4.5rem; }
+.turn-maneuvers li { justify-content: space-between; padding: .45rem .7rem; }
+.turn-pools { display: flex; gap: .6rem; flex-wrap: wrap; margin: .6rem 0; }
+.turn-pools .pool { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; }
+.turn-pools button {
+  padding: .2rem .6rem; background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: .35rem; font: inherit; font-weight: 600; cursor: pointer;
+}
+.turn-pools button:disabled { opacity: .4; cursor: default; }
+.turn-done {
+  width: 100%; margin-top: .4rem; padding: .7rem; font: inherit; font-weight: 700; font-size: 1rem;
+  background: var(--accent); color: #06110f; border: none; border-radius: .5rem; cursor: pointer;
+}
+.last-attack { margin: .5rem 0; font-size: .85rem; }
+.last-attack small { color: var(--muted); }

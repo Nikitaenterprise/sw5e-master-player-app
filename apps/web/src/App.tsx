@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, Fighter, GameEvent, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, exhaustionEffects, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, exhaustionEffects, turnsUntil, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
@@ -253,6 +253,18 @@ function PlayerSheet({
     <section>
       <h2>Мій стан</h2>
       <Managed state={state} waiting={waiting} sendChange={sendChange} />
+      {snapshot.combat !== null && snapshot.combat.turn === character && sheet !== undefined && (
+        <MyTurn
+          combat={snapshot.combat}
+          character={character}
+          sheet={sheet}
+          state={state}
+          counts={whoCounts(snapshot.counts, character)}
+          attack={(weapon, value, said) => controls.current?.attackRoll(character, weapon, value, said)}
+          spend={(field) => sendChange({ [field]: (typeof state[field] === 'number' ? (state[field] as number) : 0) + 1 })}
+          done={() => controls.current?.turnDone()}
+        />
+      )}
       {snapshot.combat !== null && (
         <MyInitiative
           combat={snapshot.combat}
@@ -514,7 +526,10 @@ function RollInput({
   label,
   sum,
   submit,
+  button = 'ініціатива',
 }: {
+  /** What the submit button says. */
+  button?: string;
   label: string;
   /** The second field — the sum the person worked out themselves (ADR 0007). */
   sum: 'none' | 'optional' | 'required';
@@ -572,7 +587,7 @@ function RollInput({
           placeholder="разом"
         />
       )}
-      <button type="submit">ініціатива</button>
+      <button type="submit">{button}</button>
       {problem !== null && <span className="refusal">{problem}</span>}
     </form>
   );
@@ -952,6 +967,7 @@ export function CombatBoard({
           впиши за нього сам, якщо його немає за столом.
         </p>
       )}
+      {combat.lastAttack !== undefined && <LastAttackLine attack={combat.lastAttack} />}
       {addEnemies !== undefined && <AddEnemies add={addEnemies} />}
       <div className="buttons">
         <button type="button" onClick={() => move('next')}>
@@ -972,6 +988,139 @@ export function CombatBoard({
           <small>черга зникає; ХП, пули й умови не змінюються</small>
         </button>
       </div>
+    </section>
+  );
+}
+
+/**
+ * The last attack typed on a phone, on the GM's board (F-057): the person's number big,
+ * the sheet's beside it, and ≠ when they differ — the GM decides, as with initiative.
+ */
+function LastAttackLine({ attack }: { attack: LastAttack }): JSX.Element {
+  const term = useTerm();
+  const counted = attack.said ?? attack.total;
+  const differs = attack.said !== null && attack.total !== null && attack.said !== attack.total;
+  return (
+    <p className="last-attack">
+      Атака: <b>{name(attack.character)}</b> — {term('weapon', attack.weapon)}: <b>{counted}</b>
+      <small>
+        {attack.said === null
+          ? ` (${attack.roll} за листом)`
+          : ` ${differs ? '≠ ' : ''}лист: ${attack.total} (випало ${attack.roll})`}
+      </small>
+    </p>
+  );
+}
+
+/** Damage dice without the modifier: "1d8 + 4" → "1d8". The person adds theirs (ADR 0007). */
+export function diceOnly(damage: string): string {
+  return damage.replace(/\s*[+-]\s*\d+\s*$/, '');
+}
+
+/** Pools the turn screen lets you spend with one tap. */
+const TURN_POOLS: { field: 'forcePointsUsed' | 'techPointsUsed' | 'superiorityDiceUsed'; label: string; max: (s: SheetSummary) => number | undefined; note: (s: SheetSummary) => string }[] = [
+  { field: 'forcePointsUsed', label: 'Сила', max: (s) => s.forcePoints?.max, note: (s) => (s.forcePoints === undefined ? '' : `DC ${s.forcePoints.dcLight === s.forcePoints.dcDark ? s.forcePoints.dcLight : `${s.forcePoints.dcLight}/${s.forcePoints.dcDark}`}`) },
+  { field: 'techPointsUsed', label: 'Техніка', max: (s) => s.techPoints?.max, note: (s) => (s.techPoints === undefined ? '' : `DC ${s.techPoints.dc}`) },
+  { field: 'superiorityDiceUsed', label: 'Суперіориті', max: (s) => s.superiority?.quantity, note: (s) => s.superiority?.size ?? '' },
+];
+
+/**
+ * "Your turn" on the phone (F-057): what is needed right now, and nothing else — the
+ * attacks, the maneuvers with their DC, the pools to spend, and "turn over".
+ *
+ * An attack is a roll, so ADR 0007 applies: when the person counts, they type what came
+ * up and what they made of it, and no to-hit bonus sits next to the field — remembering
+ * it is theirs. The damage dice stay: which die to throw is what the app is for.
+ */
+export function MyTurn({
+  combat,
+  character,
+  sheet,
+  state,
+  counts,
+  attack,
+  spend,
+  done,
+}: {
+  combat: CombatState;
+  character: string;
+  sheet: SheetSummary;
+  state: CharacterState;
+  counts: WhoCounts;
+  attack: (weapon: string, value: number, said?: number) => void;
+  spend: (field: 'forcePointsUsed' | 'techPointsUsed' | 'superiorityDiceUsed') => void;
+  done: () => void;
+}): JSX.Element {
+  const term = useTerm();
+  const last = combat.lastAttack?.character === character && combat.lastAttack.round === combat.round ? combat.lastAttack : undefined;
+  return (
+    <section className="my-turn">
+      <h2>Твій хід · раунд {combat.round}</h2>
+      <h3>Атаки</h3>
+      <ul className="turn-attacks">
+        {sheet.attacks.map((a) => (
+          <li key={a.name}>
+            <span className="what">
+              <TermLink kind="weapon" english={a.name}>{term('weapon', a.name)}</TermLink>
+              <small>
+                {counts === 'app'
+                  ? ` ${signed(a.toHit)} · ${a.damageDice} ${term('damage', a.damageType)}`
+                  : ` шкода ${diceOnly(a.damageDice)} ${term('damage', a.damageType)}`}
+              </small>
+            </span>
+            <RollInput
+              label={`Атака: ${a.name}, що випало на d20`}
+              sum={counts === 'player' ? 'required' : 'none'}
+              button="атака"
+              submit={(value, said) => attack(a.name, value, said)}
+            />
+          </li>
+        ))}
+      </ul>
+      {last !== undefined && (
+        <p className="hint">
+          Записано: {term('weapon', last.weapon)} — {last.said ?? last.total} (випало {last.roll}). Влучання вирішує майстер.
+        </p>
+      )}
+      {sheet.maneuvers.length > 0 && (
+        <>
+          <h3>Маневри</h3>
+          <ul className="turn-maneuvers">
+            {sheet.maneuvers.map((m) => (
+              <li key={m.name}>
+                <TermLink kind="maneuver" english={m.name}>{term('maneuver', m.name)}</TermLink>
+                <small>
+                  {m.cost === 0 ? 'без кубика' : `${m.cost} куб.`}
+                  {m.saveDC === null ? '' : ` · DC ${m.saveDC}`}
+                </small>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <div className="turn-pools">
+        {TURN_POOLS.map((p) => {
+          const max = p.max(sheet);
+          if (max === undefined) return null;
+          const used = typeof state[p.field] === 'number' ? (state[p.field] as number) : 0;
+          const left = Math.max(0, max - used);
+          return (
+            <span key={p.field} className="pool">
+              <small>{p.label}</small>
+              <b>
+                {left}<i>/{max}</i>
+              </b>
+              <small className="note">{p.note(sheet)}</small>
+              <button type="button" disabled={left === 0} onClick={() => spend(p.field)}>
+                −1
+              </button>
+            </span>
+          );
+        })}
+      </div>
+      <button type="button" className="turn-done" onClick={done}>
+        Хід завершено
+      </button>
     </section>
   );
 }
@@ -1030,6 +1179,10 @@ export function MyInitiative({
           : current.character === character
             ? 'Зараз твій хід.'
             : `Зараз хід: ${fighterName(current, term)}.`}
+        {mine !== undefined && current !== undefined && current.character !== character && (() => {
+          const left = turnsUntil(combat, mine.id);
+          return left === null || left === 0 ? null : ` До твого ходу: ${left}.`;
+        })()}
       </p>
       {foes.length > 0 && (
         <ul className="foes">

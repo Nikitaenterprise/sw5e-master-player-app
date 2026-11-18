@@ -67,7 +67,9 @@ export type ToServer =
   | EnemiesAdd
   | EnemyDamage
   | EnemyRemove
-  | EnemyConditions;
+  | EnemyConditions
+  | AttackRoll
+  | TurnDone;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -864,6 +866,68 @@ export interface CombatState {
   turn: string | null;
   /** Everyone in the fight, already in turn order. */
   order: Fighter[];
+  /**
+   * The last attack a party member typed on their phone (F-057): the GM decides whether
+   * it hits. Both numbers, as everywhere a die is rolled (ADR 0007).
+   */
+  lastAttack?: LastAttack;
+}
+
+/** One attack roll from a phone: what came up, what the person made of it, and our sum. */
+export interface LastAttack {
+  character: string;
+  weapon: string;
+  round: number;
+  roll: number;
+  /** The sum the person worked out, when they count (ADR 0007). */
+  said: number | null;
+  /** roll + the to-hit bonus from the sheet — the app's number, for the GM to compare. */
+  total: number | null;
+  counts: WhoCounts;
+}
+
+/** Player → server: an attack roll from the "your turn" screen (F-057). */
+export interface AttackRoll {
+  type: 'attack-roll';
+  character: string;
+  /** The attack's name exactly as on the sheet. */
+  weapon: string;
+  roll: number;
+  said?: number;
+}
+
+/** Player (or GM) → server: this turn is over, move on (F-057). */
+export interface TurnDone {
+  type: 'turn-done';
+}
+
+export function parseAttackRoll(data: unknown): AttackRoll | string {
+  if (typeof data !== 'object' || data === null) return 'атака не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'attack-roll') return 'не атака';
+  const character = o['character'];
+  const weapon = o['weapon'];
+  if (typeof character !== 'string' || character === '') return 'не вказано персонажа';
+  if (typeof weapon !== 'string' || weapon === '' || weapon.length > 80) return 'не вказано зброю';
+  const problem = checkInitiativeRoll(o['roll']);
+  if (problem !== null) return problem;
+  const attack: AttackRoll = { type: 'attack-roll', character, weapon, roll: o['roll'] as number };
+  if (o['said'] !== undefined) {
+    const trouble = checkDeclaredTotal(o['said']);
+    if (trouble !== null) return trouble;
+    attack.said = o['said'] as number;
+  }
+  return attack;
+}
+
+/** How many turns until this fighter's, counting from the current one; 0 when it is theirs. */
+export function turnsUntil(combat: CombatState, id: string): number | null {
+  const queue = rotation(combat);
+  const mine = queue.findIndex((f) => f.id === id);
+  if (mine === -1) return null;
+  const now = queue.findIndex((f) => f.id === combat.turn);
+  if (now === -1) return mine;
+  return (mine - now + queue.length) % queue.length;
 }
 
 /** GM → server: the fight begins. The party goes into the order; rolls come next. */
@@ -906,7 +970,9 @@ export type CombatEventType =
   // F-055: enemies come in, take damage, leave.
   | 'combat.enemies-added' | 'combat.enemy-hp' | 'combat.enemy-removed'
   // F-056: conditions on an enemy.
-  | 'combat.enemy-conditions';
+  | 'combat.enemy-conditions'
+  // F-057: an attack typed on the "your turn" screen.
+  | 'combat.attack';
 
 /**
  * A combat line of the log (ADR 0002), living in the same file as the state lines and
@@ -938,6 +1004,8 @@ export interface CombatEvent {
   /** combat.enemy-hp: hit points lost before and after — the pair that makes undo free. */
   from?: number;
   to?: number;
+  /** combat.attack: the attack's name on the sheet. */
+  weapon?: string;
   /** combat.enemy-conditions: the list before and after. */
   conditionsFrom?: string[];
   conditionsTo?: string[];

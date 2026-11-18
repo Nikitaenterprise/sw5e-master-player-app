@@ -124,6 +124,17 @@ try {
     await wait(p1, (g) => foes(g)[0]?.conditions?.[0] === 'Prone' && foes(g)[0]?.enemy === undefined));
   const briefsMsg = gm.got.find((m) => m.type === 'briefs');
   ok('F-056 таблиця виснаження з книги приходить на екран', briefsMsg?.exhaustion?.length === 6 && briefsMsg.exhaustion[5] === 'Death');
+  const lastCombat = (g) => [...g].reverse().find((m) => m.type === 'combat')?.combat;
+  const turnNow = lastCombat(gm.got)?.turn;
+  if (turnNow === 'sandra-vong') {
+    p1.ws.send(JSON.stringify({ type: 'attack-roll', character: 'sandra-vong', weapon: sheets['sandra-vong'].attacks[0].name, roll: 11, said: 15 }));
+    ok('F-057 атака з телефона — у майстра обидва числа',
+      await wait(gm, (g) => lastCombat(g)?.lastAttack?.said === 15 && lastCombat(g)?.lastAttack?.total === 11 + sheets['sandra-vong'].attacks[0].toHit));
+    p1.ws.send(JSON.stringify({ type: 'turn-done' }));
+    ok('F-057 «Хід завершено» від того, чий хід, переводить хід', await wait(gm, (g) => lastCombat(g)?.turn !== 'sandra-vong'));
+  } else {
+    ok('F-057 хід Сандри для перевірки атаки', false, `зараз хід: ${turnNow}`);
+  }
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');

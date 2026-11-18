@@ -166,6 +166,10 @@ export interface Controls {
   removeEnemy: (enemy: string) => void;
   /** The conditions on one enemy, the whole list (F-056). */
   setEnemyConditions: (enemy: string, conditions: string[]) => void;
+  /** An attack roll from the "your turn" screen (F-057). */
+  attackRoll: (character: string, weapon: string, roll: number, said?: number) => void;
+  /** "Turn over" from the phone (F-057). */
+  turnDone: () => void;
   /**
    * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
    * demo's button). The page stays, and so does its queue of unsent changes.
@@ -382,6 +386,16 @@ export function connect(
     damageEnemy: (enemy, amount) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'enemy-damage', enemy, amount };
+      socket.send(JSON.stringify(message));
+    },
+    attackRoll: (whom, weapon, roll, said) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'attack-roll', character: whom, weapon, roll, ...(said === undefined ? {} : { said }) };
+      socket.send(JSON.stringify(message));
+    },
+    turnDone: () => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'turn-done' };
       socket.send(JSON.stringify(message));
     },
     setEnemyConditions: (enemy, conditions) => {
