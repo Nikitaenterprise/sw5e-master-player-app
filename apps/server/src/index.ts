@@ -7,7 +7,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { rmSync } from 'node:fs';
-import { join, normalize, extname } from 'node:path';
+import { dirname, join, normalize, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
@@ -113,7 +113,8 @@ export function demoEventsDir(root: string): string {
 /** Options for a demo run: a fresh, empty demo log. */
 export function demoOptions(root: string): Options {
   const eventsDir = demoEventsDir(root);
-  rmSync(eventsDir, { recursive: true, force: true });
+  // The whole demo folder goes: the log and the table settings alike start clean.
+  rmSync(dirname(eventsDir), { recursive: true, force: true });
   return { demo: true, eventsDir };
 }
 
@@ -153,7 +154,10 @@ export async function start(
   const briefs = buildBriefs(compendium, termIndex, glossary.terms);
   // Who counts the modifiers, per character (F-064, ADR 0007). A plain file in state/,
   // like the glossary, so the owner can fix it by hand.
-  const table = loadTable(stateDir);
+  // Who counts is the table's real choice — so the demo keeps its own, next to its log
+  // in .cache/demo, and acceptance clicks never flip the owner's setting in state/.
+  const tableDir = demo && options.eventsDir !== undefined ? dirname(options.eventsDir) : stateDir;
+  const table = loadTable(tableDir);
   if (table.problem !== null) console.log(`  Увага: ${table.problem}`);
   // The fight (F-054): replayed from the log, so a restart mid-combat changes nothing.
   const combat = new CombatTracker(log, sheets, () => table.counts, compendium);
@@ -333,7 +337,7 @@ export async function start(
         }
         const next = { ...table.counts, [wanted.character]: wanted.who };
         try {
-          saveTable(stateDir, next);
+          saveTable(tableDir, next);
         } catch (error) {
           send(socket, { type: 'refused', reason: `не записалось: ${(error as Error).message}` });
           return;

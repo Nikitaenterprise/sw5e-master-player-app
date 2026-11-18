@@ -9,7 +9,7 @@ import WebSocket from 'ws';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import type { FromServer, SessionClosed } from '../packages/protocol/src/index.js';
@@ -112,5 +112,35 @@ describe('F-037 · демо не займає номери справжніх с
 
   it('на кожному екрані демо видно, що це демо', () => {
     expect(renderToStaticMarkup(createElement(DemoBanner))).toContain('ДЕМО');
+  });
+
+  it('вибір «хто рахує» в демо не пише в справжній state/ (F-064)', async () => {
+    const realState = mkdtempSync(join(tmpdir(), 'holotable-demo-real-'));
+    const eventsDir = join(mkdtempSync(join(tmpdir(), 'holotable-demo-dir-')), 'events');
+    mkdirSync(eventsDir, { recursive: true });
+    server = await start(0, { demo: true, eventsDir, charactersDir: CHARACTERS, repoDir: realState, stateDir: realState });
+    const socket = new WebSocket(`ws://127.0.0.1:${server.port}`);
+    const got: FromServer[] = [];
+    socket.on('message', (raw) => got.push(JSON.parse(raw.toString('utf8')) as FromServer));
+    await new Promise((r) => socket.on('open', r));
+    socket.send(JSON.stringify({ type: 'hello', role: 'gm' }));
+    socket.send(JSON.stringify({ type: 'counts-set', character: 'nigra-4', who: 'app' }));
+    const end = Date.now() + 5000;
+    while (!got.some((m) => m.type === 'counts' && m.counts['nigra-4'] === 'app') && Date.now() < end) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    socket.close();
+    expect(got.some((m) => m.type === 'counts' && m.counts['nigra-4'] === 'app'), 'перемикач у демо працює').toBe(true);
+    expect(existsSync(join(realState, 'holotable')), 'справжній state/ не зачеплено').toBe(false);
+    expect(existsSync(join(dirname(eventsDir), 'holotable', 'table.json')), 'вибір лежить поруч із журналом демо').toBe(true);
+  });
+
+  it('новий запуск демо прибирає й вибір «хто рахує» з минулого демо', () => {
+    const fake = mkdtempSync(join(tmpdir(), 'holotable-demo-root-'));
+    const table = join(dirname(demoEventsDir(fake)), 'holotable', 'table.json');
+    mkdirSync(dirname(table), { recursive: true });
+    writeFileSync(table, '{"whoCounts":{"nigra-4":"app"}}');
+    demoOptions(fake);
+    expect(existsSync(table)).toBe(false);
   });
 });
