@@ -130,7 +130,8 @@ export type FromServer =
   | Briefs
   | GlossaryFound
   | CombatMessage
-  | CountsMessage;
+  | CountsMessage
+  | FightSummaryMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -295,6 +296,8 @@ export interface SheetSummary {
 export interface History {
   type: 'history';
   events: GameEvent[];
+  /** Fights of this session that have ended, for the feed (F-059). */
+  fights?: FightSummary[];
 }
 
 /** How many past events the GM gets on connect — the feed shows the latest few anyway. */
@@ -1033,6 +1036,46 @@ export interface CombatTurn {
 /** GM → server: the fight is over. The order goes away; hit points stay as they are. */
 export interface CombatEnd {
   type: 'combat-end';
+  /**
+   * Conditions the GM ticked to take off as the fight ends (F-059). The books do not say
+   * which conditions last "until the end of the fight", so the GM decides, one by one.
+   */
+  clear?: { character: string; condition: string }[];
+}
+
+export function parseCombatEnd(data: unknown): CombatEnd | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'combat-end') return 'не кінець бою';
+  const clear = o['clear'];
+  if (clear === undefined) return { type: 'combat-end' };
+  if (!Array.isArray(clear) || clear.length > 60) return 'список умов, які зняти, — не той';
+  for (const c of clear) {
+    if (typeof c !== 'object' || c === null) return 'список умов, які зняти, — не той';
+    const x = c as Record<string, unknown>;
+    if (typeof x['character'] !== 'string' || typeof x['condition'] !== 'string') return 'список умов, які зняти, — не той';
+  }
+  return { type: 'combat-end', clear: clear as { character: string; condition: string }[] };
+}
+
+/**
+ * What a fight came to (F-059) — worked out from the log every time it is shown, never
+ * stored (ADR 0003): how many rounds, who lost and healed how much, who went down, and
+ * which creatures were there.
+ */
+export interface FightSummary {
+  startedAt: number;
+  endedAt: number;
+  rounds: number;
+  party: { character: string; lost: number; healed: number; fell: boolean }[];
+  /** Creatures that took part, by name and how many: "Sith Probe Droid ×2". */
+  enemies: { name: string; count: number }[];
+}
+
+/** Server → everyone: a fight just ended — here is what it came to. */
+export interface FightSummaryMessage {
+  type: 'fight-summary';
+  summary: FightSummary;
 }
 
 /** Server → everyone: the fight as it stands, or null when there is no fight. */

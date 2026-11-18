@@ -17,6 +17,7 @@ import {
   parseRest,
   parseCombatRoll,
   parseCombatTurn,
+  parseCombatEnd,
   parseEnemiesAdd,
   parseEnemyDamage,
   parseEnemyRemove,
@@ -43,6 +44,7 @@ import {
 import { Log } from './log.js';
 import { State } from './state.js';
 import { CombatTracker } from './combat.js';
+import { summarizeFights } from './summary.js';
 import { computeSummaries, computeRestPlans, applyRest, checkHitDice } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
@@ -283,7 +285,12 @@ export async function start(
         send(socket, { type: 'counts', counts: table.counts });
         // The GM's feed comes from the log, not from what this page happened to see.
         if (hello.role === 'gm') {
-          send(socket, { type: 'history', events: log.read().events.slice(-HISTORY_LIMIT) });
+          const lines = log.read();
+          send(socket, {
+            type: 'history',
+            events: lines.events.slice(-HISTORY_LIMIT),
+            fights: summarizeFights(lines.events, lines.combat, sheets, compendium),
+          });
           send(socket, { type: 'glossary-index', rows: termIndex });
         }
         broadcastClients();
@@ -312,7 +319,29 @@ export async function start(
         if (kind === 'combat-start') {
           result = combat.start(authorOf(), state.slugs());
         } else if (kind === 'combat-end') {
+          const ending = parseCombatEnd(data);
+          if (typeof ending === 'string') {
+            send(socket, { type: 'refused', reason: ending });
+            return;
+          }
+          // The conditions the GM ticked come off first, each as an ordinary change with
+          // its own line in the feed — and its own undo (F-059).
+          const byCharacter = new Map<string, string[]>();
+          for (const c of ending.clear ?? []) byCharacter.set(c.character, [...(byCharacter.get(c.character) ?? []), c.condition]);
+          for (const [slug, off] of byCharacter) {
+            const now = state.one(slug);
+            const list = Array.isArray(now?.conditions) ? (now.conditions as string[]) : [];
+            const left = list.filter((c) => !off.includes(c));
+            if (left.length === list.length) continue;
+            const changed = state.apply(slug, { conditions: left }, authorOf(), 'кінець бою');
+            if (typeof changed !== 'string') broadcastAll({ type: 'event', event: changed, state: state.one(slug) ?? {} });
+          }
           result = combat.end(authorOf());
+          if (typeof result !== 'string') {
+            const fights = summarizeFights(log.read().events, log.read().combat, sheets, compendium);
+            const last = fights.at(-1);
+            if (last !== undefined) broadcastAll({ type: 'fight-summary', summary: last });
+          }
         } else {
           const turn = parseCombatTurn(data);
           if (typeof turn === 'string') {

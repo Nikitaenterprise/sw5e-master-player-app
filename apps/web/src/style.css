@@ -544,3 +544,13 @@ a.ref-link:hover { color: var(--accent); }
 .death-saves .add.roll { display: flex; gap: .3rem; }
 .death-saves .add.roll input { width: 4.5rem; flex: 0 0 4.5rem; }
 .down-line { margin: .3rem 0 0; font-size: .8rem; color: var(--bad); }
+
+/* ── End of the fight (F-059) ──────────────────────────────────────────── */
+.end-panel { margin-top: .7rem; padding: .7rem .8rem; border: 1px dashed var(--border); border-radius: .5rem; }
+.end-panel p { margin: .2rem 0 .4rem; }
+.end-conditions { gap: .2rem; margin-bottom: .5rem; }
+.end-conditions li { padding: .35rem .6rem; }
+.end-conditions label { cursor: pointer; }
+.feed .fights { margin-bottom: .4rem; gap: .3rem; }
+.feed .fight { border-left: 3px solid var(--accent); font-size: .85rem; }
+.feed .fight .when { color: var(--muted); font-size: .75rem; margin-left: auto; white-space: nowrap; }

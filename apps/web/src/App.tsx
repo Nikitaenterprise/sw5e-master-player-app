@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -86,7 +86,9 @@ export function App(): JSX.Element {
           start={() => controls.current?.startCombat()}
           roll={(whom, value, said) => controls.current?.rollInitiative(whom, value, said)}
           move={(direction) => controls.current?.advanceTurn(direction)}
-          end={() => controls.current?.endCombat()}
+          end={(clear) => controls.current?.endCombat(clear)}
+          party={snapshot.characters}
+          rest={(kind) => controls.current?.sendRest(kind)}
           addEnemies={(monster, count, hp) => controls.current?.addEnemies(monster, count, hp)}
           damageEnemy={(enemy, amount) => controls.current?.damageEnemy(enemy, amount)}
           removeEnemy={(enemy) => controls.current?.removeEnemy(enemy)}
@@ -159,6 +161,7 @@ export function App(): JSX.Element {
       {gm && !editingGlossary && (
         <Feed
           events={snapshot.events}
+          fights={snapshot.fights}
           undo={(row) =>
             // Relative to where the run ended: undo takes back THIS change, and what
             // others did since stays (F-045).
@@ -904,6 +907,92 @@ function OrderRow({
 }
 
 /**
+ * Ending the fight (F-059). The books do not say which conditions last only "until the
+ * end of the fight", so the GM ticks them one by one — nothing is taken off by itself.
+ * A short rest sits right here, because that is what usually comes next.
+ */
+export function EndPanel({
+  party,
+  end,
+  cancel,
+  rest,
+}: {
+  party: Record<string, CharacterState>;
+  end: (clear: { character: string; condition: string }[]) => void;
+  cancel: () => void;
+  rest?: (kind: 'short' | 'long') => void;
+}): JSX.Element {
+  const term = useTerm();
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const offered = Object.entries(party).flatMap(([character, s]) =>
+    (Array.isArray(s.conditions) ? s.conditions : []).map((condition) => ({ character, condition, id: `${character}\u0000${condition}` })),
+  );
+  return (
+    <div className="end-panel">
+      <p>
+        <b>Кінець бою.</b> Черга зникне, ХП і пули лишаться як є.
+      </p>
+      {offered.length === 0 ? (
+        <p className="hint">Умов на партії немає.</p>
+      ) : (
+        <>
+          <p className="hint">Які умови зняти разом із кінцем бою? Решта лишиться.</p>
+          <ul className="end-conditions">
+            {offered.map((o) => (
+              <li key={o.id}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={ticked.has(o.id)}
+                    onChange={(e) => {
+                      const next = new Set(ticked);
+                      if (e.target.checked) next.add(o.id);
+                      else next.delete(o.id);
+                      setTicked(next);
+                    }}
+                  />{' '}
+                  {name(o.character)} — {term('condition', o.condition)}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <div className="buttons">
+        <button type="button" onClick={() => end(offered.filter((o) => ticked.has(o.id)).map(({ character, condition }) => ({ character, condition })))}>
+          Закінчити бій
+          <small>{ticked.size === 0 ? 'умови лишаються' : `зняти умов: ${ticked.size}`}</small>
+        </button>
+        {rest !== undefined && (
+          <button type="button" onClick={() => rest('short')}>
+            Короткий відпочинок
+            <small>можна й після кінця бою</small>
+          </button>
+        )}
+        <button type="button" onClick={cancel}>
+          Скасувати
+          <small>бій триває</small>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** A fight's summary in one line, for the feed (F-059). */
+export function fightText(f: FightSummary): string {
+  const rounds = `${f.rounds} ${f.rounds === 1 ? 'раунд' : f.rounds < 5 ? 'раунди' : 'раундів'}`;
+  const people = f.party
+    .filter((p) => p.lost > 0 || p.healed > 0 || p.fell)
+    .map((p) => `${name(p.character)}${p.lost > 0 ? ` −${p.lost}` : ''}${p.healed > 0 ? ` +${p.healed}` : ''}${p.fell ? ' (падав)' : ''}`);
+  const foes = f.enemies.map((e) => `${e.name}${e.count > 1 ? ` ×${e.count}` : ''}`);
+  return [
+    `Бій завершено · ${rounds}`,
+    people.length === 0 ? 'ХП ніхто не втратив' : people.join(', '),
+    ...(foes.length === 0 ? [] : [`вороги: ${foes.join(', ')}`]),
+  ].join(' · ');
+}
+
+/**
  * The fight on the GM's screen (F-054): the turn order, whose turn it is, which round.
  *
  * What the app does here is the arithmetic and the bookkeeping — it adds the modifier
@@ -922,12 +1011,18 @@ export function CombatBoard({
   removeEnemy,
   setEnemyConditions,
   conditionChoices,
+  party,
+  rest,
 }: {
   combat: CombatState | null;
   start: () => void;
   roll: (character: string, value: number, said?: number) => void;
   move: (direction: 'next' | 'back') => void;
-  end: () => void;
+  end: (clear?: { character: string; condition: string }[]) => void;
+  /** The party's state — to offer their conditions for taking off at the end (F-059). */
+  party?: Record<string, CharacterState>;
+  /** A rest, right next to the end of the fight. */
+  rest?: (kind: 'short' | 'long') => void;
   /** Enemies from the bestiary (F-055). Without them the board is the party's only. */
   addEnemies?: (monster: string, count: number, hp?: number) => void;
   damageEnemy?: (enemy: string, amount: number) => void;
@@ -937,6 +1032,7 @@ export function CombatBoard({
   conditionChoices?: string[];
 }): JSX.Element {
   const term = useTerm();
+  const [ending, setEnding] = useState(false);
   if (combat === null) {
     return (
       <section className="combat">
@@ -985,16 +1081,22 @@ export function CombatBoard({
           Крок назад
           <small>якщо натиснув зарано</small>
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (confirm('Завершити бій? Черга зникне, ХП і пули лишаться як є.')) end();
-          }}
-        >
+        <button type="button" onClick={() => setEnding(true)}>
           Завершити бій
-          <small>черга зникає; ХП, пули й умови не змінюються</small>
+          <small>черга зникає; ХП і пули лишаються; умови — на твій вибір</small>
         </button>
       </div>
+      {ending && (
+        <EndPanel
+          party={party ?? {}}
+          end={(clear) => {
+            setEnding(false);
+            end(clear);
+          }}
+          cancel={() => setEnding(false)}
+          {...(rest === undefined ? {} : { rest })}
+        />
+      )}
     </section>
   );
 }
@@ -1404,15 +1506,30 @@ export function Session({
 export function Feed({
   events,
   undo,
+  fights = [],
 }: {
   events: GameEvent[];
   undo: (row: FeedRow) => void;
+  /** Ended fights, shown among the changes at the moment each ended (F-059). */
+  fights?: FightSummary[];
 }): JSX.Element {
   const now = Date.now();
   const rows = collapse(events).slice(0, 12);
+  const oldest = rows.at(-1)?.at ?? 0;
+  const shownFights = [...fights].filter((f) => rows.length < 12 || f.endedAt >= oldest).reverse();
   return (
     <section className="feed">
       <h2>Що сталося</h2>
+      {shownFights.length > 0 && (
+        <ul className="fights">
+          {shownFights.map((f) => (
+            <li key={f.endedAt} className="fight">
+              <span className="what">{fightText(f)}</span>
+              <span className="when">{whenText(f.endedAt, now)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {rows.length === 0 ? (
         <p className="hint">Поки ніхто нічого не змінив.</p>
       ) : (

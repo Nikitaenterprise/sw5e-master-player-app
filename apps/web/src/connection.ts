@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -42,6 +42,8 @@ export interface Snapshot {
   briefs: Record<string, string>;
   /** What each exhaustion level does, from the book's table (F-056). */
   exhaustionLevels: string[];
+  /** Fights of this session that have ended, oldest first (F-059). */
+  fights: FightSummary[];
   /** The last compendium-wide glossary search and what it found (F-052). */
   glossaryFound: { q: string; rows: GlossaryRow[] };
   /** The fight: order, whose turn, which round. Null when there is none (F-054). */
@@ -67,6 +69,7 @@ export const EMPTY: Snapshot = {
   glossaryIndex: [],
   briefs: {},
   exhaustionLevels: [],
+  fights: [],
   glossaryFound: { q: '', rows: [] },
   combat: null,
   counts: {},
@@ -157,7 +160,8 @@ export interface Controls {
   /** Move the turn on, or back when a button was pressed too early. GM only. */
   advanceTurn: (direction: 'next' | 'back') => void;
   /** End the fight. The order goes away, nobody's numbers change. GM only. */
-  endCombat: () => void;
+  /** End the fight, taking off the conditions the GM ticked (F-059). */
+  endCombat: (clear?: { character: string; condition: string }[]) => void;
   /** Bring creatures from the bestiary into the fight; hp only when the GM rolled it (F-055). */
   addEnemies: (monster: string, count: number, hp?: number) => void;
   /** Damage (positive) or heal (negative) one enemy. */
@@ -259,10 +263,13 @@ export function connect(
         case 'history':
           // Replaces, never appends: after a reconnect the server's log is the truth,
           // and appending would show every line twice.
-          update({ events: [...m.events].reverse().slice(0, 100) });
+          update({ events: [...m.events].reverse().slice(0, 100), fights: m.fights ?? [] });
           break;
         case 'glossary':
           update({ glossary: m.terms });
+          break;
+        case 'fight-summary':
+          update({ fights: [...snapshot.fights, m.summary] });
           break;
         case 'briefs':
           update({ briefs: m.briefs, exhaustionLevels: m.exhaustion ?? [] });
@@ -295,7 +302,7 @@ export function connect(
           break;
         case 'session-closed':
           // The feed is the session's story; a new session starts with a clean page.
-          update({ session: m.opened, lastClosed: m, events: [] });
+          update({ session: m.opened, lastClosed: m, events: [], fights: [] });
           break;
         case 'refused':
           update({ refusal: m.reason });
@@ -375,9 +382,9 @@ export function connect(
       const message: ToServer = { type: 'combat-turn', direction };
       socket.send(JSON.stringify(message));
     },
-    endCombat: () => {
+    endCombat: (clear) => {
       if (socket?.readyState !== 1) return;
-      const message: ToServer = { type: 'combat-end' };
+      const message: ToServer = { type: 'combat-end', ...(clear === undefined || clear.length === 0 ? {} : { clear }) };
       socket.send(JSON.stringify(message));
     },
     addEnemies: (monster, count, hp) => {

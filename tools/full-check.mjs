@@ -143,6 +143,12 @@ try {
   gm.ws.send(JSON.stringify({ type: 'intent', character: 'nigra-4', changes: { hitPointsLost: nigraMax - 1 } }));
   ok('F-058 лікування скидає позначки тією самою подією',
     await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.character === 'nigra-4' && m.event.changes.some((c) => c.field === 'deathSaves' && c.to.failures === 0))));
+  gm.ws.send(JSON.stringify({ type: 'intent', character: 'krinzh-dor', changes: { conditions: ['Prone', 'Poisoned'] } }));
+  await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.character === 'krinzh-dor'));
+  gm.ws.send(JSON.stringify({ type: 'combat-end', clear: [{ character: 'krinzh-dor', condition: 'Prone' }] }));
+  ok('F-059 кінець бою: підсумок у стрічці майстра', await wait(gm, (g) => g.some((m) => m.type === 'fight-summary' && m.summary.rounds >= 1)));
+  ok('F-059 знято лише позначену умову',
+    await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.note === 'кінець бою' && JSON.stringify(m.state.conditions) === '["Poisoned"]')));
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');
