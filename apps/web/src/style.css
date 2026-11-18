@@ -616,3 +616,15 @@ a.ref-link:hover { color: var(--accent); }
 .items-editor input[type="checkbox"] { width: auto; }
 .items-editor .danger { color: var(--bad); }
 .item-consumable { font-size: .85rem; display: flex; gap: .4rem; align-items: center; }
+
+/* ── Feature effects (F-069) ───────────────────────────────────────────── */
+.feature-effect { margin-top: .35rem; font-size: .78rem; display: flex; flex-wrap: wrap; gap: .3rem; align-items: baseline; }
+.feature-effect > button {
+  background: var(--panel); color: var(--text); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: .35rem; padding: .1rem .5rem; font: inherit; cursor: pointer;
+}
+.feature-effect .feature-from { color: var(--muted); }
+.feature-allies { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: .3rem .7rem; align-items: center; }
+.feature-allies > small { flex-basis: 100%; color: var(--muted); font-style: italic; }
+.feature-allies label { display: inline-flex; gap: .25rem; align-items: center; }
+.feature-allies button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem; padding: .1rem .5rem; font: inherit; cursor: pointer; }

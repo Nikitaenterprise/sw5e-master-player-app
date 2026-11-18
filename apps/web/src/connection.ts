@@ -198,6 +198,8 @@ export interface Controls {
   deathSave: (character: string, roll: number, said?: number) => void;
   /** Use a homebrew item; `spend: false` — the GM puts its effects on without using one up (F-067). */
   useItem: (character: string, item: string, spend: boolean) => void;
+  /** A feature's effect on its owner and the allies picked. GM only (F-069). */
+  useFeature: (character: string, feature: string, allies: string[]) => void;
   /** Write one item into the homebrew file, or delete it with null. GM only (F-068). */
   setHomebrewItem: (name: string, def: HomebrewDef | null) => void;
   /**
@@ -436,6 +438,11 @@ export function connect(
     attackRoll: (whom, weapon, roll, said) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'attack-roll', character: whom, weapon, roll, ...(said === undefined ? {} : { said }) };
+      socket.send(JSON.stringify(message));
+    },
+    useFeature: (whom, feature, allies) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'use-feature', character: whom, feature, allies };
       socket.send(JSON.stringify(message));
     },
     setHomebrewItem: (itemName, def) => {

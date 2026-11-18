@@ -72,7 +72,8 @@ export type ToServer =
   | TurnDone
   | DeathSave
   | UseItem
-  | HomebrewSet;
+  | HomebrewSet
+  | UseFeature;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -386,13 +387,58 @@ export function itemsLeft(item: HomebrewItem, used: StateValue | undefined): num
  * fight to count in.
  */
 export function itemEffects(item: HomebrewItem, round: number | null, makeId: () => string): HolotableEffect[] {
-  return item.effects.map((e) => ({
+  return effectsFrom(item.name, item.effects, round, makeId);
+}
+
+/** Effects ready to go on, from any source: an item, a feature (F-069). */
+export function effectsFrom(
+  source: string,
+  specs: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound'>[],
+  round: number | null,
+  makeId: () => string,
+): HolotableEffect[] {
+  return specs.map((e) => ({
     ...e,
     id: makeId(),
-    source: item.name,
+    source,
     ...(e.until === 'rounds' && round !== null ? { endsAtRound: round + (e.rounds ?? 1) } : {}),
   }));
 }
+
+/**
+ * A feature of a class or archetype that gives an effect (F-069), with its numbers
+ * worked out for this sheet and the book's sentence quoted. The GM decides when it
+ * applies and to whom: the app does not know who stands within 10 feet.
+ */
+export interface FeatureEffectSummary {
+  feature: string;
+  from: string;
+  sentence: string;
+  allies: boolean;
+  effects: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound'>[];
+}
+
+/** GM → server: put a feature's effects on its owner and on the allies the GM picked. */
+export interface UseFeature {
+  type: 'use-feature';
+  character: string;
+  feature: string;
+  allies: string[];
+}
+
+export function parseUseFeature(data: unknown): UseFeature | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'use-feature') return 'не здібність';
+  if (typeof o['character'] !== 'string' || o['character'] === '') return 'не вказано персонажа';
+  if (typeof o['feature'] !== 'string' || o['feature'] === '') return 'не вказано здібності';
+  const allies = o['allies'] ?? [];
+  if (!Array.isArray(allies) || allies.length > 12 || !allies.every((a) => typeof a === 'string' && a !== '')) return 'союзники — список персонажів';
+  return { type: 'use-feature', character: o['character'], feature: o['feature'], allies: [...new Set(allies as string[])] };
+}
+
+/** The source an effect of a feature carries: the feature and whose it is. */
+export const featureSource = (feature: string, owner: string): string => `${feature} (${owner})`;
 
 /** Player or GM → server: use a homebrew item (F-067). `spend: false` — the GM puts its effects on without using one up. */
 export interface UseItem {
@@ -548,6 +594,8 @@ export interface SheetSummary {
   explain: Record<string, Explanation>;
   /** Advantage or disadvantage from active effects, per breakdown key (F-065). */
   rollModes?: Record<string, 'advantage' | 'disadvantage' | 'both'>;
+  /** Features that give an effect the GM can put on (F-069). Absent when there are none. */
+  featureEffects?: FeatureEffectSummary[];
   /**
    * Every hand edit in the sheet, with a verdict (F-043): unknown origin, redundant,
    * a choice the sheet never recorded, or the stats of a custom item. `key` is the

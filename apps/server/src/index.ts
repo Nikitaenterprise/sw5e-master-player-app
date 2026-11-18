@@ -46,6 +46,9 @@ import {
   itemsLeft,
   parseUseItem,
   parseHomebrewSet,
+  parseUseFeature,
+  effectsFrom,
+  featureSource,
   sessionCommitMessage,
   rebase,
   parseGlossarySet,
@@ -707,6 +710,46 @@ export async function start(
         }
         const q = String((data as { q?: unknown }).q ?? '').slice(0, 100);
         send(socket, { type: 'glossary-found', q, rows: searchCatalog(catalog, q, glossary.terms) });
+        return;
+      }
+
+      // A feature's effect (F-069): "Motivating Diplomat" — the scholar and the allies the
+      // GM ticked as within 10 feet get its bonus. The GM decides, because the app has no
+      // map. Using it again first takes the old one off everyone: Critical Analysis is on
+      // one target at a time.
+      if (kind === 'use-feature') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'здібність накладає майстер' });
+          return;
+        }
+        const use = parseUseFeature(data);
+        if (typeof use === 'string') {
+          send(socket, { type: 'refused', reason: use });
+          return;
+        }
+        const owner = sheets[use.character];
+        const feature = owner?.featureEffects?.find((f) => f.feature === use.feature);
+        if (owner === undefined || feature === undefined) {
+          send(socket, { type: 'refused', reason: `у листі немає здібності «${use.feature}» з ефектом` });
+          return;
+        }
+        const party = state.party();
+        const strangers = use.allies.filter((a) => !party.includes(a) || a === use.character);
+        if (strangers.length > 0 || (!feature.allies && use.allies.length > 0)) {
+          send(socket, { type: 'refused', reason: 'союзники — лише інші члени партії, і лише для здібності, що діє на них' });
+          return;
+        }
+        const source = featureSource(feature.feature, owner.name);
+        const targets = new Set([use.character, ...use.allies]);
+        const round = combat.view()?.round ?? null;
+        for (const slug of party) {
+          const before = effectsOf(slug);
+          const kept = before.filter((e) => e.source !== source);
+          const after = targets.has(slug) ? [...kept, ...effectsFrom(source, feature.effects, round, () => randomUUID())] : kept;
+          if (JSON.stringify(after) === JSON.stringify(before)) continue;
+          const changed = state.apply(slug, { holotableEffects: after }, authorOf(), `${feature.feature}: ${owner.name}`);
+          if (typeof changed !== 'string') publish(changed);
+        }
         return;
       }
 

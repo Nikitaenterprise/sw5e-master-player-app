@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, CompanionSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -147,6 +147,8 @@ export function App(): JSX.Element {
                   setEffects={(list) => controls.current?.sendChange(slug, { holotableEffects: list })}
                   items={snapshot.homebrew[slug] ?? []}
                   useItem={(item) => controls.current?.useItem(slug, item.name, false)}
+                  useFeature={(feature, allies) => controls.current?.useFeature(slug, feature, allies)}
+                  party={Object.keys(snapshot.characters)}
                 />
               ))}
           </div>
@@ -771,6 +773,65 @@ function RollMode({ mode }: { mode: 'advantage' | 'disadvantage' | 'both' | unde
   const [mark, words] =
     mode === 'advantage' ? ['▲', 'перевага (ефект)'] : mode === 'disadvantage' ? ['▼', 'недолік (ефект)'] : ['▲▼', 'і перевага, і недолік — гасять одне одного'];
   return <i className={`roll-mode ${mode}`} title={words}>{mark}</i>;
+}
+
+/**
+ * A feature that gives an effect (F-069): one button with the number, the book's
+ * sentence on hover, and — when allies get it too — ticks for who is close enough.
+ * The app has no map; the GM looks at the table and ticks.
+ */
+export function FeatureButton({
+  feature,
+  allies,
+  use,
+}: {
+  feature: FeatureEffectSummary;
+  allies: string[];
+  use: (allies: string[]) => void;
+}): JSX.Element {
+  const term = useTerm();
+  const skill = (x: string): string => term('skill', x);
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const what = feature.effects.map((e) => effectText({ ...e, id: '', source: feature.feature }, skill)).join('; ');
+  return (
+    <div className="feature-effect">
+      <button
+        type="button"
+        title={feature.sentence}
+        onClick={() => (feature.allies ? setOpen(!open) : use([]))}
+      >
+        {what}
+      </button>
+      <small className="feature-from"> — {feature.from}</small>
+      {open && (
+        <div className="feature-allies">
+          <small>{feature.sentence}</small>
+          <span>Хто поруч:</span>
+          {allies.map((a) => (
+            <label key={a}>
+              <input
+                type="checkbox"
+                checked={picked.includes(a)}
+                onChange={(e) => setPicked(e.target.checked ? [...picked, a] : picked.filter((x) => x !== a))}
+              />
+              {name(a)}
+            </label>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              use(picked);
+              setOpen(false);
+              setPicked([]);
+            }}
+          >
+            накласти
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const effectId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1950,6 +2011,8 @@ export function Card({
   setEffects,
   items,
   useItem,
+  useFeature,
+  party = [],
 }: {
   slug: string;
   state: CharacterState;
@@ -1965,6 +2028,10 @@ export function Card({
   items?: HomebrewItem[];
   /** The GM puts an item's effects on, without using one up (F-067). */
   useItem?: (item: HomebrewItem) => void;
+  /** The GM puts a feature's effect on this character and the allies picked (F-069). */
+  useFeature?: (feature: string, allies: string[]) => void;
+  /** Everyone else in the party, for picking allies within range. */
+  party?: string[];
 }): JSX.Element {
   const term = useTerm();
   const conditions = (Array.isArray(state.conditions) ? state.conditions : []) as string[];
@@ -2160,6 +2227,9 @@ export function Card({
         {...(useItem === undefined ? {} : { use: useItem })}
         spend={false}
       />
+      {useFeature !== undefined && (sheet?.featureEffects ?? []).map((f) => (
+        <FeatureButton key={f.feature} feature={f} allies={party.filter((p) => p !== slug)} use={(allies) => useFeature(f.feature, allies)} />
+      ))}
       <ExhaustionLine level={exhaustion} />
       {setConditions !== undefined ? (
         <Conditions list={conditions} choices={conditionChoices ?? []} set={setConditions} />

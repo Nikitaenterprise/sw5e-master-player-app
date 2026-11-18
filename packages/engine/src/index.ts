@@ -490,3 +490,4 @@ export type { AbilityName, SkillName };
 export { explainSheet, ABILITY_UK, type Explanation, type Part, type SheetExplanations } from './explain.js';
 export { computeHandEdits, isDebt, type HandEdit, type HandEditVerdict } from './handEdits.js';
 export { speciesSpeed, type Speed } from './speed.js';
+export { featureEffects, type FeatureEffect, type FeatureEffectSpec } from './featureEffects.js';

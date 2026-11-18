@@ -160,6 +160,10 @@ try {
   const file = gm.got.find((m) => m.type === 'homebrew-file');
   ok('F-068 редактор предметів: майстру прийшов файл і пропозиції з листів (Порада, Signet ring)',
     file?.items?.['Стимулятор'] !== undefined && file.candidates.includes('Порада') && file.candidates.includes('Signet ring'));
+  const krinzhFeature = sheets['krinzh-dor'].featureEffects?.[0];
+  ok('F-069 здібність Крінж-Дора Motivating Diplomat — з числом і реченням книги',
+    krinzhFeature?.feature === 'Motivating Diplomat' && krinzhFeature.effects[0].bonus > 0
+      && krinzhFeature.sentence.startsWith('When you are the target of your Critical Analysis'));
   const comp = gm.got.find((m) => m.type === 'companions');
   ok('F-039 дроїд Нигри приходить окремо від партії, з правилами книги',
     comp?.companions?.['nigra-4-droid']?.name === 'BOBR-1488' && comp.rules.length === 2

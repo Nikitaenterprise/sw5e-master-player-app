@@ -27,7 +27,7 @@ function loadCompendium(options: { root: string }): Compendium {
 // are imported by path. Giving them a package.json would mean a new link in
 // node_modules, which means the owner has to run ВСТАНОВИТИ.bat again before the app
 // starts — and "double-click to run" is a hard requirement, not a nicety.
-import { computeCompanion, computeSheet, computeHandEdits, explainSheet, listFeats, restPlan, type RawCompanion, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
+import { computeCompanion, computeSheet, computeHandEdits, explainSheet, featureEffects, listFeats, restPlan, type RawCompanion, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 
 const signedText = (n: number): string => (n >= 0 ? `+${n}` : String(n));
@@ -55,14 +55,16 @@ export function computeSummaries(
 export function computeSummary(root: string, charactersDir: string, slug: string, effects: HolotableEffect[] = []): SheetSummary {
   const compendium = loadCompendium({ root });
   const raw = JSON.parse(readFileSync(join(charactersDir, `${slug}.json`), 'utf8')) as RawCharacter;
-  return summarize(slug, computeSheet(raw, compendium, effects), raw);
+  return summarize(slug, computeSheet(raw, compendium, effects), raw, compendium);
 }
 
 function summarize(
   slug: string,
   sheet: ReturnType<typeof computeSheet>,
   raw: RawCharacter,
+  compendium: Compendium,
 ): SheetSummary {
+  const features = featureEffects(sheet, compendium);
   const abilityModifiers: Record<string, number> = {};
   const savingThrows: Record<string, number> = {};
   for (const ability of ABILITIES) {
@@ -167,6 +169,7 @@ function summarize(
     skills: Object.entries(sheet.skills).map(([name, v]) => ({ name, modifier: v.modifier, proficiency: v.proficiency })),
     explain,
     rollModes: sheet.rollModes,
+    ...(features.length === 0 ? {} : { featureEffects: features }),
     handEdits: computeHandEdits(raw, sheet).map((e) => ({ key: e.key, text: e.text, verdict: e.verdict })),
     warnings: sheet.warnings,
   };
