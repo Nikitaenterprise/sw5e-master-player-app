@@ -47,6 +47,9 @@ import {
   parseUseItem,
   parseHomebrewSet,
   parseUseFeature,
+  parseHandoutSend,
+  handoutsFor,
+  type Handout,
   effectsFrom,
   featureSource,
   sessionCommitMessage,
@@ -164,6 +167,10 @@ export async function start(
   // Companions live next to the source exports (F-039): state/characters/companions.
   const companionsDir = options.companionsDir ?? join(dirname(charactersDir), 'companions');
   const state = new State(log, charactersDir, companionsDir);
+  // Handouts (F-071): from every session played, so last session's letter is still there.
+  const handouts: Handout[] = log.readAll().handouts;
+  const sendHandouts = (c: { socket: WebSocket; role: string; character?: string }): void =>
+    send(c.socket, { type: 'handouts', handouts: handoutsFor(handouts, c.role === 'gm' ? 'gm' : 'player', c.character) });
   // Computed once at startup, never written anywhere (ADR 0003). An engine change shows
   // up on the next restart without touching a file in state/.
   // Effects on a character (F-065) are part of its card: computed with them, and again
@@ -398,6 +405,7 @@ export async function start(
         send(socket, { type: 'homebrew', items: homebrewItems, problems: homebrew.problems });
         if (hello.role === 'gm') send(socket, homebrewFileMessage());
         send(socket, { type: 'state', characters: state.all(), companions: state.companions() });
+        sendHandouts({ socket, role: hello.role, ...(hello.character === undefined ? {} : { character: hello.character }) });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
         send(socket, { type: 'briefs', briefs, exhaustion });
@@ -771,6 +779,34 @@ export async function start(
       // GM ticked as within 10 feet get its bonus. The GM decides, because the app has no
       // map. Using it again first takes the old one off everyone: Critical Analysis is on
       // one target at a time.
+      // A handout (F-071): the GM writes it, the log keeps it, and each screen gets the
+      // list it may read — a note for one player never reaches another's phone.
+      if (kind === 'handout-send') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'роздатки надсилає майстер' });
+          return;
+        }
+        const sent = parseHandoutSend(data);
+        if (typeof sent === 'string') {
+          send(socket, { type: 'refused', reason: sent });
+          return;
+        }
+        const party = state.party();
+        const strangers = sent.to.filter((slug) => !party.includes(slug));
+        if (strangers.length > 0) {
+          send(socket, { type: 'refused', reason: `немає таких гравців: ${strangers.join(', ')}` });
+          return;
+        }
+        const handout: Handout = {
+          id: randomUUID(), at: Date.now(), author: authorOf(), type: 'handout.sent',
+          title: sent.title, text: sent.text, to: sent.to,
+        };
+        log.append(handout);
+        handouts.push(handout);
+        for (const c of connected.values()) sendHandouts(c);
+        return;
+      }
+
       if (kind === 'use-feature') {
         if (who.role !== 'gm') {
           send(socket, { type: 'refused', reason: 'здібність накладає майстер' });

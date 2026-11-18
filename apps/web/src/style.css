@@ -628,3 +628,19 @@ a.ref-link:hover { color: var(--accent); }
 .feature-allies > small { flex-basis: 100%; color: var(--muted); font-style: italic; }
 .feature-allies label { display: inline-flex; gap: .25rem; align-items: center; }
 .feature-allies button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem; padding: .1rem .5rem; font: inherit; cursor: pointer; }
+
+/* ── Handouts (F-071) ──────────────────────────────────────────────────── */
+.handout-desk form { display: flex; flex-direction: column; gap: .4rem; }
+.handout-desk input, .handout-desk textarea, .handout-desk button {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem; padding: .3rem .5rem; font: inherit;
+}
+.handout-desk textarea { resize: vertical; }
+.handout-desk button { cursor: pointer; align-self: flex-start; }
+.handout-to { display: flex; flex-wrap: wrap; gap: .3rem .8rem; align-items: center; font-size: .9rem; }
+.handout-to label { display: inline-flex; gap: .25rem; align-items: center; }
+.handout-to small, .handout-sent small { color: var(--muted); }
+.handout-sent { list-style: none; padding: 0; margin: .6rem 0 0; font-size: .85rem; display: flex; flex-direction: column; gap: .2rem; }
+.handouts .handout { border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: .5rem; padding: .4rem .7rem; margin: .4rem 0; background: var(--panel); }
+.handouts .handout summary { cursor: pointer; font-weight: 600; }
+.handouts .handout summary small { color: var(--muted); font-weight: 400; }
+.handouts .handout p { white-space: pre-wrap; margin: .4rem 0 .1rem; line-height: 1.45; }

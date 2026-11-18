@@ -17,6 +17,7 @@ import { usedOf, showTerm, termUrl, effectText, effectTargetText, itemsLeft, EFF
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
+import { HandoutDesk, Handouts } from './Handouts.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, isMismatch, type FeedRow,
 } from './feed.js';
@@ -158,6 +159,14 @@ export function App(): JSX.Element {
       )}
 
       {gm && !editingGlossary && (
+        <HandoutDesk
+          party={Object.keys(snapshot.characters).sort((a, b) => name(a).localeCompare(name(b), 'uk'))}
+          handouts={snapshot.handouts}
+          send={(title, text, to) => controls.current?.sendHandout(title, text, to)}
+        />
+      )}
+
+      {gm && !editingGlossary && (
         <CountsSwitch
           characters={Object.keys(snapshot.characters).sort((a, b) => name(a).localeCompare(name(b), 'uk'))}
           counts={snapshot.counts}
@@ -283,6 +292,7 @@ function PlayerSheet({
 
   return (
     <section>
+      <Handouts handouts={snapshot.handouts} />
       <h2>Мій стан</h2>
       {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
         <DeathSavesBlock

@@ -6,7 +6,7 @@
 // gives that simple a guarantee for the same price.
 import { appendFileSync, openSync, fsyncSync, closeSync, readFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isCombatEvent, type CombatEvent, type GameEvent, type LogLine } from '@holotable/protocol';
+import { isCombatEvent, isHandout, type CombatEvent, type GameEvent, type Handout, type LogLine } from '@holotable/protocol';
 
 /**
  * What a log file holds. State changes and combat lines live in the same file, in the
@@ -17,6 +17,8 @@ import { isCombatEvent, type CombatEvent, type GameEvent, type LogLine } from '@
 export interface LogContents {
   events: GameEvent[];
   combat: CombatEvent[];
+  /** Handouts the GM gave (F-071). */
+  handouts: Handout[];
   corruptLines: number;
 }
 
@@ -104,21 +106,24 @@ export class Log {
   readAll(): LogContents {
     const events: GameEvent[] = [];
     const combat: CombatEvent[] = [];
+    const handouts: Handout[] = [];
     let corruptLines = 0;
     for (const n of Log.numbers(this.dir).filter((k) => k <= this.currentNumber)) {
       const part = Log.readFile(Log.fileFor(this.dir, n));
       events.push(...part.events);
       combat.push(...part.combat);
+      handouts.push(...part.handouts);
       corruptLines += part.corruptLines;
     }
-    return { events, combat, corruptLines };
+    return { events, combat, handouts, corruptLines };
   }
 
   private static readFile(file: string): LogContents {
-    if (!existsSync(file)) return { events: [], combat: [], corruptLines: 0 };
+    if (!existsSync(file)) return { events: [], combat: [], handouts: [], corruptLines: 0 };
     const lines = readFileSync(file, 'utf8').split('\n').filter((r) => r.trim() !== '');
     const events: GameEvent[] = [];
     const combat: CombatEvent[] = [];
+    const handouts: Handout[] = [];
     let corrupt = 0;
     for (const line of lines) {
       let parsed: LogLine;
@@ -135,8 +140,9 @@ export class Log {
         continue;
       }
       if (isCombatEvent(parsed)) combat.push(parsed);
+      else if (isHandout(parsed)) handouts.push(parsed);
       else if (parsed.type === 'state.changed') events.push(parsed);
     }
-    return { events, combat, corruptLines: corrupt };
+    return { events, combat, handouts, corruptLines: corrupt };
   }
 }

@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type HomebrewDef, type HomebrewItem, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type Handout, type HomebrewDef, type HomebrewItem, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -63,6 +63,8 @@ export interface Snapshot {
   homebrewFile: Record<string, HomebrewDef>;
   /** Custom equipment in the sheets the file does not know yet. */
   homebrewCandidates: string[];
+  /** Handouts this screen may read, oldest first (F-071). */
+  handouts: Handout[];
 }
 
 export const EMPTY: Snapshot = {
@@ -90,6 +92,7 @@ export const EMPTY: Snapshot = {
   homebrewProblems: [],
   homebrewFile: {},
   homebrewCandidates: [],
+  handouts: [],
   glossaryFound: { q: '', rows: [] },
   combat: null,
   counts: {},
@@ -198,6 +201,8 @@ export interface Controls {
   deathSave: (character: string, roll: number, said?: number) => void;
   /** Use a homebrew item; `spend: false` — the GM puts its effects on without using one up (F-067). */
   useItem: (character: string, item: string, spend: boolean) => void;
+  /** Send a handout to some players, or to all with an empty list. GM only (F-071). */
+  sendHandout: (title: string, text: string, to: string[]) => void;
   /** A feature's effect on its owner and the allies picked. GM only (F-069). */
   useFeature: (character: string, feature: string, allies: string[]) => void;
   /** Write one item into the homebrew file, or delete it with null. GM only (F-068). */
@@ -299,6 +304,9 @@ export function connect(
           break;
         case 'homebrew':
           update({ homebrew: m.items, homebrewProblems: m.problems });
+          break;
+        case 'handouts':
+          update({ handouts: m.handouts });
           break;
         case 'homebrew-file':
           update({ homebrewFile: m.items, homebrewCandidates: m.candidates });
@@ -438,6 +446,11 @@ export function connect(
     attackRoll: (whom, weapon, roll, said) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'attack-roll', character: whom, weapon, roll, ...(said === undefined ? {} : { said }) };
+      socket.send(JSON.stringify(message));
+    },
+    sendHandout: (title, text, to) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'handout-send', title, text, to };
       socket.send(JSON.stringify(message));
     },
     useFeature: (whom, feature, allies) => {

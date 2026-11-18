@@ -73,7 +73,8 @@ export type ToServer =
   | DeathSave
   | UseItem
   | HomebrewSet
-  | UseFeature;
+  | UseFeature
+  | HandoutSend;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -137,7 +138,8 @@ export type FromServer =
   | FightSummaryMessage
   | CompanionsMessage
   | HomebrewMessage
-  | HomebrewFileMessage;
+  | HomebrewFileMessage
+  | HandoutsMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -1497,7 +1499,67 @@ export interface CombatEvent {
 }
 
 /** A line of the log: a change of character state, or something in the fight. */
-export type LogLine = GameEvent | CombatEvent;
+export type LogLine = GameEvent | CombatEvent | Handout;
+
+/**
+ * A handout (F-071): a letter, a note, a clue the GM gives to some players or to all. A
+ * line of the log like any other — so it outlives a restart and a closed session.
+ */
+export interface Handout {
+  id: string;
+  at: number;
+  author: Author;
+  type: 'handout.sent';
+  title: string;
+  text: string;
+  /** Who gets it, by slug. Empty — everyone at the table. */
+  to: string[];
+}
+
+/** GM → server: send a handout. */
+export interface HandoutSend {
+  type: 'handout-send';
+  title: string;
+  text: string;
+  to: string[];
+}
+
+/** Server → one screen: the handouts this screen may read, oldest first. Replaces, never appends. */
+export interface HandoutsMessage {
+  type: 'handouts';
+  handouts: Handout[];
+}
+
+export const HANDOUT_TITLE_MAX = 80;
+export const HANDOUT_TEXT_MAX = 4000;
+
+export function parseHandoutSend(data: unknown): HandoutSend | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'handout-send') return 'не роздатка';
+  const title = typeof o['title'] === 'string' ? o['title'].trim() : '';
+  const text = typeof o['text'] === 'string' ? o['text'].trim() : '';
+  if (title === '' || title.length > HANDOUT_TITLE_MAX) return `назва роздатки — від 1 до ${HANDOUT_TITLE_MAX} знаків`;
+  if (text === '' || text.length > HANDOUT_TEXT_MAX) return `текст роздатки — від 1 до ${HANDOUT_TEXT_MAX} знаків`;
+  const to = o['to'] ?? [];
+  if (!Array.isArray(to) || to.length > 12 || !to.every((x) => typeof x === 'string' && x !== '')) return 'кому — список персонажів';
+  return { type: 'handout-send', title, text, to: [...new Set(to as string[])] };
+}
+
+/**
+ * The handouts one screen may read: the GM all of them; a player those for everyone and
+ * those addressed to them. Filtered on the server — what a phone is not meant to read
+ * never reaches it.
+ */
+export function handoutsFor(list: Handout[], role: 'gm' | 'player', character?: string): Handout[] {
+  if (role === 'gm') return list;
+  return list.filter((h) => h.to.length === 0 || (character !== undefined && h.to.includes(character)));
+}
+
+/** Whether this log line is a handout. */
+export function isHandout(line: LogLine): line is Handout {
+  return line.type === 'handout.sent';
+}
 
 /** Whether this log line is about the fight. */
 export function isCombatEvent(line: LogLine): line is CombatEvent {
