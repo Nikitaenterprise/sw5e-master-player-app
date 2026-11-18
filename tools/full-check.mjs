@@ -149,6 +149,13 @@ try {
   ok('F-059 кінець бою: підсумок у стрічці майстра', await wait(gm, (g) => g.some((m) => m.type === 'fight-summary' && m.summary.rounds >= 1)));
   ok('F-059 знято лише позначену умову',
     await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.note === 'кінець бою' && JSON.stringify(m.state.conditions) === '["Poisoned"]')));
+  const comp = gm.got.find((m) => m.type === 'companions');
+  ok('F-039 дроїд Нигри приходить окремо від партії, з правилами книги',
+    comp?.companions?.['nigra-4-droid']?.name === 'BOBR-1488' && comp.rules.length === 2
+      && !('nigra-4-droid' in (gm.got.find((m) => m.type === 'state')?.characters ?? {})));
+  p2.ws.send(JSON.stringify({ type: 'intent', character: 'nigra-4-droid', id: 'fc-droid', base: { hitPointsLost: 0 }, changes: { hitPointsLost: 3 } }));
+  ok('F-039 гравець Нигри міняє ХП свого дроїда',
+    await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.character === 'nigra-4-droid' && m.state.hitPointsLost === 3)));
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');

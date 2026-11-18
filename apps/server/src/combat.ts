@@ -21,6 +21,7 @@ import {
   type Author,
   type CombatEvent,
   type CombatState,
+  type CompanionSummary,
   type EnemyInfo,
   type Fighter,
   type LastAttack,
@@ -52,6 +53,8 @@ export class CombatTracker {
     private readonly counts: () => Record<string, WhoCounts> = () => ({}),
     /** The bestiary. Without it no enemy can come in; the party still fights. */
     private readonly compendium?: Compendium,
+    /** Companions (F-039): each fights alongside its owner, on one line of the order. */
+    private readonly companions: Record<string, CompanionSummary> = {},
   ) {
     for (const event of log.readAll().combat) this.replay(event);
   }
@@ -90,7 +93,9 @@ export class CombatTracker {
   roll(author: Author, character: string, roll: number, said?: number): CombatEvent | string {
     if (!this.fighting) return 'бою немає — спершу «Почати бій»';
     const isEnemy = this.enemies.has(character);
-    if (!this.characters.includes(character) && !isEnemy) return 'цього персонажа немає в бою';
+    const pet = this.companions[character];
+    const isCompanion = pet !== undefined && this.characters.includes(pet.owner);
+    if (!this.characters.includes(character) && !isEnemy && !isCompanion) return 'цього персонажа немає в бою';
     const problem = checkInitiativeRoll(roll);
     if (problem !== null) return problem;
     // For an enemy the GM rolls and the app adds the creature's modifier: ADR 0007 is
@@ -281,10 +286,26 @@ export class CombatTracker {
     const thrown = this.rolls.get(slug);
     const roll = thrown?.roll ?? null;
     const modifier = sheet?.initiative ?? 0;
+    // A companion rolls its own die and the two act on the lesser result (F-039).
+    const pet = Object.values(this.companions).find((c) => c.owner === slug);
+    const petThrow = pet === undefined ? undefined : this.rolls.get(pet.slug);
+    const petRoll = petThrow?.roll ?? null;
     return {
       id: slug,
       kind: 'character',
       character: slug,
+      ...(pet === undefined
+        ? {}
+        : {
+            companion: {
+              id: pet.slug,
+              name: pet.name,
+              modifier: pet.initiative,
+              roll: petRoll,
+              total: petRoll === null ? null : petRoll + pet.initiative,
+              said: petThrow?.said ?? null,
+            },
+          }),
       name: sheet?.name ?? slug,
       modifier,
       roll,

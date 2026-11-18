@@ -26,12 +26,23 @@ export class State {
    */
   private readonly applied = new Set<string>();
 
+  /** Companions (F-039): state entities of their own, not party members. */
+  private readonly companionSlugs = new Set<string>();
+
   constructor(
     private readonly log: Log,
     charactersDir: string,
+    /** Companion sheets (F-039); their hit points and conditions live here too. */
+    companionsDir?: string,
   ) {
     for (const [slug, base] of State.baseline(charactersDir)) {
       this.characters.set(slug, base);
+    }
+    if (companionsDir !== undefined) {
+      for (const [slug, base] of State.baseline(companionsDir)) {
+        this.characters.set(slug, base);
+        this.companionSlugs.add(slug);
+      }
     }
     for (const event of log.readAll().events) {
       this.applyChange(event);
@@ -67,12 +78,28 @@ export class State {
     return map;
   }
 
+  /** Party members only — the ones who join a fight by themselves. */
+  party(): string[] {
+    return this.slugs().filter((slug) => !this.companionSlugs.has(slug));
+  }
+
   slugs(): string[] {
     return [...this.characters.keys()].sort();
   }
 
+  /** The party's state. Companions are kept apart: they are not party members (F-039). */
   all(): Record<string, CharacterState> {
-    return Object.fromEntries(this.characters);
+    return Object.fromEntries([...this.characters].filter(([slug]) => !this.companionSlugs.has(slug)));
+  }
+
+  /** The companions' state — hit points, conditions — by companion slug (F-039). */
+  companions(): Record<string, CharacterState> {
+    return Object.fromEntries([...this.characters].filter(([slug]) => this.companionSlugs.has(slug)));
+  }
+
+  /** Whether this slug is a companion rather than a party member. */
+  isCompanion(slug: string): boolean {
+    return this.companionSlugs.has(slug);
   }
 
   one(slug: string): CharacterState | undefined {

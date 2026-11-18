@@ -131,7 +131,8 @@ export type FromServer =
   | GlossaryFound
   | CombatMessage
   | CountsMessage
-  | FightSummaryMessage;
+  | FightSummaryMessage
+  | CompanionsMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -346,6 +347,8 @@ export interface Sheets {
 export interface FullState {
   type: 'state';
   characters: Record<string, CharacterState>;
+  /** Companions' state, apart from the party (F-039). */
+  companions?: Record<string, CharacterState>;
 }
 
 /** Server → client: the intent was refused, and why. */
@@ -593,6 +596,33 @@ export function deathSaveOutcome(roll: number, said?: number): 'success' | 'fail
   return (said ?? roll) >= 10 ? 'success' : 'failure';
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Companions (F-039): a creature of its own — its own hit points, its own initiative —
+// that fights alongside its owner and belongs to the owner's player.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A companion boiled down to what the table needs. Computed on load, never stored. */
+export interface CompanionSummary {
+  /** State slug of the companion — the file name: "nigra-4-droid". */
+  slug: string;
+  name: string;
+  /** Slug of the owner's character. */
+  owner: string;
+  maxHitPoints: number;
+  armorClass: number;
+  initiative: number;
+  attacks: { name: string; toHit: number; damage: string }[];
+  warnings: string[];
+}
+
+/** Server → everyone on connect: the companions, and the book's rules for fighting with one. */
+export interface CompanionsMessage {
+  type: 'companions';
+  companions: Record<string, CompanionSummary>;
+  /** Sentences from the book, verbatim: acting together, and what a companion may do alone. */
+  rules: string[];
+}
+
 /** Default port. Changed through HOLOTABLE_PORT. */
 export const DEFAULT_PORT = 7777;
 
@@ -805,6 +835,11 @@ export interface Fighter {
   status?: EnemyStatus;
   /** Enemies: the numbers, for the GM's screen only. Never sent to a player. */
   enemy?: EnemyInfo;
+  /**
+   * A party member's companion (F-039): it rolls its own initiative, and the two act
+   * together on the lesser result — one line of the order, two creatures in it.
+   */
+  companion?: { id: string; name: string; modifier: number; roll: number | null; total: number | null; said: number | null };
   /**
    * Enemies: conditions on them (F-056). Not a secret — a prone pirate is lying on the
    * floor for everyone to see — so a player's screen gets these.
@@ -1180,7 +1215,11 @@ export function parseCombatTurn(data: unknown): CombatTurn | string {
  * and the app's own only when nobody worked it out by hand.
  */
 export function initiativeOf(fighter: Fighter): number | null {
-  return fighter.said ?? fighter.total;
+  const own = fighter.said ?? fighter.total;
+  if (own === null) return null;
+  // With a companion (F-039): "you act together on the lesser of the two results".
+  const pet = fighter.companion === undefined ? null : (fighter.companion.said ?? fighter.companion.total);
+  return pet === null ? own : Math.min(own, pet);
 }
 
 /**

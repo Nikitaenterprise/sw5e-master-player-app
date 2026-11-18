@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -44,6 +44,11 @@ export interface Snapshot {
   exhaustionLevels: string[];
   /** Fights of this session that have ended, oldest first (F-059). */
   fights: FightSummary[];
+  /** Companions and their state — hit points, conditions (F-039). */
+  companions: Record<string, CompanionSummary>;
+  companionStates: Record<string, CharacterState>;
+  /** The book's sentences on fighting with a companion, verbatim. */
+  companionRules: string[];
   /** The last compendium-wide glossary search and what it found (F-052). */
   glossaryFound: { q: string; rows: GlossaryRow[] };
   /** The fight: order, whose turn, which round. Null when there is none (F-054). */
@@ -70,6 +75,9 @@ export const EMPTY: Snapshot = {
   briefs: {},
   exhaustionLevels: [],
   fights: [],
+  companions: {},
+  companionStates: {},
+  companionRules: [],
   glossaryFound: { q: '', rows: [] },
   combat: null,
   counts: {},
@@ -249,7 +257,7 @@ export function connect(
           update({ clients: m.clients });
           break;
         case 'state':
-          update({ characters: m.characters });
+          update({ characters: m.characters, companionStates: m.companions ?? {} });
           ready = true;
           flush();
           break;
@@ -267,6 +275,9 @@ export function connect(
           break;
         case 'glossary':
           update({ glossary: m.terms });
+          break;
+        case 'companions':
+          update({ companions: m.companions, companionRules: m.rules });
           break;
         case 'fight-summary':
           update({ fights: [...snapshot.fights, m.summary] });
@@ -295,7 +306,10 @@ export function connect(
           update({
             pending: pending.length,
             queued: pending,
-            characters: { ...snapshot.characters, [m.event.character]: m.state },
+            // A companion's change goes to the companions, not into the party (F-039).
+            ...(m.event.character in snapshot.companions
+              ? { companionStates: { ...snapshot.companionStates, [m.event.character]: m.state } }
+              : { characters: { ...snapshot.characters, [m.event.character]: m.state } }),
             events: [m.event, ...snapshot.events].slice(0, 100),
             refusal: null,
           });
@@ -338,7 +352,7 @@ export function connect(
         character: whom,
         changes,
         // By default relative to what this screen shows, queued changes included.
-        base: base ?? baseFor(withQueued(snapshot.characters[whom], pending, whom), changes),
+        base: base ?? baseFor(withQueued(snapshot.characters[whom] ?? snapshot.companionStates[whom], pending, whom), changes),
         id: intentId(),
         ...(note === undefined ? {} : { note }),
       };

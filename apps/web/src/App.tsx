@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, CompanionSummary, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, exhaustionEffects, turnsUntil, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
@@ -120,6 +120,7 @@ export function App(): JSX.Element {
                   sheet={snapshot.sheets[slug]}
                   conditionChoices={conditionChoices}
                   setConditions={(list) => controls.current?.sendChange(slug, { conditions: list })}
+                  {...companionOf(snapshot, slug, (c, changes) => controls.current?.sendChange(c, changes))}
                 />
               ))}
           </div>
@@ -263,6 +264,10 @@ function PlayerSheet({
         />
       )}
       <Managed state={state} waiting={waiting} sendChange={sendChange} />
+      {(() => {
+        const mine = companionOf(snapshot, character, (c, changes) => controls.current?.sendChange(c, changes)).companion;
+        return mine === undefined ? null : <CompanionBlock {...mine} />;
+      })()}
       {snapshot.combat !== null && snapshot.combat.turn === character && sheet !== undefined && (
         <MyTurn
           combat={snapshot.combat}
@@ -273,6 +278,7 @@ function PlayerSheet({
           attack={(weapon, value, said) => controls.current?.attackRoll(character, weapon, value, said)}
           spend={(field) => sendChange({ [field]: (typeof state[field] === 'number' ? (state[field] as number) : 0) + 1 })}
           done={() => controls.current?.turnDone()}
+          {...(Object.values(snapshot.companions).some((c) => c.owner === character) ? { companionRules: snapshot.companionRules } : {})}
         />
       )}
       {snapshot.combat !== null && (
@@ -280,7 +286,7 @@ function PlayerSheet({
           combat={snapshot.combat}
           character={character}
           counts={whoCounts(snapshot.counts, character)}
-          roll={(value, said) => controls.current?.rollInitiative(character, value, said)}
+          roll={(value, said, whom) => controls.current?.rollInitiative(whom ?? character, value, said)}
         />
       )}
       {sheet !== undefined && sheet.hitDice.length > 0 && (
@@ -670,6 +676,63 @@ function ConditionEffect({ name }: { name: string }): JSX.Element | null {
   return <small className="cond-effect">{first}</small>;
 }
 
+/** The companion of this character, if there is one, as props for its card and phone (F-039). */
+export function companionOf(
+  snapshot: { companions: Record<string, CompanionSummary>; companionStates: Record<string, CharacterState> },
+  owner: string,
+  send: (companion: string, changes: CharacterState) => void,
+): { companion?: { summary: CompanionSummary; state: CharacterState; change: (changes: CharacterState) => void } } {
+  const summary = Object.values(snapshot.companions).find((c) => c.owner === owner);
+  if (summary === undefined) return {};
+  return {
+    companion: {
+      summary,
+      state: snapshot.companionStates[summary.slug] ?? {},
+      change: (changes) => send(summary.slug, changes),
+    },
+  };
+}
+
+/**
+ * A companion's hit points and numbers (F-039) — its own creature: "−5" here never
+ * touches the owner. Shown on the owner's card in the GM's screen and on the owner's phone.
+ */
+export function CompanionBlock({
+  summary,
+  state,
+  change,
+}: {
+  summary: CompanionSummary;
+  state: CharacterState;
+  change: (changes: CharacterState) => void;
+}): JSX.Element {
+  const lost = typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0;
+  const left = Math.max(0, summary.maxHitPoints - lost);
+  return (
+    <div className="companion">
+      <p>
+        <b>{summary.name}</b> <small>компаньйон</small> · ХП <b className={left === 0 ? 'down' : undefined}>{left}</b>/{summary.maxHitPoints} · КБ {summary.armorClass} · ініц. {signed(summary.initiative)}
+      </p>
+      <span className="buttons">
+        {[-5, -1, 1, 5].map((step) => (
+          <button
+            key={step}
+            type="button"
+            title={step < 0 ? `шкода ${-step}` : `лікування ${step}`}
+            disabled={(step < 0 && left === 0) || (step > 0 && lost === 0)}
+            onClick={() => change({ hitPointsLost: Math.min(summary.maxHitPoints, Math.max(0, lost - step)) })}
+          >
+            {step > 0 ? `+${step}` : step}
+          </button>
+        ))}
+      </span>
+      {summary.attacks.length > 0 && (
+        <small className="companion-attacks">{summary.attacks.map((a) => `${a.name} ${signed(a.toHit)}, ${a.damage}`).join(' · ')}</small>
+      )}
+    </div>
+  );
+}
+
 /** How a fighter is named on screen: a party member by name, an enemy by creature and number. */
 export function fighterName(fighter: Fighter, term: Term): string {
   if (fighter.kind !== 'enemy') return name(fighter.character);
@@ -893,6 +956,24 @@ function OrderRow({
         </span>
       )}
       {current && <i className="mark">← хід</i>}
+      {fighter.companion !== undefined && (
+        <span className="with-companion">
+          + {fighter.companion.name}:{' '}
+          {fighter.companion.roll === null ? (
+            <RollInput
+              label={`Кидок ініціативи за ${fighter.companion.name}`}
+              sum="none"
+              submit={(value) => roll(fighter.companion?.id ?? '', value)}
+            />
+          ) : (
+            <>
+              <b>{fighter.companion.said ?? fighter.companion.total}</b>
+              <small> ({fighter.companion.roll} {signed(fighter.companion.modifier)}) · </small>
+              <b className="together">разом на меншому: {initiativeOf(fighter)}</b>
+            </>
+          )}
+        </span>
+      )}
       {enemy && damage !== undefined && remove !== undefined && (
         <EnemyDetails
           fighter={fighter}
@@ -1200,6 +1281,7 @@ export function MyTurn({
   attack,
   spend,
   done,
+  companionRules,
 }: {
   combat: CombatState;
   character: string;
@@ -1209,6 +1291,8 @@ export function MyTurn({
   attack: (weapon: string, value: number, said?: number) => void;
   spend: (field: 'forcePointsUsed' | 'techPointsUsed' | 'superiorityDiceUsed') => void;
   done: () => void;
+  /** The book's sentences on fighting with a companion — only for someone who has one (F-039). */
+  companionRules?: string[];
 }): JSX.Element {
   const term = useTerm();
   const last = combat.lastAttack?.character === character && combat.lastAttack.round === combat.round ? combat.lastAttack : undefined;
@@ -1277,6 +1361,14 @@ export function MyTurn({
           );
         })}
       </div>
+      {companionRules !== undefined && companionRules.length > 0 && (
+        <div className="companion-rules">
+          <h3>З компаньйоном</h3>
+          {companionRules.map((r) => (
+            <p key={r} className="hint">{r}</p>
+          ))}
+        </div>
+      )}
       <button type="button" className="turn-done" onClick={done}>
         Хід завершено
       </button>
@@ -1298,7 +1390,8 @@ export function MyInitiative({
   character: string;
   /** Who counts for this character (F-064): the person or the app. */
   counts: WhoCounts;
-  roll: (value: number, said?: number) => void;
+  /** A roll for this character — or, with `whom`, for its companion (F-039). */
+  roll: (value: number, said?: number, whom?: string) => void;
 }): JSX.Element {
   const term = useTerm();
   const mine = combat.order.find((f) => f.character === character);
@@ -1331,6 +1424,27 @@ export function MyInitiative({
             {mine.said === null ? `${mine.roll} ${signed(mine.modifier)}` : `випало ${mine.roll}`}
           </small>
         </p>
+      )}
+      {mine?.companion !== undefined && (
+        mine.companion.roll === null ? (
+          <>
+            <p className="hint">
+              {mine.companion.name} кидає свою ініціативу: дієте разом, на меншому з двох чисел.
+            </p>
+            <RollInput
+              label={`Що випало на d${INITIATIVE_DIE} у ${mine.companion.name}`}
+              sum={counts === 'player' ? 'optional' : 'none'}
+              button="ініціатива дроїда"
+              submit={(value, said) => roll(value, said, mine.companion?.id)}
+            />
+          </>
+        ) : (
+          <p className="state-row">
+            <span className="label">{mine.companion.name}</span>
+            <b className="value">{mine.companion.said ?? mine.companion.total}</b>
+            <small>разом на меншому</small>
+          </p>
+        )
       )}
       <p className={current?.character === character ? 'turn-now' : 'hint'}>
         {current === undefined
@@ -1653,6 +1767,7 @@ export function Card({
   sheet,
   conditionChoices,
   setConditions,
+  companion,
 }: {
   slug: string;
   state: CharacterState;
@@ -1660,6 +1775,8 @@ export function Card({
   /** The book's conditions to pick from, and how to set the list (F-056). Absent — read only. */
   conditionChoices?: string[];
   setConditions?: (list: string[]) => void;
+  /** The character's companion, its state, and how to change it (F-039). */
+  companion?: { summary: CompanionSummary; state: CharacterState; change: (changes: CharacterState) => void };
 }): JSX.Element {
   const term = useTerm();
   const conditions = Array.isArray(state.conditions) ? state.conditions : [];
@@ -1844,6 +1961,7 @@ export function Card({
       )}
 
       {left === 0 && <p className="down-line">Без свідомості · {deathSavesText(state)}</p>}
+      {companion !== undefined && <CompanionBlock {...companion} />}
       <ExhaustionLine level={exhaustion} />
       {setConditions !== undefined ? (
         <Conditions list={conditions} choices={conditionChoices ?? []} set={setConditions} />

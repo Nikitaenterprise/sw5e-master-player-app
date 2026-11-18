@@ -554,3 +554,19 @@ a.ref-link:hover { color: var(--accent); }
 .feed .fights { margin-bottom: .4rem; gap: .3rem; }
 .feed .fight { border-left: 3px solid var(--accent); font-size: .85rem; }
 .feed .fight .when { color: var(--muted); font-size: .75rem; margin-left: auto; white-space: nowrap; }
+
+/* ── Companion (F-039) ─────────────────────────────────────────────────── */
+.companion { margin-top: .5rem; padding: .45rem .6rem; border: 1px dashed var(--border); border-radius: .45rem; font-size: .8rem; display: flex; flex-wrap: wrap; gap: .3rem .7rem; align-items: center; }
+.companion p { margin: 0; flex: 1 1 100%; }
+.companion small { color: var(--muted); }
+.companion b.down { color: var(--bad); }
+.companion .buttons { display: inline-flex; gap: .25rem; }
+.companion .buttons button {
+  padding: .1rem .45rem; font-size: .75rem; background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: .35rem; cursor: pointer; font-weight: 600;
+}
+.companion .buttons button:disabled { opacity: .4; cursor: default; }
+.companion-attacks { flex-basis: 100%; }
+.combat .order .with-companion { flex-basis: 100%; display: flex; gap: .4rem; align-items: center; font-size: .82rem; color: var(--muted); padding-left: 1.5rem; }
+.combat .order .with-companion b { color: var(--text); }
+.companion-rules { margin-top: .5rem; }

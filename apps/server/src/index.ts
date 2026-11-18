@@ -45,7 +45,7 @@ import { Log } from './log.js';
 import { State } from './state.js';
 import { CombatTracker } from './combat.js';
 import { summarizeFights } from './summary.js';
-import { computeSummaries, computeRestPlans, applyRest, checkHitDice } from './sheets.js';
+import { computeSummaries, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
@@ -97,6 +97,8 @@ export interface Options {
   charactersDir?: string;
   /** Session number. Defaults to the latest existing log. */
   sessionNumber?: number;
+  /** Companion sheets (F-039). Defaults to the companions folder beside the exports. */
+  companionsDir?: string;
   /**
    * Repository the "close session" button commits to, and the state folder inside it.
    * Default: this repository and its state/. Tests point both at a scratch repository,
@@ -143,7 +145,9 @@ export async function start(
     options.sessionNumber,
   );
   const charactersDir = options.charactersDir ?? join(ROOT, 'state', 'characters', 'source-exports');
-  const state = new State(log, charactersDir);
+  // Companions live next to the source exports (F-039): state/characters/companions.
+  const companionsDir = options.companionsDir ?? join(dirname(charactersDir), 'companions');
+  const state = new State(log, charactersDir, companionsDir);
   // Computed once at startup, never written anywhere (ADR 0003). An engine change shows
   // up on the next restart without touching a file in state/.
   const sheets = computeSummaries(ROOT, charactersDir);
@@ -172,7 +176,10 @@ export async function start(
   const table = loadTable(tableDir);
   if (table.problem !== null) console.log(`  Увага: ${table.problem}`);
   // The fight (F-054): replayed from the log, so a restart mid-combat changes nothing.
-  const combat = new CombatTracker(log, sheets, () => table.counts, compendium);
+  const companions = computeCompanions(sheets, companionsDir);
+  const companionRuleText = companionRules(ROOT);
+  const ownerOf = (slug: string): string | undefined => companions[slug]?.owner;
+  const combat = new CombatTracker(log, sheets, () => table.counts, compendium, companions);
   // The fight as each screen may see it: the GM everything, a player no enemy numbers (F-055).
   const combatFor = (role: string): FromServer => ({
     type: 'combat',
@@ -276,7 +283,8 @@ export async function start(
           session: log.sessionNumber,
           ...(demo ? { demo: true } : {}),
         });
-        send(socket, { type: 'state', characters: state.all() });
+        send(socket, { type: 'companions', companions, rules: companionRuleText });
+        send(socket, { type: 'state', characters: state.all(), companions: state.companions() });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
         send(socket, { type: 'briefs', briefs, exhaustion });
@@ -317,7 +325,7 @@ export async function start(
         }
         let result: ReturnType<CombatTracker['move']>;
         if (kind === 'combat-start') {
-          result = combat.start(authorOf(), state.slugs());
+          result = combat.start(authorOf(), state.party());
         } else if (kind === 'combat-end') {
           const ending = parseCombatEnd(data);
           if (typeof ending === 'string') {
@@ -504,7 +512,7 @@ export async function start(
           send(socket, { type: 'refused', reason: 'за ворога кидає майстер' });
           return;
         }
-        if (who.role === 'player' && who.character !== parsed.character) {
+        if (who.role === 'player' && who.character !== parsed.character && ownerOf(parsed.character) !== who.character) {
           send(socket, { type: 'refused', reason: 'ініціативу кидає власник персонажа або майстер' });
           return;
         }
@@ -642,7 +650,8 @@ export async function start(
           refuse('ти підключився без персонажа');
           return;
         }
-        if (who.character !== intent.character) {
+        // A companion belongs to its owner's player (F-039).
+        if (who.character !== intent.character && ownerOf(intent.character) !== who.character) {
           refuse(`це не твій персонаж: ти ${who.character}, а зміна для ${intent.character}`);
           return;
         }

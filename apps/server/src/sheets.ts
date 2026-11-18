@@ -10,13 +10,13 @@
 // without touching a single file in state/.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { usedOf, type CharacterState, type HitDiceUsed, type SheetSummary } from '@holotable/protocol';
+import { usedOf, type CharacterState, type CompanionSummary, type HitDiceUsed, type SheetSummary } from '@holotable/protocol';
 import { loadCompendium } from '@holotable/compendium';
 // The engine and the schema are plain source folders, not workspace packages, so they
 // are imported by path. Giving them a package.json would mean a new link in
 // node_modules, which means the owner has to run ВСТАНОВИТИ.bat again before the app
 // starts — and "double-click to run" is a hard requirement, not a nicety.
-import { computeSheet, computeHandEdits, explainSheet, listFeats, restPlan, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
+import { computeCompanion, computeSheet, computeHandEdits, explainSheet, listFeats, restPlan, type RawCompanion, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 
 const signedText = (n: number): string => (n >= 0 ? `+${n}` : String(n));
@@ -232,4 +232,46 @@ export function checkHitDice(summary: SheetSummary | undefined, value: HitDiceUs
     if (used > have.count) return `кубиків здоровʼя ${size} лише ${have.count}`;
   }
   return null;
+}
+
+/**
+ * Companions (F-039), each computed from its own sheet and its owner's level — the
+ * engine already knows how (F-038). Nothing here is stored: a change to the rules or
+ * the sheet shows up on the next start.
+ */
+export function computeCompanions(
+  sheets: Record<string, SheetSummary>,
+  companionsDir: string,
+): Record<string, CompanionSummary> {
+  const out: Record<string, CompanionSummary> = {};
+  if (!existsSync(companionsDir)) return out;
+  for (const file of readdirSync(companionsDir).filter((f) => f.endsWith('.json'))) {
+    const raw = JSON.parse(readFileSync(join(companionsDir, file), 'utf8')) as RawCompanion;
+    const owner = sheets[raw.owner];
+    if (owner === undefined) continue;
+    const sheet = computeCompanion(raw, owner.details.level, owner.name);
+    const slug = basename(file, '.json');
+    out[slug] = {
+      slug,
+      name: sheet.name,
+      owner: raw.owner,
+      maxHitPoints: sheet.hitPoints.maximum,
+      armorClass: sheet.armorClass,
+      initiative: sheet.initiative,
+      attacks: sheet.attacks.map((a) => ({ name: a.name, toHit: a.toHit, damage: `${a.damage} ${a.damageType}` })),
+      warnings: sheet.warnings,
+    };
+  }
+  return out;
+}
+
+/** The two sentences of the book that say how a companion fights — quoted, never retold. */
+export const COMPANION_RULES = [
+  /Both you and your companion roll initiative, but you act together on the lesser of the two results\./,
+  /Unless you use your bonus action to direct your companion, your companion can only use its action to Dash, Dodge, Disengage, Guard, or Hide\./,
+];
+
+export function companionRules(root: string): string[] {
+  const body = String(loadCompendium({ root }).get('rule', 'ec-customization-options')?.['body'] ?? '');
+  return COMPANION_RULES.flatMap((r) => r.exec(body)?.[0] ?? []);
 }
