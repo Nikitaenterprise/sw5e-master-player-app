@@ -16,6 +16,7 @@ import { explanationText } from './explain.js';
 import { usedOf, showTerm, termUrl, effectText, effectTargetText, itemsLeft, EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
+import { ItemsEditor } from './ItemsEditor.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, isMismatch, type FeedRow,
 } from './feed.js';
@@ -42,8 +43,12 @@ export function App(): JSX.Element {
   }, [role, character]);
 
   const gm = role === 'gm';
-  const editingGlossary = gm && new URLSearchParams(location.search).get('view') === 'glossary';
-  const header = editingGlossary ? 'Глосарій' : gm ? 'Екран майстра' : name(character);
+  const view = gm ? new URLSearchParams(location.search).get('view') : null;
+  // The item editor (F-068) is one more GM view; everything below that is not the master
+  // screen treats it like the glossary.
+  const editingItems = view === 'items';
+  const editingGlossary = view === 'glossary' || editingItems;
+  const header = editingItems ? 'Хомбрю-предмети' : editingGlossary ? 'Глосарій' : gm ? 'Екран майстра' : name(character);
   const [mode, setMode] = useState<TermMode>(readMode);
   const term: Term = (kind, english) => showTerm(snapshot.glossary, mode, kind, english);
   // The book's conditions, for the GM's picker (F-056). Exhaustion has its own levels.
@@ -75,7 +80,14 @@ export function App(): JSX.Element {
 
       {gm && (
         <nav className="views">
-          {editingGlossary ? <a href="/?as=gm">← до екрана майстра</a> : <a href="/?as=gm&view=glossary">Глосарій термінів →</a>}
+          {editingGlossary ? (
+            <a href="/?as=gm">← до екрана майстра</a>
+          ) : (
+            <>
+              <a href="/?as=gm&view=glossary">Глосарій термінів →</a>
+              <a href="/?as=gm&view=items">Предмети →</a>
+            </>
+          )}
           <a href="/?as=ref" target="_blank" rel="noreferrer">Довідник →</a>
         </nav>
       )}
@@ -97,7 +109,15 @@ export function App(): JSX.Element {
         />
       )}
 
-      {editingGlossary ? (
+      {editingItems ? (
+        <ItemsEditor
+          items={snapshot.homebrewFile}
+          candidates={snapshot.homebrewCandidates}
+          problems={snapshot.homebrewProblems}
+          save={(itemName, def) => controls.current?.setHomebrewItem(itemName, def)}
+          demo={snapshot.demo}
+        />
+      ) : editingGlossary ? (
         <GlossaryEditor
           rows={snapshot.glossaryIndex}
           glossary={snapshot.glossary}

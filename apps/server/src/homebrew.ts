@@ -4,9 +4,9 @@
 //
 // A broken file must not stop the session: the server says what is wrong and the items
 // simply give nothing until it is fixed.
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { checkEffects, itemKey as key, type HomebrewItem } from '@holotable/protocol';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { checkHomebrewItem, itemKey as key, type HomebrewDef, type HomebrewItem } from '@holotable/protocol';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 
 /** An item's effects as the file states them: everything but the id and the source. */
@@ -37,33 +37,12 @@ export function loadHomebrew(stateDir: string): Homebrew {
     return out;
   }
   for (const [name, raw] of Object.entries(items as Record<string, unknown>)) {
-    const effects = (raw as { effects?: unknown } | null)?.effects;
-    // Checked the same way as an effect put on by hand, with a stand-in id and source.
-    const asEffects = Array.isArray(effects)
-      ? effects.map((e, i) => ({ ...(e as object), id: `check-${i}`, source: name }))
-      : effects;
-    const problem = checkEffects(asEffects);
-    if (problem !== null) {
-      out.problems.push(`предмет «${name}»: ${problem}`);
+    const def = checkHomebrewItem(name, raw);
+    if (typeof def === 'string') {
+      out.problems.push(`предмет «${name}»: ${def}`);
       continue;
     }
-    const consumable = (raw as { consumable?: unknown }).consumable;
-    if (consumable !== undefined && typeof consumable !== 'boolean') {
-      out.problems.push(`предмет «${name}»: «consumable» — true або false`);
-      continue;
-    }
-    out.items.set(key(name), {
-      name,
-      note: String((raw as { note?: unknown }).note ?? ''),
-      // Used up by default: most homebrew at this table is stimulants and cigarettes.
-      consumable: consumable ?? true,
-      effects: (effects as ItemEffect[]).map(({ target, bonus, mode, until, rounds }) => ({
-        target, until,
-        ...(bonus === undefined ? {} : { bonus }),
-        ...(mode === undefined ? {} : { mode }),
-        ...(rounds === undefined ? {} : { rounds }),
-      })),
-    });
+    out.items.set(key(name), { name, ...def });
   }
   return out;
 }
@@ -85,4 +64,51 @@ export function itemsOf(raw: RawCharacter, homebrew: Homebrew): HomebrewItem[] {
     });
   }
   return out;
+}
+
+/** The file's items by their names as written, for the editor (F-068). */
+export function homebrewDefs(homebrew: Homebrew): Record<string, HomebrewDef> {
+  const out: Record<string, HomebrewDef> = {};
+  for (const { name, note, consumable, effects } of homebrew.items.values()) out[name] = { note, consumable, effects };
+  return out;
+}
+
+/** Custom equipment of the party that the file does not know yet: what the editor suggests. */
+export function homebrewCandidates(raws: RawCharacter[], homebrew: Homebrew): string[] {
+  const names = new Map<string, string>();
+  for (const raw of raws) {
+    for (const item of raw.customEquipment ?? []) {
+      const name = String(item.name ?? '').trim();
+      if (name !== '' && !homebrew.items.has(key(name)) && !names.has(key(name))) names.set(key(name), name);
+    }
+  }
+  return [...names.values()].sort((a, b) => a.localeCompare(b, 'uk'));
+}
+
+/**
+ * Writes one item into the file, or deletes it (F-068). The note at the top and every
+ * other item stay as they are; the write is atomic — a temporary file renamed over the
+ * old one — so a power cut leaves the old file or the new one, never half of it. A file
+ * that does not read as JSON is not overwritten: the owner's hand edit may be in it.
+ */
+export function saveHomebrewItem(stateDir: string, name: string, def: HomebrewDef | null): string | null {
+  const file = homebrewFile(stateDir);
+  let data: Record<string, unknown> = {};
+  if (existsSync(file)) {
+    try {
+      data = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    } catch {
+      return 'state/homebrew/items.json зламаний — виправ його руками, редактор його не перезапише';
+    }
+  }
+  const items = { ...((data['items'] ?? {}) as Record<string, unknown>) };
+  // The same item may be spelled differently in the file: replace it, not add a twin.
+  for (const existing of Object.keys(items)) if (key(existing) === key(name)) delete items[existing];
+  if (def !== null) items[name] = def.consumable ? { note: def.note, effects: def.effects } : { note: def.note, consumable: false, effects: def.effects };
+  const sorted = Object.fromEntries(Object.entries(items).sort(([a], [b]) => a.localeCompare(b, 'uk')));
+  mkdirSync(dirname(file), { recursive: true });
+  const temporary = `${file}.tmp`;
+  writeFileSync(temporary, `${JSON.stringify({ ...data, items: sorted }, null, 2)}\n`, 'utf8');
+  renameSync(temporary, file);
+  return null;
 }

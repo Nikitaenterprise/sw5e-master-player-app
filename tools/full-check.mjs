@@ -157,6 +157,9 @@ try {
   ok('F-067 Нигра використала Стимулятор з телефона: витрачено 1, ефект на 5 раундів',
     await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.note === 'використано: Стимулятор'
       && m.state.holotableItemsUsed?.['стимулятор'] === 1 && m.state.holotableEffects?.some((e) => e.until === 'rounds'))));
+  const file = gm.got.find((m) => m.type === 'homebrew-file');
+  ok('F-068 редактор предметів: майстру прийшов файл і пропозиції з листів (Порада, Signet ring)',
+    file?.items?.['Стимулятор'] !== undefined && file.candidates.includes('Порада') && file.candidates.includes('Signet ring'));
   const comp = gm.got.find((m) => m.type === 'companions');
   ok('F-039 дроїд Нигри приходить окремо від партії, з правилами книги',
     comp?.companions?.['nigra-4-droid']?.name === 'BOBR-1488' && comp.rules.length === 2

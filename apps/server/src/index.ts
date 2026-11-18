@@ -6,7 +6,7 @@
 // devices on the local network see the same thing in real time.
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { dirname, join, normalize, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -45,6 +45,7 @@ import {
   itemKey,
   itemsLeft,
   parseUseItem,
+  parseHomebrewSet,
   sessionCommitMessage,
   rebase,
   parseGlossarySet,
@@ -54,7 +55,7 @@ import { Log } from './log.js';
 import { State } from './state.js';
 import { CombatTracker } from './combat.js';
 import { summarizeFights } from './summary.js';
-import { loadHomebrew, itemsOf } from './homebrew.js';
+import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 import { computeSummaries, computeSummary, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
@@ -193,14 +194,30 @@ export async function start(
   const table = loadTable(tableDir);
   if (table.problem !== null) console.log(`  Увага: ${table.problem}`);
   // The fight (F-054): replayed from the log, so a restart mid-combat changes nothing.
-  // Homebrew items with effects (F-066): the owner's file, matched with each sheet.
-  const homebrew = loadHomebrew(stateDir);
+  // Homebrew items with effects (F-066): the owner's file, matched with each sheet. The
+  // editor (F-068) writes it; the demo edits its own copy in .cache/demo, like the table
+  // settings, so acceptance clicks never change the owner's items.
+  const homebrewDir = demo ? tableDir : stateDir;
+  if (demo && !existsSync(homebrewFile(tableDir)) && existsSync(homebrewFile(stateDir))) {
+    mkdirSync(dirname(homebrewFile(tableDir)), { recursive: true });
+    copyFileSync(homebrewFile(stateDir), homebrewFile(tableDir));
+  }
+  const raws: Record<string, RawCharacter> = {};
+  for (const slug of Object.keys(sheets)) {
+    raws[slug] = JSON.parse(readFileSync(join(charactersDir, `${slug}.json`), 'utf8')) as RawCharacter;
+  }
+  let homebrew = loadHomebrew(homebrewDir);
   for (const problem of homebrew.problems) console.log(`  Увага: ${problem}`);
   const homebrewItems: Record<string, ReturnType<typeof itemsOf>> = {};
-  for (const slug of Object.keys(sheets)) {
-    const raw = JSON.parse(readFileSync(join(charactersDir, `${slug}.json`), 'utf8')) as RawCharacter;
-    homebrewItems[slug] = itemsOf(raw, homebrew);
-  }
+  const matchHomebrew = (): void => {
+    for (const slug of Object.keys(raws)) homebrewItems[slug] = itemsOf(raws[slug] as RawCharacter, homebrew);
+  };
+  matchHomebrew();
+  const homebrewFileMessage = (): FromServer => ({
+    type: 'homebrew-file',
+    items: homebrewDefs(homebrew),
+    candidates: homebrewCandidates(Object.values(raws), homebrew),
+  });
   const companions = computeCompanions(sheets, companionsDir);
   const companionRuleText = companionRules(ROOT);
   const ownerOf = (slug: string): string | undefined => companions[slug]?.owner;
@@ -322,6 +339,7 @@ export async function start(
         });
         send(socket, { type: 'companions', companions, rules: companionRuleText });
         send(socket, { type: 'homebrew', items: homebrewItems, problems: homebrew.problems });
+        if (hello.role === 'gm') send(socket, homebrewFileMessage());
         send(socket, { type: 'state', characters: state.all(), companions: state.companions() });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
@@ -689,6 +707,35 @@ export async function start(
         }
         const q = String((data as { q?: unknown }).q ?? '').slice(0, 100);
         send(socket, { type: 'glossary-found', q, rows: searchCatalog(catalog, q, glossary.terms) });
+        return;
+      }
+
+      // The item editor (F-068): the GM writes one item, everyone's screens get the new
+      // list at once — no restart. Effects already on someone stay until they end.
+      if (kind === 'homebrew-set') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'предмети править майстер' });
+          return;
+        }
+        const edit = parseHomebrewSet(data);
+        if (typeof edit === 'string') {
+          send(socket, { type: 'refused', reason: edit });
+          return;
+        }
+        let problem: string | null;
+        try {
+          problem = saveHomebrewItem(homebrewDir, edit.name, edit.def);
+        } catch (error) {
+          problem = `предмети не записались: ${(error as Error).message}`;
+        }
+        if (problem !== null) {
+          send(socket, { type: 'refused', reason: problem });
+          return;
+        }
+        homebrew = loadHomebrew(homebrewDir);
+        matchHomebrew();
+        broadcastAll({ type: 'homebrew', items: homebrewItems, problems: homebrew.problems });
+        for (const c of connected.values()) if (c.role === 'gm') send(c.socket, homebrewFileMessage());
         return;
       }
 

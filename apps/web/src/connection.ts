@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type HomebrewItem, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type HomebrewDef, type HomebrewItem, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -59,6 +59,10 @@ export interface Snapshot {
   homebrew: Record<string, HomebrewItem[]>;
   /** What is wrong with the homebrew file, if anything — shown to the GM. */
   homebrewProblems: string[];
+  /** The whole homebrew file, for the GM's editor (F-068). */
+  homebrewFile: Record<string, HomebrewDef>;
+  /** Custom equipment in the sheets the file does not know yet. */
+  homebrewCandidates: string[];
 }
 
 export const EMPTY: Snapshot = {
@@ -84,6 +88,8 @@ export const EMPTY: Snapshot = {
   companionRules: [],
   homebrew: {},
   homebrewProblems: [],
+  homebrewFile: {},
+  homebrewCandidates: [],
   glossaryFound: { q: '', rows: [] },
   combat: null,
   counts: {},
@@ -192,6 +198,8 @@ export interface Controls {
   deathSave: (character: string, roll: number, said?: number) => void;
   /** Use a homebrew item; `spend: false` — the GM puts its effects on without using one up (F-067). */
   useItem: (character: string, item: string, spend: boolean) => void;
+  /** Write one item into the homebrew file, or delete it with null. GM only (F-068). */
+  setHomebrewItem: (name: string, def: HomebrewDef | null) => void;
   /**
    * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
    * demo's button). The page stays, and so does its queue of unsent changes.
@@ -289,6 +297,9 @@ export function connect(
           break;
         case 'homebrew':
           update({ homebrew: m.items, homebrewProblems: m.problems });
+          break;
+        case 'homebrew-file':
+          update({ homebrewFile: m.items, homebrewCandidates: m.candidates });
           break;
         case 'fight-summary':
           update({ fights: [...snapshot.fights, m.summary] });
@@ -425,6 +436,11 @@ export function connect(
     attackRoll: (whom, weapon, roll, said) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'attack-roll', character: whom, weapon, roll, ...(said === undefined ? {} : { said }) };
+      socket.send(JSON.stringify(message));
+    },
+    setHomebrewItem: (itemName, def) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'homebrew-set', name: itemName, def };
       socket.send(JSON.stringify(message));
     },
     useItem: (whom, item, spend) => {

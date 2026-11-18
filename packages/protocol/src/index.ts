@@ -71,7 +71,8 @@ export type ToServer =
   | AttackRoll
   | TurnDone
   | DeathSave
-  | UseItem;
+  | UseItem
+  | HomebrewSet;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -134,7 +135,8 @@ export type FromServer =
   | CountsMessage
   | FightSummaryMessage
   | CompanionsMessage
-  | HomebrewMessage;
+  | HomebrewMessage
+  | HomebrewFileMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -292,6 +294,68 @@ export interface HomebrewItem {
   /** Used up when used — a stimulant; or not — a bracelet (F-067). */
   consumable: boolean;
   effects: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound'>[];
+}
+
+/** One homebrew item as the owner's file holds it, under its name (F-066, F-068). */
+export interface HomebrewDef {
+  note: string;
+  consumable: boolean;
+  effects: HomebrewItem['effects'];
+}
+
+/**
+ * Checks one item of the homebrew file and returns it clean — or what is wrong with it,
+ * in words. The same check reads the file and guards the editor (F-068).
+ */
+export function checkHomebrewItem(name: string, raw: unknown): HomebrewDef | string {
+  if (name.trim() === '' || name.length > 120) return 'назва предмета — від 1 до 120 знаків';
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'предмет — обʼєкт';
+  const o = raw as Record<string, unknown>;
+  const effects = o['effects'];
+  // Checked the same way as an effect put on by hand, with a stand-in id and source.
+  const asEffects = Array.isArray(effects) ? effects.map((e, i) => ({ ...(e as object), id: `check-${i}`, source: name })) : effects;
+  const problem = checkEffects(asEffects);
+  if (problem !== null) return problem;
+  if ((effects as unknown[]).length === 0) return 'у предмета немає жодного ефекту';
+  if (o['consumable'] !== undefined && typeof o['consumable'] !== 'boolean') return '«consumable» — true або false';
+  if (o['note'] !== undefined && (typeof o['note'] !== 'string' || o['note'].length > 400)) return 'примітка — текст до 400 знаків';
+  return {
+    note: typeof o['note'] === 'string' ? o['note'].trim() : '',
+    // Used up by default: most homebrew at this table is stimulants and cigarettes.
+    consumable: (o['consumable'] as boolean | undefined) ?? true,
+    effects: (effects as HolotableEffect[]).map(({ target, bonus, mode, until, rounds }) => ({
+      target, until,
+      ...(bonus === undefined ? {} : { bonus }),
+      ...(mode === undefined ? {} : { mode }),
+      ...(until === 'rounds' && rounds !== undefined ? { rounds } : {}),
+    })),
+  };
+}
+
+/** GM → server: write one item into the homebrew file, or delete it with `def: null` (F-068). */
+export interface HomebrewSet {
+  type: 'homebrew-set';
+  name: string;
+  def: HomebrewDef | null;
+}
+
+export function parseHomebrewSet(data: unknown): HomebrewSet | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'homebrew-set') return 'не зміна предмета';
+  if (typeof o['name'] !== 'string') return 'назва предмета — текст';
+  const name = o['name'].trim();
+  if (o['def'] === null) return name === '' ? 'назва предмета — від 1 до 120 знаків' : { type: 'homebrew-set', name, def: null };
+  const def = checkHomebrewItem(name, o['def']);
+  return typeof def === 'string' ? def : { type: 'homebrew-set', name, def };
+}
+
+/** Server → GM: the whole homebrew file, and the names in the sheets it does not know yet (F-068). */
+export interface HomebrewFileMessage {
+  type: 'homebrew-file';
+  items: Record<string, HomebrewDef>;
+  /** Items in the party's custom equipment the file has no entry for. */
+  candidates: string[];
 }
 
 /** Server → everyone on connect: each character's homebrew items with effects. */
