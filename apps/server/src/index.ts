@@ -58,6 +58,7 @@ import { Log } from './log.js';
 import { State } from './state.js';
 import { CombatTracker } from './combat.js';
 import { summarizeFights } from './summary.js';
+import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptHashes, MAX_MESSAGE_BYTES } from './guard.js';
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 import { computeSummaries, computeSummary, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
@@ -211,7 +212,8 @@ export async function start(
   }
   let homebrew = loadHomebrew(homebrewDir);
   for (const problem of homebrew.problems) console.log(`  Увага: ${problem}`);
-  const homebrewItems: Record<string, ReturnType<typeof itemsOf>> = {};
+  // Looked up by names screens send: no prototype, so "__proto__" finds nothing (F-070).
+  const homebrewItems: Record<string, ReturnType<typeof itemsOf>> = Object.create(null) as Record<string, ReturnType<typeof itemsOf>>;
   const matchHomebrew = (): void => {
     for (const slug of Object.keys(raws)) homebrewItems[slug] = itemsOf(raws[slug] as RawCharacter, homebrew);
   };
@@ -262,6 +264,24 @@ export async function start(
   };
 
   const http = createServer((req, response) => {
+    // A request that names this server by a domain name comes from someone else's page
+    // pointed at this computer (DNS rebinding): turned away before anything is read (F-070).
+    if (!isAllowedHost(req.headers.host)) {
+      response.writeHead(421, { 'content-type': 'text/plain; charset=utf-8' }).end('невідома адреса сервера');
+      return;
+    }
+    for (const [header, value] of Object.entries(securityHeaders(req.headers.host))) response.setHeader(header, value);
+    // A request that trips over a bug answers 500 — it never takes the session down (F-070).
+    try {
+      route(req, response);
+    } catch (error) {
+      console.error('  Помилка запиту:', (error as Error).message);
+      if (!response.headersSent) response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+      response.end('внутрішня помилка');
+    }
+  });
+
+  const route = (req: IncomingMessage, response: ServerResponse): void => {
     // The print page reads everything at once over plain HTTP: it is not a screen at
     // the table, so it must not show up in the list of who is connected.
     if ((req.url ?? '').split('?')[0] === '/sheets.json') {
@@ -291,7 +311,14 @@ export async function start(
     }
     const docPath = /^\/api\/doc\/([a-z-]+)\/([^/]+)$/.exec(url.pathname);
     if (docPath !== null) {
-      const doc = isContentType(docPath[1]) ? compendium.get(docPath[1], decodeURIComponent(docPath[2] ?? '')) : undefined;
+      // A broken %-code is a bad address, not a reason to fall over (F-070).
+      let key: string | null;
+      try {
+        key = decodeURIComponent(docPath[2] ?? '');
+      } catch {
+        key = null;
+      }
+      const doc = key !== null && isContentType(docPath[1]) ? compendium.get(docPath[1], key) : undefined;
       if (doc === undefined) {
         response.writeHead(404, { 'content-type': TYPES['.json'] as string });
         response.end(JSON.stringify({ error: 'такого в довіднику немає' }));
@@ -302,14 +329,35 @@ export async function start(
       return;
     }
     void serveFile(req, response, connected.size);
+  };
+
+  // A browser may connect only from a page of this server, by its IP address; and no
+  // screen sends more than a few kilobytes at once (F-070).
+  const ws = new WebSocketServer({
+    server: http,
+    maxPayload: MAX_MESSAGE_BYTES,
+    verifyClient: ({ origin, req }: { origin: string; req: IncomingMessage }) =>
+      isAllowedHost(req.headers.host) && isSameOrigin(origin === '' ? undefined : origin, req.headers.host),
   });
 
-  const ws = new WebSocketServer({ server: http });
-
-  ws.on('connection', (socket: WebSocket) => {
+  ws.on('connection', (socket: WebSocket, request: IncomingMessage) => {
     let id: string | null = null;
+    const local = isLoopback(request.socket.remoteAddress);
+    // A socket error — a message over the size limit, a torn connection — closes that one
+    // socket; unheard, it would be thrown and take the whole server with it (F-070).
+    socket.on('error', (error) => console.error('  Помилка зʼєднання:', error.message));
 
     socket.on('message', (raw: Buffer) => {
+      // A message that trips over a bug is refused — it never takes the session down (F-070).
+      try {
+        handle(raw);
+      } catch (error) {
+        console.error('  Помилка повідомлення:', (error as Error).message);
+        send(socket, { type: 'error', text: 'сервер не зміг обробити це повідомлення' });
+      }
+    });
+
+    const handle = (raw: Buffer): void => {
       let data: unknown;
       try {
         data = JSON.parse(raw.toString('utf8'));
@@ -323,6 +371,12 @@ export async function start(
         const hello = parseHello(data);
         if (hello === null) {
           send(socket, { type: 'error', text: 'не зрозумів привітання' });
+          return;
+        }
+        // The GM screen opens only on the computer the server runs on: anyone else on
+        // the wifi could otherwise call themselves the GM (F-070).
+        if (hello.role === 'gm' && !local) {
+          send(socket, { type: 'refused', reason: 'екран майстра відкривається лише на компʼютері, де запущено сервер' });
           return;
         }
         id = randomUUID();
@@ -816,6 +870,11 @@ export async function start(
         return;
       }
 
+      if (state.one(intent.character) === undefined) {
+        send(socket, { type: 'refused', reason: `немає персонажа «${intent.character}»` });
+        return;
+      }
+
       // A resend of something already applied: just confirm it, change nothing.
       if (intent.id !== undefined && state.seen(intent.id)) {
         send(socket, { type: 'ack', intent: intent.id });
@@ -896,7 +955,7 @@ export async function start(
 
       publish(result);
       done();
-    });
+    };
 
     socket.on('close', () => {
       if (id !== null && connected.delete(id)) broadcastClients();
@@ -957,10 +1016,15 @@ async function serveFile(
   try {
     const i = await stat(file);
     if (!i.isFile()) throw new Error('не файл');
-    response.writeHead(200, {
-      'content-type': TYPES[extname(file)] ?? 'application/octet-stream',
-    });
-    response.end(await readFile(file));
+    const body = await readFile(file);
+    const type = TYPES[extname(file)] ?? 'application/octet-stream';
+    // A page's own inline scripts (the demo grid) are allowed by their hash, nothing else.
+    if (extname(file) === '.html') {
+      const hashes = inlineScriptHashes(body.toString('utf8'));
+      response.setHeader('content-security-policy', securityHeaders(req.headers.host, hashes)['content-security-policy'] as string);
+    }
+    response.writeHead(200, { 'content-type': type });
+    response.end(body);
   } catch {
     response.writeHead(404, { 'content-type': TYPES['.html'] as string });
     response.end(

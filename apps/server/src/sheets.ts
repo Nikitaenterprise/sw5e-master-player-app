@@ -42,7 +42,8 @@ export function computeSummaries(
   charactersDir: string,
   effectsOf: (slug: string) => HolotableEffect[] = () => [],
 ): Record<string, SheetSummary> {
-  const summaries: Record<string, SheetSummary> = {};
+  // Looked up by names screens send: no prototype, so "__proto__" finds nothing (F-070).
+  const summaries: Record<string, SheetSummary> = Object.create(null) as Record<string, SheetSummary>;
   if (!existsSync(charactersDir)) return summaries;
   for (const file of readdirSync(charactersDir).filter((f) => f.endsWith('.json'))) {
     const slug = basename(file, '.json');
@@ -273,7 +274,7 @@ export function computeCompanions(
   sheets: Record<string, SheetSummary>,
   companionsDir: string,
 ): Record<string, CompanionSummary> {
-  const out: Record<string, CompanionSummary> = {};
+  const out: Record<string, CompanionSummary> = Object.create(null) as Record<string, CompanionSummary>;
   if (!existsSync(companionsDir)) return out;
   for (const file of readdirSync(companionsDir).filter((f) => f.endsWith('.json'))) {
     const raw = JSON.parse(readFileSync(join(companionsDir, file), 'utf8')) as RawCompanion;

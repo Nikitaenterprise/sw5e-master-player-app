@@ -7,6 +7,7 @@
 // Prints one line per check; exits 1 if any failed.
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
+import { request } from 'node:http';
 const dir = process.argv[2] ?? join(import.meta.dirname, '..');
 const port = 7793;
 const child = spawn(process.execPath, ['--import', 'tsx', 'apps/server/src/run.ts'], {
@@ -164,6 +165,17 @@ try {
   ok('F-069 здібність Крінж-Дора Motivating Diplomat — з числом і реченням книги',
     krinzhFeature?.feature === 'Motivating Diplomat' && krinzhFeature.effects[0].bonus > 0
       && krinzhFeature.sentence.startsWith('When you are the target of your Critical Analysis'));
+  // A WebSocket upgrade as a page of some other site would send it.
+  const evil = await new Promise((resolve) => {
+    request({ host: '127.0.0.1', port, path: '/', headers: {
+      connection: 'Upgrade', upgrade: 'websocket', origin: 'http://evil.example',
+      'sec-websocket-version': '13', 'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
+    } }, (res) => { res.resume(); resolve(res.statusCode); })
+      .on('upgrade', () => resolve('upgraded'))
+      .on('error', () => resolve('error'))
+      .end();
+  });
+  ok('F-070 чужа сторінка не підключається до сервера (Origin evil.example → 401)', evil === 401);
   const comp = gm.got.find((m) => m.type === 'companions');
   ok('F-039 дроїд Нигри приходить окремо від партії, з правилами книги',
     comp?.companions?.['nigra-4-droid']?.name === 'BOBR-1488' && comp.rules.length === 2

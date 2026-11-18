@@ -44,7 +44,8 @@ export function loadTable(stateDir: string): TableSettings {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { counts: {}, problem: '«whoCounts» мусить бути обʼєктом «персонаж: хто рахує» — рахують гравці' };
   }
-  const counts: Record<string, WhoCounts> = {};
+  // Keyed by names screens send: no prototype (F-070).
+  const counts: Record<string, WhoCounts> = Object.create(null) as Record<string, WhoCounts>;
   const strange: string[] = [];
   for (const [slug, value] of Object.entries(raw as Record<string, unknown>)) {
     if (value === 'player' || value === 'app') counts[slug] = value;
