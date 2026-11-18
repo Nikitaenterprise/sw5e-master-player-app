@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, effectText, effectTargetText, itemsLeft, EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
@@ -786,6 +786,19 @@ function RollMode({ mode }: { mode: 'advantage' | 'disadvantage' | 'both' | unde
 }
 
 /**
+ * A feature's button in one line: its name once, what each effect gives, and until when
+ * — once, when they all end alike.
+ */
+export function featureLabel(feature: FeatureEffectSummary, skill?: (english: string) => string): string {
+  const what = (e: FeatureEffectSummary['effects'][number]): string =>
+    `${effectTargetText(e.target, skill)} ${e.bonus !== undefined ? `${e.bonus > 0 ? '+' : ''}${e.bonus}` : e.mode === 'advantage' ? 'перевага' : 'недолік'}`;
+  const ends = new Set(feature.effects.map((e) => untilText(e)));
+  const [first] = feature.effects;
+  if (ends.size === 1 && first !== undefined) return `${feature.feature}: ${feature.effects.map(what).join(', ')} · ${untilText(first)}`;
+  return `${feature.feature}: ${feature.effects.map((e) => `${what(e)} · ${untilText(e)}`).join('; ')}`;
+}
+
+/**
  * A feature that gives an effect (F-069): one button with the number, the book's
  * sentence on hover, and — when allies get it too — ticks for who is close enough.
  * The app has no map; the GM looks at the table and ticks.
@@ -803,7 +816,7 @@ export function FeatureButton({
   const skill = (x: string): string => term('skill', x);
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
-  const what = feature.effects.map((e) => effectText({ ...e, id: '', source: feature.feature }, skill)).join('; ');
+  const what = featureLabel(feature, skill);
   return (
     <div className="feature-effect">
       <button
@@ -2130,6 +2143,7 @@ export function Card({
                 <Why sheet={sheet} what={`save:${key}`} signedTotal>
                   {signed(sheet.savingThrows[key] ?? 0)}
                 </Why>
+                <RollMode mode={sheet.rollModes?.[`save:${key}`]} />
               </td>
             ))}
           </tr>

@@ -187,15 +187,21 @@ export interface HolotableEffect {
   target: string;
   bonus?: number;
   mode?: 'advantage' | 'disadvantage';
-  /** When it ends by itself: with the fight, with a rest, after some rounds — or only when someone takes it off. */
-  until: 'fight' | 'short-rest' | 'long-rest' | 'manual' | 'rounds';
+  /**
+   * When it ends by itself: with the fight, with a rest, after some rounds, at the start
+   * of the character's next turn — or only when someone takes it off.
+   */
+  until: 'fight' | 'short-rest' | 'long-rest' | 'manual' | 'rounds' | 'next-turn';
   /** For `until: 'rounds'`: how many rounds it lasts (F-067). */
   rounds?: number;
   /**
    * For `until: 'rounds'`, put on during a fight: the round whose start ends it. Put on
-   * outside a fight, it has none and ends with the next fight.
+   * outside a fight, it has none and ends with the next fight. For `until: 'next-turn'`:
+   * the round of that next turn.
    */
   endsAtRound?: number;
+  /** For `until: 'next-turn'`: whose turn ends it, at its start, in `endsAtRound` (F-074). */
+  endsOnTurnOf?: string;
 }
 
 const ABILITY_NAMES = ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'];
@@ -233,7 +239,9 @@ export function checkEffects(value: unknown): string | null {
       return 'бонус ефекту — ціле число від −20 до 20, не нуль';
     }
     if (mode !== undefined && mode !== 'advantage' && mode !== 'disadvantage') return 'перевага чи недолік — одне з двох';
-    if (!['fight', 'short-rest', 'long-rest', 'manual', 'rounds'].includes(String(e['until']))) return 'до коли діє ефект — не зрозуміло';
+    if (!['fight', 'short-rest', 'long-rest', 'manual', 'rounds', 'next-turn'].includes(String(e['until']))) return 'до коли діє ефект — не зрозуміло';
+    const whose = e['endsOnTurnOf'];
+    if (whose !== undefined && (typeof whose !== 'string' || whose === '' || whose.length > 80)) return 'чий хід закінчує ефект — не зрозуміло';
     const rounds = e['rounds'];
     if (e['until'] === 'rounds' && (typeof rounds !== 'number' || !Number.isInteger(rounds) || rounds < 1 || rounds > 100)) {
       return 'скільки раундів діє ефект — ціле число від 1 до 100';
@@ -263,6 +271,7 @@ export const UNTIL_TEXT: Record<HolotableEffect['until'], string> = {
   'long-rest': 'до довгого відпочинку',
   manual: 'поки не знімуть',
   rounds: 'кілька раундів',
+  'next-turn': 'до наступного ходу',
 };
 
 /** A number of rounds with the noun in the right Ukrainian plural form. */
@@ -274,6 +283,7 @@ export const roundsText = (n: number): string => {
 
 /** Until when, in words — for rounds with the round it ends at, once that is known. */
 export function untilText(e: Pick<HolotableEffect, 'until' | 'rounds' | 'endsAtRound'>): string {
+  if (e.until === 'next-turn') return e.endsAtRound === undefined ? UNTIL_TEXT[e.until] : `до наступного ходу (раунд ${e.endsAtRound})`;
   if (e.until !== 'rounds') return UNTIL_TEXT[e.until];
   const n = roundsText(e.rounds ?? 1);
   return e.endsAtRound === undefined ? `на ${n}` : `на ${n}, до раунду ${e.endsAtRound}`;
@@ -296,7 +306,7 @@ export interface HomebrewItem {
   note: string;
   /** Used up when used — a stimulant; or not — a bracelet (F-067). */
   consumable: boolean;
-  effects: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound'>[];
+  effects: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound' | 'endsOnTurnOf'>[];
 }
 
 /** One homebrew item as the owner's file holds it, under its name (F-066, F-068). */
@@ -369,9 +379,18 @@ export interface HomebrewMessage {
   problems: string[];
 }
 
-/** Effects still on once this round has started: those counted in rounds end on theirs (F-067). */
-export function effectsAtRound(list: HolotableEffect[], round: number): HolotableEffect[] {
-  return list.filter((e) => e.until !== 'rounds' || e.endsAtRound === undefined || round < e.endsAtRound);
+/**
+ * Effects still on now that the turn has moved: those counted in rounds end when their
+ * round starts (F-067); those "until the next turn" end when that turn starts — or once
+ * its round is over, if that fighter's turn never came (F-074).
+ */
+export function effectsAtRound(list: HolotableEffect[], round: number, turn: string | null = null): HolotableEffect[] {
+  return list.filter((e) => {
+    if (e.endsAtRound === undefined) return true;
+    if (e.until === 'rounds') return round < e.endsAtRound;
+    if (e.until === 'next-turn') return round < e.endsAtRound || (round === e.endsAtRound && turn !== e.endsOnTurnOf);
+    return true;
+  });
 }
 
 /** How an item's name is matched: the exports carry "Bracelet " with a trailing space. */
@@ -392,18 +411,23 @@ export function itemEffects(item: HomebrewItem, round: number | null, makeId: ()
   return effectsFrom(item.name, item.effects, round, makeId);
 }
 
-/** Effects ready to go on, from any source: an item, a feature (F-069). */
+/**
+ * Effects ready to go on, from any source: an item, a feature (F-069). Those "until the
+ * next turn" need to know whose turn and in which round: `nextTurn`, when there is a fight.
+ */
 export function effectsFrom(
   source: string,
-  specs: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound'>[],
+  specs: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound' | 'endsOnTurnOf'>[],
   round: number | null,
   makeId: () => string,
+  nextTurn?: { round: number; of: string },
 ): HolotableEffect[] {
   return specs.map((e) => ({
     ...e,
     id: makeId(),
     source,
     ...(e.until === 'rounds' && round !== null ? { endsAtRound: round + (e.rounds ?? 1) } : {}),
+    ...(e.until === 'next-turn' && nextTurn !== undefined ? { endsAtRound: nextTurn.round, endsOnTurnOf: nextTurn.of } : {}),
   }));
 }
 
@@ -417,7 +441,7 @@ export interface FeatureEffectSummary {
   from: string;
   sentence: string;
   allies: boolean;
-  effects: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound'>[];
+  effects: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound' | 'endsOnTurnOf'>[];
 }
 
 /** GM → server: put a feature's effects on its owner and on the allies the GM picked. */
@@ -474,7 +498,7 @@ export function checkItemsUsed(value: unknown): string | null {
 export function effectsAfter(list: HolotableEffect[], ending: 'fight' | 'short' | 'long'): HolotableEffect[] {
   return list.filter((e) => {
     // Rounds only run inside a fight: whatever is left of them ends with it.
-    if (ending === 'fight') return e.until !== 'fight' && e.until !== 'rounds';
+    if (ending === 'fight') return e.until !== 'fight' && e.until !== 'rounds' && e.until !== 'next-turn';
     if (ending === 'short') return e.until !== 'short-rest';
     return e.until !== 'short-rest' && e.until !== 'long-rest';
   });
@@ -1634,6 +1658,20 @@ export function initiativeOrder(fighters: Fighter[]): Fighter[] {
 /** Fighters actually taking turns: the ones whose die has been thrown. */
 export function rotation(combat: CombatState): Fighter[] {
   return combat.order.filter((f) => initiativeOf(f) !== null);
+}
+
+/**
+ * The round in which this fighter's next turn starts: this round, if their place in the
+ * order is still ahead; the next one, if it has passed or is now. Null when they are not
+ * in the order — no initiative, no turn (F-074).
+ */
+export function nextTurnRound(combat: CombatState, id: string): number | null {
+  const queue = rotation(combat);
+  const mine = queue.findIndex((f) => f.id === id);
+  if (mine === -1) return null;
+  if (combat.turn === null) return combat.round;
+  const now = queue.findIndex((f) => f.id === combat.turn);
+  return mine > now ? combat.round : combat.round + 1;
 }
 
 /**

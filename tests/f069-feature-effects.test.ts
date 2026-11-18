@@ -45,7 +45,7 @@ const until = async (check: () => boolean, ms = 8000): Promise<void> => {
 };
 
 describe('F-069 · ефекти зі здібностей', () => {
-  it('рушій: Motivating Diplomat у Крінж-Дора — половина модифікатора Інтелекту, речення книги дослівно', () => {
+  it('рушій: Motivating Diplomat у Крінж-Дора — половина модифікатора Інтелекту, речення книги дослівно; в Алістера й Нигри — нічого', () => {
     expect(BONUS, 'у Крінж-Дора бонус є').toBeGreaterThan(0);
     expect(featureEffects(krinzh, compendium)).toEqual([{
       feature: 'Motivating Diplomat',
@@ -54,7 +54,8 @@ describe('F-069 · ефекти зі здібностей', () => {
       allies: true,
       effects: [{ target: 'armorClass', bonus: BONUS, until: 'rounds', rounds: 10 }],
     }]);
-    for (const slug of ['alister', 'anam-melekh', 'nigra-4', 'sandra-vong']) {
+    // Anam-Melekh's Rage and Sandra's Force Shield came later (F-074): see that test.
+    for (const slug of ['alister', 'nigra-4']) {
       expect(featureEffects(computeSheet(raw(slug), compendium), compendium), slug).toEqual([]);
       expect(summaries[slug]?.featureEffects, slug).toBeUndefined();
     }

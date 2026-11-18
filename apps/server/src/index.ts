@@ -48,6 +48,7 @@ import {
   parseHomebrewSet,
   parseUseFeature,
   parseHandoutSend,
+  nextTurnRound,
   handoutsFor,
   type Handout,
   effectsFrom,
@@ -234,6 +235,12 @@ export async function start(
   const companionRuleText = companionRules(ROOT);
   const ownerOf = (slug: string): string | undefined => companions[slug]?.owner;
   const combat = new CombatTracker(log, sheets, () => table.counts, compendium, companions);
+  /** Where "until the next turn" of this character ends, when there is a fight (F-074). */
+  const nextTurnOf = (slug: string): { round: number; of: string } | undefined => {
+    const view = combat.view();
+    const round = view === null ? null : nextTurnRound(view, slug);
+    return round === null ? undefined : { round, of: slug };
+  };
   // The fight as each screen may see it: the GM everything, a player no enemy numbers (F-055).
   const combatFor = (role: string): FromServer => ({
     type: 'combat',
@@ -487,13 +494,14 @@ export async function start(
           }
           result = combat.move(authorOf(), turn.direction);
           // A new round may end effects counted in rounds (F-067) — "a stimulant for 5 rounds".
-          const round = combat.view()?.round;
+          const view = combat.view();
+          const round = view?.round;
           if (typeof result !== 'string' && round !== undefined) {
             for (const slug of state.party()) {
               const list = effectsOf(slug);
-              const after = effectsAtRound(list, round);
+              const after = effectsAtRound(list, round, view?.turn ?? null);
               if (after.length === list.length) continue;
-              const changed = state.apply(slug, { holotableEffects: after }, { kind: 'system', id: 'system' }, `минули раунди: раунд ${round}`);
+              const changed = state.apply(slug, { holotableEffects: after }, { kind: 'system', id: 'system' }, `ефект скінчився: раунд ${round}`);
               if (typeof changed !== 'string') publish(changed);
             }
           }
@@ -614,7 +622,10 @@ export async function start(
           send(socket, { type: 'refused', reason: `«${item.name}» закінчився` });
           return;
         }
-        const effects = [...effectsOf(use.character), ...itemEffects(item, combat.view()?.round ?? null, () => randomUUID())];
+        const effects = [
+          ...effectsOf(use.character),
+          ...effectsFrom(item.name, item.effects, combat.view()?.round ?? null, () => randomUUID(), nextTurnOf(use.character)),
+        ];
         const changes: CharacterState = { holotableEffects: effects };
         if (spend && item.consumable) changes.holotableItemsUsed = { ...used, [itemKey(item.name)]: (used[itemKey(item.name)] ?? 0) + 1 };
         const changed = state.apply(use.character, changes, authorOf(), `${spend ? 'використано' : 'накладено'}: ${item.name}`);
@@ -835,7 +846,7 @@ export async function start(
         for (const slug of party) {
           const before = effectsOf(slug);
           const kept = before.filter((e) => e.source !== source);
-          const after = targets.has(slug) ? [...kept, ...effectsFrom(source, feature.effects, round, () => randomUUID())] : kept;
+          const after = targets.has(slug) ? [...kept, ...effectsFrom(source, feature.effects, round, () => randomUUID(), nextTurnOf(use.character))] : kept;
           if (JSON.stringify(after) === JSON.stringify(before)) continue;
           const changed = state.apply(slug, { holotableEffects: after }, authorOf(), `${feature.feature}: ${owner.name}`);
           if (typeof changed !== 'string') publish(changed);
@@ -965,8 +976,13 @@ export async function start(
       // An effect for some rounds put on during a fight learns the round it ends at (F-067).
       const round = combat.view()?.round;
       if (Array.isArray(changes.holotableEffects) && round !== undefined) {
-        changes.holotableEffects = (changes.holotableEffects as HolotableEffect[]).map((e) =>
-          e.until === 'rounds' && e.endsAtRound === undefined ? { ...e, endsAtRound: round + (e.rounds ?? 1) } : e);
+        const next = nextTurnOf(intent.character);
+        changes.holotableEffects = (changes.holotableEffects as HolotableEffect[]).map((e) => {
+          if (e.endsAtRound !== undefined) return e;
+          if (e.until === 'rounds') return { ...e, endsAtRound: round + (e.rounds ?? 1) };
+          if (e.until === 'next-turn' && next !== undefined) return { ...e, endsAtRound: next.round, endsOnTurnOf: next.of };
+          return e;
+        });
       }
 
       if (changes.hitDiceUsed !== undefined) {

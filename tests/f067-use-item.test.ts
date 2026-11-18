@@ -130,7 +130,7 @@ describe('F-067 · «використати» предмет', () => {
     expect(effectsOf('nigra-4'), 'у 5-му раунді ще діє').toHaveLength(1);
     gm.send({ type: 'combat-turn', direction: 'next' });
     await until(() => effectsOf('nigra-4').length === 0);
-    expect(gm.got.some((m) => m.type === 'event' && m.event.note === 'минули раунди: раунд 6' && m.event.author.kind === 'system')).toBe(true);
+    expect(gm.got.some((m) => m.type === 'event' && m.event.note === 'ефект скінчився: раунд 6' && m.event.author.kind === 'system')).toBe(true);
 
     // The GM: a bracelet is not used up; an effect for rounds typed by hand learns its round.
     gm.send({ type: 'use-item', character: 'krinzh-dor', item: 'Bracelet' });

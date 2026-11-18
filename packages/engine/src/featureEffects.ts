@@ -15,7 +15,7 @@ export interface FeatureEffectSpec {
   target: string;
   bonus?: number;
   mode?: 'advantage' | 'disadvantage';
-  until: 'fight' | 'short-rest' | 'long-rest' | 'manual' | 'rounds';
+  until: 'fight' | 'short-rest' | 'long-rest' | 'manual' | 'rounds' | 'next-turn';
   rounds?: number;
 }
 
@@ -32,7 +32,8 @@ export interface FeatureEffect {
 }
 
 interface Rule {
-  archetype: string;
+  /** Absent for a feature of the class itself, whatever the archetype. */
+  archetype?: string;
   className: string;
   feature: string;
   level: number;
@@ -57,13 +58,43 @@ const RULES: Rule[] = [
       return bonus > 0 ? [{ target: 'armorClass', bonus, until: 'rounds', rounds: 10 }] : null;
     },
   },
+  {
+    // Berserker 1: "While raging ... You have advantage on Strength checks and Strength
+    // saving throws." Strength checks at this table are Athletics. A rage lasts a minute.
+    // Its damage bonus and resistances are not numbers on the sheet, so the button quotes
+    // the book and the GM keeps those in mind.
+    className: 'Berserker',
+    feature: 'Rage',
+    level: 1,
+    allies: false,
+    effects: () => [
+      { target: 'save:Strength', mode: 'advantage', until: 'rounds', rounds: 10 },
+      { target: 'skill:Athletics', mode: 'advantage', until: 'rounds', rounds: 10 },
+    ],
+  },
+  {
+    // Consular 2: "Until the start of your next turn, you have a bonus to AC equal to your
+    // Wisdom or Charisma modifier (your choice, minimum of +1)." The better of the two is
+    // the choice anyone makes.
+    className: 'Consular',
+    feature: 'Force Shield',
+    level: 2,
+    allies: false,
+    effects: (sheet) => [{
+      target: 'armorClass',
+      bonus: Math.max(1, sheet.abilities.Wisdom.modifier, sheet.abilities.Charisma.modifier),
+      until: 'next-turn',
+    }],
+  },
 ];
 
 /** The book's sentence of a feature: its description without the "level" line. */
-function sentenceOf(compendium: Compendium, archetype: string, feature: string): string {
-  const key = compendium.get('archetype', archetype)?.key;
-  if (key === undefined) return '';
-  const doc = compendium.all('feature').find((f) => f.key.startsWith(`archetype-${key}-`) && f['name'] === feature);
+function sentenceOf(compendium: Compendium, rule: Rule): string {
+  const owner = rule.archetype === undefined ? compendium.get('class', rule.className) : compendium.get('archetype', rule.archetype);
+  if (owner === undefined) return '';
+  const prefix = `${rule.archetype === undefined ? 'class' : 'archetype'}-${owner.key}-`;
+  const feature = rule.feature;
+  const doc = compendium.all('feature').find((f) => f.key.startsWith(prefix) && f['name'] === feature);
   return String(doc?.['description'] ?? '')
     .split('\n')
     // The "_**Politician Pursuit:** 3rd level_" line says where and when, not what.
@@ -76,14 +107,14 @@ function sentenceOf(compendium: Compendium, archetype: string, feature: string):
 export function featureEffects(sheet: ComputedSheet, compendium: Compendium): FeatureEffect[] {
   const out: FeatureEffect[] = [];
   for (const rule of RULES) {
-    const cls = sheet.classes.find((c) => c.name === rule.className && c.archetype === rule.archetype);
+    const cls = sheet.classes.find((c) => c.name === rule.className && (rule.archetype === undefined || c.archetype === rule.archetype));
     if (cls === undefined || cls.levels < rule.level) continue;
     const effects = rule.effects(sheet);
     if (effects === null) continue;
     out.push({
       feature: rule.feature,
-      from: rule.archetype,
-      sentence: sentenceOf(compendium, rule.archetype, rule.feature),
+      from: rule.archetype ?? rule.className,
+      sentence: sentenceOf(compendium, rule),
       allies: rule.allies,
       effects,
     });

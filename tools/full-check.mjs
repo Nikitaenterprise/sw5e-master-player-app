@@ -181,6 +181,9 @@ try {
     await wait(p1, (g) => g.some((m) => m.type === 'handouts' && m.handouts.some((h) => h.title === 'Записка Сандрі'))));
   ok('F-071 до Нигри чужа записка не дійшла навіть у даних',
     !p2.got.some((m) => JSON.stringify(m).includes('fc-secret-71')));
+  ok('F-074 Rage в Анам Мелех і Force Shield у Сандри — на їхніх листах',
+    sheets['anam-melekh'].featureEffects?.[0]?.feature === 'Rage'
+      && sheets['sandra-vong'].featureEffects?.[0]?.effects[0]?.until === 'next-turn');
   const comp = gm.got.find((m) => m.type === 'companions');
   ok('F-039 дроїд Нигри приходить окремо від партії, з правилами книги',
     comp?.companions?.['nigra-4-droid']?.name === 'BOBR-1488' && comp.rules.length === 2
