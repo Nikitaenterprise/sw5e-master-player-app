@@ -65,6 +65,8 @@ export function searchReference(
   query: string,
   glossary: Record<string, string>,
   terms: GlossaryRow[],
+  /** Only documents of this type — the GM looking for a creature to bring in (F-055). */
+  only?: ContentType,
 ): RefHit[] {
   const q = normalizeName(query);
   if (q.length < MIN_QUERY) return [];
@@ -83,10 +85,10 @@ export function searchReference(
     const matches = (uk !== undefined && normalizeName(uk).includes(q)) || normalizeName(row.english).startsWith(q);
     if (!matches) continue;
     const hit = resolveTerm(compendium, row.kind, row.english, glossary);
-    if (hit !== null) add(hit);
+    if (hit !== null && (only === undefined || hit.type === only)) add(hit);
   }
 
-  for (const hit of compendium.search(query, { limit: LIMIT })) {
+  for (const hit of compendium.search(query, { limit: LIMIT, ...(only === undefined ? {} : { type: only }) })) {
     const uk = ukName(glossary, hit.type, hit.name, compendium.get(hit.type, hit.key)?.['category']);
     add({ type: hit.type, key: hit.key, name: hit.name, typeLabel: TYPE_LABELS[hit.type] ?? hit.type, ...(uk === undefined ? {} : { uk }) });
   }

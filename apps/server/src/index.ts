@@ -17,6 +17,10 @@ import {
   parseRest,
   parseCombatRoll,
   parseCombatTurn,
+  parseEnemiesAdd,
+  parseEnemyDamage,
+  parseEnemyRemove,
+  combatForPlayer,
   parseCountsSet,
   type Author,
   type Client,
@@ -152,7 +156,15 @@ export async function start(
   const table = loadTable(stateDir);
   if (table.problem !== null) console.log(`  Увага: ${table.problem}`);
   // The fight (F-054): replayed from the log, so a restart mid-combat changes nothing.
-  const combat = new CombatTracker(log, sheets, () => table.counts);
+  const combat = new CombatTracker(log, sheets, () => table.counts, compendium);
+  // The fight as each screen may see it: the GM everything, a player no enemy numbers (F-055).
+  const combatFor = (role: string): FromServer => ({
+    type: 'combat',
+    combat: role === 'gm' ? combat.view() : combatForPlayer(combat.view()),
+  });
+  const broadcastCombat = (): void => {
+    for (const c of connected.values()) send(c.socket, combatFor(c.role));
+  };
 
   const list = (): Client[] =>
     [...connected.values()]
@@ -181,7 +193,11 @@ export async function start(
     // The reference (F-049): plain HTTP too, for phones as much as for the GM.
     const url = new URL(req.url ?? '/', 'http://local');
     if (url.pathname === '/api/search') {
-      const hits = searchReference(compendium, url.searchParams.get('q') ?? '', glossary.terms, termIndex);
+      const only = url.searchParams.get('type') ?? undefined;
+      const hits = searchReference(
+        compendium, url.searchParams.get('q') ?? '', glossary.terms, termIndex,
+        isContentType(only) ? only : undefined,
+      );
       response.writeHead(200, { 'content-type': TYPES['.json'] as string });
       response.end(JSON.stringify(hits));
       return;
@@ -249,7 +265,7 @@ export async function start(
         send(socket, { type: 'glossary', terms: glossary.terms });
         send(socket, { type: 'briefs', briefs });
         // The fight comes with the greeting: a reloaded page must not lose the queue.
-        send(socket, { type: 'combat', combat: combat.view() });
+        send(socket, combatFor(hello.role));
         send(socket, { type: 'counts', counts: table.counts });
         // The GM's feed comes from the log, not from what this page happened to see.
         if (hello.role === 'gm') {
@@ -295,7 +311,7 @@ export async function start(
           send(socket, { type: 'refused', reason: result });
           return;
         }
-        broadcastAll({ type: 'combat', combat: combat.view() });
+        broadcastCombat();
         return;
       }
 
@@ -324,7 +340,32 @@ export async function start(
         }
         table.counts = next;
         broadcastAll({ type: 'counts', counts: next });
-        broadcastAll({ type: 'combat', combat: combat.view() });
+        broadcastCombat();
+        return;
+      }
+
+      // Enemies from the bestiary (F-055): the GM's alone to bring in, hurt and send off.
+      if (kind === 'enemies-add' || kind === 'enemy-damage' || kind === 'enemy-remove') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'ворогами керує майстер' });
+          return;
+        }
+        let result: ReturnType<CombatTracker['damage']>;
+        if (kind === 'enemies-add') {
+          const add = parseEnemiesAdd(data);
+          result = typeof add === 'string' ? add : combat.addEnemies(authorOf(), add.monster, add.count, add.hp);
+        } else if (kind === 'enemy-damage') {
+          const hit = parseEnemyDamage(data);
+          result = typeof hit === 'string' ? hit : combat.damage(authorOf(), hit.enemy, hit.amount);
+        } else {
+          const off = parseEnemyRemove(data);
+          result = typeof off === 'string' ? off : combat.removeEnemy(authorOf(), off.enemy);
+        }
+        if (typeof result === 'string') {
+          send(socket, { type: 'refused', reason: result });
+          return;
+        }
+        broadcastCombat();
         return;
       }
 
@@ -332,6 +373,10 @@ export async function start(
         const parsed = parseCombatRoll(data);
         if (typeof parsed === 'string') {
           send(socket, { type: 'refused', reason: parsed });
+          return;
+        }
+        if (who.role === 'player' && combat.hasEnemy(parsed.character)) {
+          send(socket, { type: 'refused', reason: 'за ворога кидає майстер' });
           return;
         }
         if (who.role === 'player' && who.character !== parsed.character) {
@@ -343,7 +388,7 @@ export async function start(
           send(socket, { type: 'refused', reason: rolled });
           return;
         }
-        broadcastAll({ type: 'combat', combat: combat.view() });
+        broadcastCombat();
         return;
       }
 

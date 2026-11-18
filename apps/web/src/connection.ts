@@ -155,6 +155,12 @@ export interface Controls {
   advanceTurn: (direction: 'next' | 'back') => void;
   /** End the fight. The order goes away, nobody's numbers change. GM only. */
   endCombat: () => void;
+  /** Bring creatures from the bestiary into the fight; hp only when the GM rolled it (F-055). */
+  addEnemies: (monster: string, count: number, hp?: number) => void;
+  /** Damage (positive) or heal (negative) one enemy. */
+  damageEnemy: (enemy: string, amount: number) => void;
+  /** An enemy leaves the fight. */
+  removeEnemy: (enemy: string) => void;
   /**
    * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
    * demo's button). The page stays, and so does its queue of unsent changes.
@@ -361,6 +367,21 @@ export function connect(
     endCombat: () => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'combat-end' };
+      socket.send(JSON.stringify(message));
+    },
+    addEnemies: (monster, count, hp) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'enemies-add', monster, count, ...(hp === undefined ? {} : { hp }) };
+      socket.send(JSON.stringify(message));
+    },
+    damageEnemy: (enemy, amount) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'enemy-damage', enemy, amount };
+      socket.send(JSON.stringify(message));
+    },
+    removeEnemy: (enemy) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'enemy-remove', enemy };
       socket.send(JSON.stringify(message));
     },
     setTerm: (key, value) => {

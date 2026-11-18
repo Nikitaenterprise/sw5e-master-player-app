@@ -9,15 +9,19 @@
 // Appending comes before applying, as it does for character state: a screen is never
 // shown something that is not already on disk.
 import { randomUUID } from 'node:crypto';
+import type { Compendium, CompendiumDoc } from '@holotable/compendium';
 import {
   checkDeclaredTotal,
   checkInitiativeRoll,
+  enemyStatus,
+  MAX_ENEMIES_AT_ONCE,
   initiativeOrder,
   nextTurn,
   whoCounts,
   type Author,
   type CombatEvent,
   type CombatState,
+  type EnemyInfo,
   type Fighter,
   type SheetSummary,
   type WhoCounts,
@@ -31,12 +35,20 @@ export class CombatTracker {
   private readonly rolls = new Map<string, { roll: number; said?: number }>();
   private turn: string | null = null;
   private round = 1;
+  /**
+   * Enemies from the bestiary (F-055), in the order they came in. Only decisions are
+   * kept: which creature, its number at the table, hit points the GM rolled by hand,
+   * and how many it has lost. AC, attacks and the average come from the book each time.
+   */
+  private readonly enemies = new Map<string, { monster: string; number: number; hp?: number; lost: number }>();
 
   constructor(
     private readonly log: Log,
     private readonly sheets: Record<string, SheetSummary>,
     /** Read live, not copied: the GM flips the switch mid-fight and it must take. */
     private readonly counts: () => Record<string, WhoCounts> = () => ({}),
+    /** The bestiary. Without it no enemy can come in; the party still fights. */
+    private readonly compendium?: Compendium,
   ) {
     for (const event of log.readAll().combat) this.replay(event);
   }
@@ -47,7 +59,10 @@ export class CombatTracker {
     return {
       round: this.round,
       turn: this.turn,
-      order: initiativeOrder(this.characters.map((slug) => this.fighterOf(slug))),
+      order: initiativeOrder([
+        ...this.characters.map((slug) => this.fighterOf(slug)),
+        ...[...this.enemies.keys()].map((id) => this.enemyOf(id)),
+      ]),
     };
   }
 
@@ -70,9 +85,13 @@ export class CombatTracker {
    */
   roll(author: Author, character: string, roll: number, said?: number): CombatEvent | string {
     if (!this.fighting) return 'бою немає — спершу «Почати бій»';
-    if (!this.characters.includes(character)) return 'цього персонажа немає в бою';
+    const isEnemy = this.enemies.has(character);
+    if (!this.characters.includes(character) && !isEnemy) return 'цього персонажа немає в бою';
     const problem = checkInitiativeRoll(roll);
     if (problem !== null) return problem;
+    // For an enemy the GM rolls and the app adds the creature's modifier: ADR 0007 is
+    // about a player's own arithmetic, and nobody at the table plays the pirate.
+    if (isEnemy && said !== undefined) return 'за ворога суму рахує застосунок';
     if (said !== undefined) {
       const trouble = checkDeclaredTotal(said);
       if (trouble !== null) return trouble;
@@ -98,6 +117,107 @@ export class CombatTracker {
   end(author: Author): CombatEvent | string {
     if (!this.fighting) return 'бою немає';
     return this.write({ type: 'combat.ended', author });
+  }
+
+  /** Whether this id is an enemy in the fight going on now. */
+  hasEnemy(id: string): boolean {
+    return this.fighting && this.enemies.has(id);
+  }
+
+  /**
+   * Creatures from the bestiary come in — "Pirate ×3". Each gets its own number at the
+   * table, continuing from those of the same kind already here, and its own hit points.
+   */
+  addEnemies(author: Author, monsterKey: string, count: number, hp?: number): CombatEvent | string {
+    if (!this.fighting) return 'бою немає — спершу «Почати бій»';
+    const doc = this.compendium?.get('monster', monsterKey);
+    if (doc === undefined) return 'такої істоти в бестіарії немає';
+    if (count < 1 || count > MAX_ENEMIES_AT_ONCE) return `скільки — від 1 до ${MAX_ENEMIES_AT_ONCE}`;
+    const taken = [...this.enemies.values()].filter((e) => e.monster === doc.key).map((e) => e.number);
+    const first = (taken.length === 0 ? 0 : Math.max(...taken)) + 1;
+    const enemies = Array.from({ length: count }, (_, i) => ({
+      id: `enemy-${doc.key}-${first + i}`,
+      monster: doc.key,
+      number: first + i,
+      ...(hp === undefined ? {} : { hp }),
+    }));
+    return this.write({ type: 'combat.enemies-added', author, enemies });
+  }
+
+  /** Damage (positive) or healing (negative), never past zero or past the maximum. */
+  damage(author: Author, id: string, amount: number): CombatEvent | string {
+    const enemy = this.fighting ? this.enemies.get(id) : undefined;
+    if (enemy === undefined) return 'такого ворога в бою немає';
+    const max = this.maxHpOf(enemy);
+    const to = Math.min(max, Math.max(0, enemy.lost + amount));
+    if (to === enemy.lost) return amount > 0 ? 'ворог уже знешкоджений' : 'ворог і так цілий';
+    return this.write({ type: 'combat.enemy-hp', author, enemy: id, from: enemy.lost, to });
+  }
+
+  /** An enemy leaves the fight. The log keeps that it was here. */
+  removeEnemy(author: Author, id: string): CombatEvent | string {
+    if (!this.fighting || !this.enemies.has(id)) return 'такого ворога в бою немає';
+    // Leaving on its own turn: the turn passes on first, so the queue does not jump back
+    // to the top. Two lines in the log, both decisions anyone can read.
+    const now = this.view();
+    if (now !== null && now.turn === id) {
+      const to = nextTurn(now, 'next');
+      if (to.turn !== id) this.write({ type: 'combat.turn', author, turn: to.turn, round: to.round });
+    }
+    return this.write({ type: 'combat.enemy-removed', author, enemy: id });
+  }
+
+  private monsterOf(key: string): CompendiumDoc | undefined {
+    return this.compendium?.get('monster', key);
+  }
+
+  private maxHpOf(enemy: { monster: string; hp?: number }): number {
+    if (enemy.hp !== undefined) return enemy.hp;
+    const hit = this.monsterOf(enemy.monster)?.['hitPoints'] as { average?: number } | undefined;
+    return Math.max(1, hit?.average ?? 1);
+  }
+
+  /** An enemy built from the bestiary, the way a party member is built from the sheet. */
+  private enemyOf(id: string): Fighter {
+    const enemy = this.enemies.get(id) as { monster: string; number: number; hp?: number; lost: number };
+    const doc = this.monsterOf(enemy.monster);
+    const abilities = doc?.['abilities'] as Record<string, { modifier?: number }> | undefined;
+    const modifier = abilities?.['dexterity']?.modifier ?? 0;
+    const thrown = this.rolls.get(id);
+    const roll = thrown?.roll ?? null;
+    const maxHp = this.maxHpOf(enemy);
+    const hp = maxHp - enemy.lost;
+    const name = String(doc?.name ?? enemy.monster);
+    const behaviors = (doc?.['behaviors'] as { name?: string; attackType?: string; attackBonus?: number; description?: string }[] | undefined) ?? [];
+    const info: EnemyInfo = {
+      key: enemy.monster,
+      ac: Number((doc?.['armor'] as { class?: number } | undefined)?.class ?? 10),
+      hp,
+      maxHp,
+      hpFrom: enemy.hp === undefined ? 'average' : 'gm',
+      hpRoll: String((doc?.['hitPoints'] as { roll?: string } | undefined)?.roll ?? ''),
+      challenge: String(doc?.['challengeRating'] ?? ''),
+      speed: String((doc?.['speed'] as { text?: string } | undefined)?.text ?? ''),
+      attacks: behaviors
+        .filter((b) => b.attackType !== undefined && b.attackType !== 'none')
+        .map((b) => ({ name: String(b.name ?? ''), toHit: b.attackBonus ?? 0, text: String(b.description ?? '') })),
+    };
+    return {
+      id,
+      kind: 'enemy',
+      character: '',
+      name: `${name} ${enemy.number}`,
+      modifier,
+      roll,
+      total: roll === null ? null : roll + modifier,
+      said: null,
+      counts: 'app',
+      dexterity: modifier,
+      monster: name,
+      number: enemy.number,
+      status: enemyStatus(hp, maxHp),
+      enemy: info,
+    };
   }
 
   /** A fighter built from the sheet: the modifier and the tie-break are computed here. */
@@ -135,6 +255,7 @@ export class CombatTracker {
         this.fighting = true;
         this.characters = [...(event.characters ?? [])];
         this.rolls.clear();
+        this.enemies.clear();
         this.turn = null;
         this.round = 1;
         break;
@@ -150,10 +271,29 @@ export class CombatTracker {
         this.turn = event.turn ?? null;
         if (event.round !== undefined) this.round = event.round;
         break;
+      case 'combat.enemies-added':
+        for (const e of event.enemies ?? []) {
+          this.enemies.set(e.id, { monster: e.monster, number: e.number, ...(e.hp === undefined ? {} : { hp: e.hp }), lost: 0 });
+        }
+        break;
+      case 'combat.enemy-hp': {
+        const enemy = event.enemy === undefined ? undefined : this.enemies.get(event.enemy);
+        if (enemy !== undefined && event.to !== undefined) enemy.lost = event.to;
+        break;
+      }
+      case 'combat.enemy-removed':
+        if (event.enemy !== undefined) {
+          this.enemies.delete(event.enemy);
+          this.rolls.delete(event.enemy);
+          // Whose turn it was must not point at someone who left.
+          if (this.turn === event.enemy) this.turn = null;
+        }
+        break;
       case 'combat.ended':
         this.fighting = false;
         this.characters = [];
         this.rolls.clear();
+        this.enemies.clear();
         this.turn = null;
         this.round = 1;
         break;

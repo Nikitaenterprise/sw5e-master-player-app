@@ -113,6 +113,12 @@ try {
   p1.ws.send(JSON.stringify({ type: 'counts-set', character: 'sandra-vong', who: 'app' }));
   ok('F-064 перемикає тільки майстер',
     await wait(p1, (g) => g.some((m) => m.type === 'refused' && m.reason === 'перемикає майстер')));
+  gm.ws.send(JSON.stringify({ type: 'enemies-add', monster: 'sith-probe-droid', count: 2 }));
+  const foes = (g) => [...g].reverse().find((m) => m.type === 'combat')?.combat?.order.filter((f) => f.kind === 'enemy') ?? [];
+  ok('F-055 майстер привів двох ворогів — у нього КБ і ХП з бестіарію',
+    await wait(gm, (g) => foes(g).length === 2 && foes(g)[0].enemy?.ac === 11));
+  ok('F-055 у гравця вороги без жодного числа, лише стан словами',
+    await wait(p1, (g) => foes(g).length === 2 && foes(g).every((f) => f.enemy === undefined && f.total === null && f.status === 'цілий')));
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');

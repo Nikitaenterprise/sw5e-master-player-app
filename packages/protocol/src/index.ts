@@ -63,7 +63,10 @@ export type ToServer =
   | CombatRoll
   | CombatTurn
   | CombatEnd
-  | CountsSet;
+  | CountsSet
+  | EnemiesAdd
+  | EnemyDamage
+  | EnemyRemove;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -666,8 +669,9 @@ export const INITIATIVE_DIE = 20;
 export interface Fighter {
   /** Stable within one fight. For a party member it is the character slug. */
   id: string;
-  /** Only party members fight so far; enemies from the bestiary arrive with F-055. */
-  kind: 'character';
+  /** A party member, or an enemy from the bestiary (F-055). */
+  kind: 'character' | 'enemy';
+  /** The character slug for a party member; empty for an enemy. */
   character: string;
   /** Name for sorting and for a screen that has no name of its own. */
   name: string;
@@ -687,6 +691,122 @@ export interface Fighter {
   counts: WhoCounts;
   /** Dexterity modifier — the tie-break, so an equal total never shuffles by itself. */
   dexterity: number;
+  /** Enemies (F-055): the bestiary name and the number at the table — "Pirate 2". */
+  monster?: string;
+  number?: number;
+  /** Enemies: how they look, in words — the only thing a player's screen gets. */
+  status?: EnemyStatus;
+  /** Enemies: the numbers, for the GM's screen only. Never sent to a player. */
+  enemy?: EnemyInfo;
+}
+
+/** What an enemy looks like from across the table: words, never numbers (F-055). */
+export type EnemyStatus = 'цілий' | 'поранений' | 'важко поранений' | 'знешкоджений';
+
+/** An enemy's numbers, from the bestiary — the GM's secret. */
+export interface EnemyInfo {
+  /** Compendium key of the creature, for the reference page. */
+  key: string;
+  ac: number;
+  /** Hit points left and the maximum. */
+  hp: number;
+  maxHp: number;
+  /** Where the maximum came from: the book's average, or a number the GM rolled. */
+  hpFrom: 'average' | 'gm';
+  /** The book's dice for hit points, so the GM can roll them by hand: "6d12+18". */
+  hpRoll: string;
+  challenge: string;
+  speed: string;
+  attacks: { name: string; toHit: number; text: string }[];
+}
+
+/** The words for an enemy's state. Half or less is badly hurt; nothing left is down. */
+export function enemyStatus(hp: number, maxHp: number): EnemyStatus {
+  if (hp <= 0) return 'знешкоджений';
+  if (hp >= maxHp) return 'цілий';
+  return hp * 2 <= maxHp ? 'важко поранений' : 'поранений';
+}
+
+/**
+ * The fight as a player's screen gets it (F-055): enemies keep their name and their
+ * state in words, and lose every number — initiative included. The order stays as it
+ * is, so a player still sees whose turn it is and who comes next.
+ */
+export function combatForPlayer(combat: CombatState | null): CombatState | null {
+  if (combat === null) return null;
+  return {
+    ...combat,
+    order: combat.order.map((f) => {
+      if (f.kind !== 'enemy') return f;
+      const { enemy: _secret, ...open } = f;
+      return { ...open, modifier: 0, roll: null, total: null, said: null, dexterity: 0 };
+    }),
+  };
+}
+
+/** Most of one creature the GM can bring in one go. */
+export const MAX_ENEMIES_AT_ONCE = 20;
+
+/** GM → server: bring creatures from the bestiary into the fight — "Pirate ×3". */
+export interface EnemiesAdd {
+  type: 'enemies-add';
+  /** Compendium key of the creature. */
+  monster: string;
+  count: number;
+  /** Hit points the GM rolled by hand for each; absent means the book's average. */
+  hp?: number;
+}
+
+/** GM → server: damage (positive) or healing (negative) to one enemy. */
+export interface EnemyDamage {
+  type: 'enemy-damage';
+  enemy: string;
+  amount: number;
+}
+
+/** GM → server: an enemy leaves the fight — fled, or no longer worth a line. */
+export interface EnemyRemove {
+  type: 'enemy-remove';
+  enemy: string;
+}
+
+export function parseEnemiesAdd(data: unknown): EnemiesAdd | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'enemies-add') return 'не додавання ворогів';
+  const monster = o['monster'];
+  if (typeof monster !== 'string' || !/^[a-z0-9-]+$/.test(monster)) return 'не вказано, кого додати';
+  const count = o['count'];
+  if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > MAX_ENEMIES_AT_ONCE) {
+    return `скільки — від 1 до ${MAX_ENEMIES_AT_ONCE}`;
+  }
+  const hp = o['hp'];
+  if (hp !== undefined && (typeof hp !== 'number' || !Number.isInteger(hp) || hp < 1 || hp > 9999)) {
+    return 'ХП — ціле число від 1';
+  }
+  return { type: 'enemies-add', monster, count, ...(hp === undefined ? {} : { hp }) };
+}
+
+export function parseEnemyDamage(data: unknown): EnemyDamage | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'enemy-damage') return 'не шкода ворогу';
+  const enemy = o['enemy'];
+  const amount = o['amount'];
+  if (typeof enemy !== 'string' || enemy === '') return 'не вказано ворога';
+  if (typeof amount !== 'number' || !Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 9999) {
+    return 'шкода — ціле число, не нуль';
+  }
+  return { type: 'enemy-damage', enemy, amount };
+}
+
+export function parseEnemyRemove(data: unknown): EnemyRemove | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'enemy-remove') return 'не прибирання ворога';
+  const enemy = o['enemy'];
+  if (typeof enemy !== 'string' || enemy === '') return 'не вказано ворога';
+  return { type: 'enemy-remove', enemy };
 }
 
 /** The fight itself. Rebuilt from the log, so a reload or a power cut loses nothing. */
@@ -733,7 +853,10 @@ export interface CombatMessage {
 }
 
 /** What a combat line of the log can say. */
-export type CombatEventType = 'combat.started' | 'combat.rolled' | 'combat.turn' | 'combat.ended';
+export type CombatEventType =
+  | 'combat.started' | 'combat.rolled' | 'combat.turn' | 'combat.ended'
+  // F-055: enemies come in, take damage, leave.
+  | 'combat.enemies-added' | 'combat.enemy-hp' | 'combat.enemy-removed';
 
 /**
  * A combat line of the log (ADR 0002), living in the same file as the state lines and
@@ -755,6 +878,16 @@ export interface CombatEvent {
   /** combat.turn: whose turn it is now, and which round. */
   turn?: string | null;
   round?: number;
+  /**
+   * combat.enemies-added: who came in. `hp` only when the GM rolled it by hand — the
+   * book's average is computed, never stored (ADR 0003).
+   */
+  enemies?: { id: string; monster: string; number: number; hp?: number }[];
+  /** combat.enemy-hp, combat.enemy-removed: which enemy. */
+  enemy?: string;
+  /** combat.enemy-hp: hit points lost before and after — the pair that makes undo free. */
+  from?: number;
+  to?: number;
 }
 
 /** A line of the log: a change of character state, or something in the fight. */

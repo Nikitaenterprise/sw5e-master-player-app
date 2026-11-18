@@ -81,6 +81,9 @@ export function App(): JSX.Element {
           roll={(whom, value, said) => controls.current?.rollInitiative(whom, value, said)}
           move={(direction) => controls.current?.advanceTurn(direction)}
           end={() => controls.current?.endCombat()}
+          addEnemies={(monster, count, hp) => controls.current?.addEnemies(monster, count, hp)}
+          damageEnemy={(enemy, amount) => controls.current?.damageEnemy(enemy, amount)}
+          removeEnemy={(enemy) => controls.current?.removeEnemy(enemy)}
         />
       )}
 
@@ -556,24 +559,201 @@ function RollInput({
   );
 }
 
+/** How a fighter is named on screen: a party member by name, an enemy by creature and number. */
+export function fighterName(fighter: Fighter, term: Term): string {
+  if (fighter.kind !== 'enemy') return name(fighter.character);
+  return `${term('monster', fighter.monster ?? fighter.name)} ${fighter.number ?? ''}`.trim();
+}
+
+/** Steps the GM uses on an enemy: damage on the left, healing on the right. */
+const ENEMY_STEPS = [-10, -5, -1, 1, 5];
+
+/**
+ * An enemy's numbers on the GM's line (F-055): AC, hit points with damage and healing,
+ * the attacks with their text on hover. Straight from the bestiary — and only here:
+ * a player's screen never receives them.
+ */
+function EnemyDetails({
+  fighter,
+  damage,
+  remove,
+}: {
+  fighter: Fighter;
+  damage: (enemy: string, amount: number) => void;
+  remove: (enemy: string) => void;
+}): JSX.Element | null {
+  const e = fighter.enemy;
+  if (e === undefined) return null;
+  return (
+    <div className="enemy">
+      <span className={`enemy-hp${e.hp === 0 ? ' down' : e.hp * 2 <= e.maxHp ? ' low' : ''}`}>
+        КБ <b>{e.ac}</b> · ХП <b>{e.hp}</b>/{e.maxHp}
+        <small title={e.hpFrom === 'gm' ? 'ХП кинув майстер' : `середнє з книги; кидок: ${e.hpRoll}`}>
+          {e.hpFrom === 'gm' ? ' кинуто' : ' сер.'}
+        </small>
+      </span>
+      <span className="buttons">
+        {ENEMY_STEPS.map((step) => (
+          <button
+            key={step}
+            type="button"
+            title={step < 0 ? `шкода ${-step}` : `лікування ${step}`}
+            disabled={(step < 0 && e.hp === 0) || (step > 0 && e.hp === e.maxHp)}
+            onClick={() => damage(fighter.id, -step)}
+          >
+            {step > 0 ? `+${step}` : step}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="remove"
+          title="Прибрати з бою"
+          onClick={() => {
+            if (confirm(`Прибрати з бою: ${fighter.name}?`)) remove(fighter.id);
+          }}
+        >
+          ✕
+        </button>
+      </span>
+      {e.attacks.length > 0 && (
+        <span className="enemy-attacks">
+          {e.attacks.map((a) => (
+            <span key={a.name} title={a.text}>
+              {a.name} {signed(a.toHit)}
+            </span>
+          ))}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Bringing creatures in from the bestiary (F-055): find one, say how many, and either
+ * leave hit points to the book's average or type what the dice gave — the app never
+ * rolls them.
+ */
+export function AddEnemies({ add }: { add: (monster: string, count: number, hp?: number) => void }): JSX.Element {
+  const term = useTerm();
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<{ key: string; name: string }[]>([]);
+  const [picked, setPicked] = useState<{ key: string; name: string } | null>(null);
+  const [count, setCount] = useState('1');
+  const [hp, setHp] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (q.trim().length < 2) {
+      setHits([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(`/api/search?type=monster&q=${encodeURIComponent(q)}`)
+        .then((r) => r.json() as Promise<{ key: string; name: string }[]>)
+        .then((found) => setHits(found.slice(0, 8)))
+        .catch(() => setHits([]));
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  return (
+    <div className="add-enemies">
+      <input
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setPicked(null);
+        }}
+        placeholder="ворог із бестіарію: pirate, droid…"
+        aria-label="Пошук ворога в бестіарії"
+      />
+      {picked === null ? (
+        hits.length > 0 && (
+          <ul className="enemy-hits">
+            {hits.map((h) => (
+              <li key={h.key}>
+                <button type="button" onClick={() => setPicked(h)}>
+                  {term('monster', h.name)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : (
+        <form
+          className="add"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            const n = Number(count);
+            const rolled = hp.trim() === '' ? undefined : Number(hp);
+            if (!Number.isInteger(n) || n < 1 || n > 20) {
+              setProblem('скільки — від 1 до 20');
+              return;
+            }
+            if (rolled !== undefined && (!Number.isInteger(rolled) || rolled < 1)) {
+              setProblem('ХП — ціле число від 1, або порожньо');
+              return;
+            }
+            add(picked.key, n, rolled);
+            setQ('');
+            setPicked(null);
+            setCount('1');
+            setHp('');
+            setProblem(null);
+          }}
+        >
+          <b>{term('monster', picked.name)}</b>
+          <label>
+            × <input type="number" min={1} max={20} value={count} onChange={(e) => setCount(e.target.value)} aria-label="Скільки" />
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={hp}
+            onChange={(e) => setHp(e.target.value)}
+            placeholder="ХП: середнє"
+            aria-label="ХП кожного (порожньо — середнє з книги)"
+          />
+          <button type="submit">додати</button>
+          {problem !== null && <span className="refusal">{problem}</span>}
+        </form>
+      )}
+    </div>
+  );
+}
+
 /** One line of the turn order: who, what they rolled, and whether it is their turn. */
 function OrderRow({
   fighter,
   current,
   roll,
+  damage,
+  remove,
 }: {
   fighter: Fighter;
   current: boolean;
   roll: (character: string, value: number, said?: number) => void;
+  damage?: (enemy: string, amount: number) => void;
+  remove?: (enemy: string) => void;
 }): JSX.Element {
+  const term = useTerm();
+  const who = fighterName(fighter, term);
+  const enemy = fighter.kind === 'enemy';
   return (
-    <li className={`${current ? 'now' : ''}${fighter.total === null ? ' unrolled' : ''}`.trim() || undefined}>
-      <span className="who">{name(fighter.character)}</span>
+    <li
+      className={
+        `${current ? 'now' : ''}${fighter.total === null ? ' unrolled' : ''}${enemy ? ' foe' : ''}${fighter.status === 'знешкоджений' ? ' down' : ''}`.trim() ||
+        undefined
+      }
+    >
+      <span className="who">
+        {enemy && fighter.enemy !== undefined ? <TermLink kind="monster" english={fighter.monster ?? ''}>{who}</TermLink> : who}
+      </span>
       {fighter.roll === null ? (
         <RollInput
-          label={`Кидок ініціативи за ${name(fighter.character)}`}
+          label={`Кидок ініціативи за ${who}`}
           sum={fighter.counts === 'player' ? 'optional' : 'none'}
-          submit={(value, said) => roll(fighter.character, value, said)}
+          submit={(value, said) => roll(enemy ? fighter.id : fighter.character, value, said)}
         />
       ) : fighter.said === null ? (
         <span className="total">
@@ -591,6 +771,7 @@ function OrderRow({
         </span>
       )}
       {current && <i className="mark">← хід</i>}
+      {enemy && damage !== undefined && remove !== undefined && <EnemyDetails fighter={fighter} damage={damage} remove={remove} />}
     </li>
   );
 }
@@ -609,13 +790,21 @@ export function CombatBoard({
   roll,
   move,
   end,
+  addEnemies,
+  damageEnemy,
+  removeEnemy,
 }: {
   combat: CombatState | null;
   start: () => void;
   roll: (character: string, value: number, said?: number) => void;
   move: (direction: 'next' | 'back') => void;
   end: () => void;
+  /** Enemies from the bestiary (F-055). Without them the board is the party's only. */
+  addEnemies?: (monster: string, count: number, hp?: number) => void;
+  damageEnemy?: (enemy: string, amount: number) => void;
+  removeEnemy?: (enemy: string) => void;
 }): JSX.Element {
+  const term = useTerm();
   if (combat === null) {
     return (
       <section className="combat">
@@ -635,15 +824,23 @@ export function CombatBoard({
       <h2>Бій · раунд {combat.round}</h2>
       <ol className="order">
         {combat.order.map((f) => (
-          <OrderRow key={f.id} fighter={f} current={f.id === combat.turn} roll={roll} />
+          <OrderRow
+            key={f.id}
+            fighter={f}
+            current={f.id === combat.turn}
+            roll={roll}
+            {...(damageEnemy === undefined ? {} : { damage: damageEnemy })}
+            {...(removeEnemy === undefined ? {} : { remove: removeEnemy })}
+          />
         ))}
       </ol>
       {waiting.length > 0 && (
         <p className="hint">
-          Чекаю кидок: {waiting.map((f) => name(f.character)).join(', ')}. Хто не кинув — чергу пропускає;
+          Чекаю кидок: {waiting.map((f) => fighterName(f, term)).join(', ')}. Хто не кинув — чергу пропускає;
           впиши за нього сам, якщо його немає за столом.
         </p>
       )}
+      {addEnemies !== undefined && <AddEnemies add={addEnemies} />}
       <div className="buttons">
         <button type="button" onClick={() => move('next')}>
           Наступний хід
@@ -683,8 +880,11 @@ export function MyInitiative({
   counts: WhoCounts;
   roll: (value: number, said?: number) => void;
 }): JSX.Element {
+  const term = useTerm();
   const mine = combat.order.find((f) => f.character === character);
   const current = combat.order.find((f) => f.id === combat.turn);
+  // Enemies as the player sees them across the table: a name and a word, no numbers (F-055).
+  const foes = combat.order.filter((f) => f.kind === 'enemy');
   return (
     <div className="my-initiative">
       <h3>Бій · раунд {combat.round}</h3>
@@ -717,8 +917,18 @@ export function MyInitiative({
           ? 'Хід ще нічий — чекаємо кидки.'
           : current.character === character
             ? 'Зараз твій хід.'
-            : `Зараз хід: ${name(current.character)}.`}
+            : `Зараз хід: ${fighterName(current, term)}.`}
       </p>
+      {foes.length > 0 && (
+        <ul className="foes">
+          {foes.map((f) => (
+            <li key={f.id} className={f.status === 'знешкоджений' ? 'down' : undefined}>
+              <span>{fighterName(f, term)}</span>
+              <small>{f.status}</small>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
