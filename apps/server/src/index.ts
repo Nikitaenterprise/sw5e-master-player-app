@@ -22,6 +22,12 @@ import {
   parseEnemyRemove,
   parseEnemyConditions,
   parseAttackRoll,
+  parseDeathSave,
+  deathSaveOutcome,
+  deathSavesOf,
+  DEATH_SAVES_LIMIT,
+  MISMATCH_MARK,
+  type CharacterState,
   combatForPlayer,
   parseCountsSet,
   type Author,
@@ -400,6 +406,55 @@ export async function start(
         broadcastCombat();
         return;
       }
+      // A death saving throw (F-058): the owner or the GM, only at 0 hit points. The book
+      // decides what it does; the GM decides what three failures mean.
+      if (kind === 'death-save') {
+        const save = parseDeathSave(data);
+        if (typeof save === 'string') {
+          send(socket, { type: 'refused', reason: save });
+          return;
+        }
+        if (who.role === 'player' && who.character !== save.character) {
+          send(socket, { type: 'refused', reason: 'рятівний кидає власник персонажа або майстер' });
+          return;
+        }
+        const current = state.one(save.character);
+        const max = sheets[save.character]?.maxHitPoints;
+        if (current === undefined || max === undefined) {
+          send(socket, { type: 'refused', reason: 'немає такого персонажа' });
+          return;
+        }
+        const lost = typeof current.hitPointsLost === 'number' ? current.hitPointsLost : 0;
+        if (max - lost > 0) {
+          send(socket, { type: 'refused', reason: 'персонаж при тямі — рятівні не потрібні' });
+          return;
+        }
+        const marks = deathSavesOf(current);
+        if (marks.failures >= DEATH_SAVES_LIMIT || marks.successes >= DEATH_SAVES_LIMIT) {
+          send(socket, { type: 'refused', reason: 'рятівні вже скінчились — тепер вирішує майстер' });
+          return;
+        }
+        const outcome = deathSaveOutcome(save.roll, save.said);
+        const changes: CharacterState =
+          outcome === 'revive'
+            ? { hitPointsLost: max - 1, deathSaves: { successes: 0, failures: 0 } }
+            : {
+                deathSaves: {
+                  successes: marks.successes + (outcome === 'success' ? 1 : 0),
+                  failures: Math.min(DEATH_SAVES_LIMIT, marks.failures + (outcome === 'failure' ? 1 : outcome === 'double-failure' ? 2 : 0)),
+                },
+              };
+        const words = { success: 'успіх', failure: 'провал', 'double-failure': 'два провали (1 на кубику)', revive: '20 — встає з 1 ХП' }[outcome];
+        const counted = save.said === undefined ? `${save.roll}` : `${save.said}${save.said === save.roll ? '' : ` ${MISMATCH_MARK} випало ${save.roll}`}`;
+        const event = state.apply(save.character, changes, authorOf(), `рятівний від смерті: ${counted} — ${words}`);
+        if (typeof event === 'string') {
+          send(socket, { type: 'refused', reason: event });
+          return;
+        }
+        broadcastAll({ type: 'event', event, state: state.one(save.character) ?? {} });
+        return;
+      }
+
       if (kind === 'turn-done') {
         const done = combat.turnDone(authorOf(), who.role === 'player' ? who.character : undefined);
         if (typeof done === 'string') {
@@ -571,6 +626,15 @@ export async function start(
         intent.base === undefined || current === undefined
           ? intent.changes
           : rebase(current, intent.base, intent.changes);
+
+      // Healed from 0 by any amount: the death saving throws start over — in the same
+      // event, so an undo puts the marks back together with the hit points (F-058).
+      const maxHp = sheets[intent.character]?.maxHitPoints;
+      if (current !== undefined && maxHp !== undefined && typeof changes.hitPointsLost === 'number'
+        && changes.hitPointsLost < maxHp && changes.deathSaves === undefined) {
+        const marks = deathSavesOf(current);
+        if (marks.successes > 0 || marks.failures > 0) changes.deathSaves = { successes: 0, failures: 0 };
+      }
 
       if (changes.hitDiceUsed !== undefined) {
         const problem = checkHitDice(sheets[intent.character], changes.hitDiceUsed as Record<string, number>);

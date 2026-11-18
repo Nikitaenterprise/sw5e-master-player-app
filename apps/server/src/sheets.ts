@@ -202,6 +202,11 @@ export function applyRest(plan: RestPlan, current: CharacterState): CharacterSta
     }
     if (left < plan.hitDiceBack) changes.hitDiceUsed = used;
   }
+  // Healed: the death saving throws start over (F-058).
+  if (changes.hitPointsLost === 0) {
+    const saves = current.deathSaves as { successes?: number; failures?: number } | undefined;
+    if ((saves?.successes ?? 0) > 0 || (saves?.failures ?? 0) > 0) changes.deathSaves = { successes: 0, failures: 0 };
+  }
   if (plan.exhaustionDown > 0) {
     const now = current.exhaustion;
     if (typeof now === 'number' && now > 0) {

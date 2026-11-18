@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, exhaustionEffects, turnsUntil, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, exhaustionEffects, turnsUntil, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
@@ -252,6 +252,13 @@ function PlayerSheet({
   return (
     <section>
       <h2>Мій стан</h2>
+      {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
+        <DeathSavesBlock
+          state={state}
+          counts={whoCounts(snapshot.counts, character)}
+          roll={(value, said) => controls.current?.deathSave(character, value, said)}
+        />
+      )}
       <Managed state={state} waiting={waiting} sendChange={sendChange} />
       {snapshot.combat !== null && snapshot.combat.turn === character && sheet !== undefined && (
         <MyTurn
@@ -1012,6 +1019,56 @@ function LastAttackLine({ attack }: { attack: LastAttack }): JSX.Element {
   );
 }
 
+/** ●●○ — marks out of three. */
+const marks = (n: number): string => '●'.repeat(n) + '○'.repeat(Math.max(0, DEATH_SAVES_LIMIT - n));
+
+/** The death saves in one line, for the GM's card and the phone alike (F-058). */
+export function deathSavesText(state: CharacterState): string {
+  const d = deathSavesOf(state);
+  if (d.failures >= DEATH_SAVES_LIMIT) return 'три провали — що це означає, вирішує майстер';
+  if (d.successes >= DEATH_SAVES_LIMIT) return 'стабілізований: живий, без свідомості';
+  return `успіхів ${d.successes} з ${DEATH_SAVES_LIMIT} · провалів ${d.failures} з ${DEATH_SAVES_LIMIT}`;
+}
+
+/**
+ * At 0 hit points (F-058): the phone shows the three and three, and takes the d20 rolled
+ * at the table — two numbers when the person counts (ADR 0007). The book decides what a
+ * roll does; three failures only stop the rolling — the table decides the rest.
+ */
+export function DeathSavesBlock({
+  state,
+  counts,
+  roll,
+}: {
+  state: CharacterState;
+  counts: WhoCounts;
+  roll: (value: number, said?: number) => void;
+}): JSX.Element {
+  const d = deathSavesOf(state);
+  const over = d.failures >= DEATH_SAVES_LIMIT || d.successes >= DEATH_SAVES_LIMIT;
+  return (
+    <section className="death-saves">
+      <h3>Ти без свідомості</h3>
+      <p className="marks">
+        <span>успіхи <b>{marks(d.successes)}</b></span>
+        <span>провали <b>{marks(d.failures)}</b></span>
+      </p>
+      {over ? (
+        <p className="hint">{deathSavesText(state)}</p>
+      ) : (
+        <>
+          <p className="hint">
+            {counts === 'player'
+              ? 'Кинь d20, впиши, що випало, і що вийшло разом. 10 і більше — успіх, 1 — два провали, 20 — встаєш з 1 ХП.'
+              : 'Кинь d20 і впиши, що випало. 10 і більше — успіх, 1 — два провали, 20 — встаєш з 1 ХП.'}
+          </p>
+          <RollInput label="Рятівний від смерті: що випало на d20" sum={counts === 'player' ? 'optional' : 'none'} button="рятівний" submit={roll} />
+        </>
+      )}
+    </section>
+  );
+}
+
 /** Damage dice without the modifier: "1d8 + 4" → "1d8". The person adds theirs (ADR 0007). */
 export function diceOnly(damage: string): string {
   return damage.replace(/\s*[+-]\s*\d+\s*$/, '');
@@ -1669,6 +1726,7 @@ export function Card({
         </details>
       )}
 
+      {left === 0 && <p className="down-line">Без свідомості · {deathSavesText(state)}</p>}
       <ExhaustionLine level={exhaustion} />
       {setConditions !== undefined ? (
         <Conditions list={conditions} choices={conditionChoices ?? []} set={setConditions} />

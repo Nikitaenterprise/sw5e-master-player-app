@@ -535,3 +535,12 @@ a.ref-link:hover { color: var(--accent); }
 }
 .last-attack { margin: .5rem 0; font-size: .85rem; }
 .last-attack small { color: var(--muted); }
+
+/* ── Death saves (F-058) ───────────────────────────────────────────────── */
+.death-saves { margin: .4rem 0 .8rem; padding: .7rem .8rem; border: 2px solid var(--bad); border-radius: .6rem; background: color-mix(in srgb, var(--bad) 8%, var(--panel)); }
+.death-saves h3 { margin: 0 0 .3rem; color: var(--bad); }
+.death-saves .marks { display: flex; gap: 1.2rem; margin: .2rem 0 .4rem; }
+.death-saves .marks b { font-size: 1.1rem; letter-spacing: .1em; }
+.death-saves .add.roll { display: flex; gap: .3rem; }
+.death-saves .add.roll input { width: 4.5rem; flex: 0 0 4.5rem; }
+.down-line { margin: .3rem 0 0; font-size: .8rem; color: var(--bad); }

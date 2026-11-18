@@ -170,6 +170,8 @@ export interface Controls {
   attackRoll: (character: string, weapon: string, roll: number, said?: number) => void;
   /** "Turn over" from the phone (F-057). */
   turnDone: () => void;
+  /** A death saving throw (F-058). */
+  deathSave: (character: string, roll: number, said?: number) => void;
   /**
    * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
    * demo's button). The page stays, and so does its queue of unsent changes.
@@ -391,6 +393,11 @@ export function connect(
     attackRoll: (whom, weapon, roll, said) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'attack-roll', character: whom, weapon, roll, ...(said === undefined ? {} : { said }) };
+      socket.send(JSON.stringify(message));
+    },
+    deathSave: (whom, roll, said) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'death-save', character: whom, roll, ...(said === undefined ? {} : { said }) };
       socket.send(JSON.stringify(message));
     },
     turnDone: () => {

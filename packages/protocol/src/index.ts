@@ -69,7 +69,8 @@ export type ToServer =
   | EnemyRemove
   | EnemyConditions
   | AttackRoll
-  | TurnDone;
+  | TurnDone
+  | DeathSave;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -146,6 +147,7 @@ export const STATE_FIELDS = [
   'hasInspiration',
   'conditions',
   'hitDiceUsed',
+  'deathSaves',
 ] as const;
 
 export type StateField = (typeof STATE_FIELDS)[number];
@@ -517,6 +519,77 @@ export function termUrl(kind: TermKind, english: string): string {
   return `/?as=ref&term=${kind}&name=${encodeURIComponent(english.trim())}`;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Death saving throws (F-058). At 0 hit points a character is down and rolls a d20 each
+// turn. The field is sw5e.com's own `currentStats.deathSaves` (ADR 0001); being down is
+// worked out from hit points every time and never stored (ADR 0003).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DeathSaves {
+  successes: number;
+  failures: number;
+}
+
+/** How many of each it takes: three successes to stabilise, three failures to die. */
+export const DEATH_SAVES_LIMIT = 3;
+
+/** The marks as they stand; anything missing or odd reads as none. */
+export function deathSavesOf(state: CharacterState): DeathSaves {
+  const v = state.deathSaves as Partial<DeathSaves> | undefined;
+  const n = (x: unknown): number => (typeof x === 'number' && Number.isInteger(x) ? Math.min(DEATH_SAVES_LIMIT, Math.max(0, x)) : 0);
+  return { successes: n(v?.successes), failures: n(v?.failures) };
+}
+
+export function checkDeathSaves(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'рятівні від смерті — обʼєкт';
+  const o = value as Record<string, unknown>;
+  for (const key of Object.keys(o)) if (key !== 'successes' && key !== 'failures') return `«${key}» — не рятівний`;
+  for (const key of ['successes', 'failures']) {
+    const v = o[key];
+    if (v !== undefined && (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > DEATH_SAVES_LIMIT)) {
+      return `рятівних — від 0 до ${DEATH_SAVES_LIMIT}`;
+    }
+  }
+  return null;
+}
+
+/** Player (or GM) → server: a death saving throw, rolled at the table (F-058). */
+export interface DeathSave {
+  type: 'death-save';
+  character: string;
+  roll: number;
+  /** The sum the person worked out, when they count (ADR 0007) — a feat can add to it. */
+  said?: number;
+}
+
+export function parseDeathSave(data: unknown): DeathSave | string {
+  if (typeof data !== 'object' || data === null) return 'рятівний не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'death-save') return 'не рятівний від смерті';
+  const character = o['character'];
+  if (typeof character !== 'string' || character === '') return 'не вказано персонажа';
+  const problem = checkInitiativeRoll(o['roll']);
+  if (problem !== null) return problem;
+  const save: DeathSave = { type: 'death-save', character, roll: o['roll'] as number };
+  if (o['said'] !== undefined) {
+    const trouble = checkDeclaredTotal(o['said']);
+    if (trouble !== null) return trouble;
+    save.said = o['said'] as number;
+  }
+  return save;
+}
+
+/**
+ * What a death save does, by the book: 10 or more is a success, a natural 1 two
+ * failures, a natural 20 brings the character back with 1 hit point. The die decides
+ * the 1 and the 20; for the rest the person's number counts (ADR 0007).
+ */
+export function deathSaveOutcome(roll: number, said?: number): 'success' | 'failure' | 'double-failure' | 'revive' {
+  if (roll === 20) return 'revive';
+  if (roll === 1) return 'double-failure';
+  return (said ?? roll) >= 10 ? 'success' : 'failure';
+}
+
 /** Default port. Changed through HOLOTABLE_PORT. */
 export const DEFAULT_PORT = 7777;
 
@@ -582,7 +655,11 @@ function checkFields(changes: Record<string, unknown>): CharacterState | string 
   const checked: CharacterState = {};
   for (const [field, value] of Object.entries(changes)) {
     if (!isStateField(field)) return `поле «${field}» не можна міняти за столом`;
-    if (field === 'hitDiceUsed') {
+    if (field === 'deathSaves') {
+      const problem = checkDeathSaves(value);
+      if (problem !== null) return problem;
+      checked[field] = value as HitDiceUsed;
+    } else if (field === 'hitDiceUsed') {
       const problem = checkHitDiceUsed(value);
       if (problem !== null) return problem;
       checked[field] = value as HitDiceUsed;

@@ -135,6 +135,14 @@ try {
   } else {
     ok('F-057 хід Сандри для перевірки атаки', false, `зараз хід: ${turnNow}`);
   }
+  const nigraMax = sheets['nigra-4'].maxHitPoints;
+  gm.ws.send(JSON.stringify({ type: 'intent', character: 'nigra-4', changes: { hitPointsLost: nigraMax } }));
+  gm.ws.send(JSON.stringify({ type: 'death-save', character: 'nigra-4', roll: 7 }));
+  ok('F-058 рятівний від смерті на нулі ХП — провал записано',
+    await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.note === 'рятівний від смерті: 7 — провал')));
+  gm.ws.send(JSON.stringify({ type: 'intent', character: 'nigra-4', changes: { hitPointsLost: nigraMax - 1 } }));
+  ok('F-058 лікування скидає позначки тією самою подією',
+    await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.character === 'nigra-4' && m.event.changes.some((c) => c.field === 'deathSaves' && c.to.failures === 0))));
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');
