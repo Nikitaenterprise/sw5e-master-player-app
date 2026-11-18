@@ -1,0 +1,25 @@
+{
+  "character": "anam-melekh",
+  "name": "Анам Мелех",
+  "deployments": [
+    {
+      "name": "Mechanic",
+      "rank": 1,
+      "specialty": true,
+      "techniques": [
+        "Power Distribution",
+        "Reactor Boost"
+      ],
+      "ventures": [
+        "Resourceful Boost"
+      ]
+    }
+  ],
+  "notes": "З листа «Анам Мелех - МЗ.pdf». Ранг 1: дві техніки й одна авантюра — рівно те, що дає перший ранг.",
+  "holotable": {
+    "format": "deployment",
+    "version": 1,
+    "source": "PDF листа посади на «Мандрівній Зорі»",
+    "checked": "2026-11-18"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "character": "alister",
+  "name": "Алістер",
+  "deployments": [
+    {
+      "name": "Gunner",
+      "rank": 1,
+      "specialty": true,
+      "techniques": [
+        "Penetrating Shot",
+        "Disabling Shot"
+      ],
+      "ventures": [
+        "Force-Empowered Shooting"
+      ]
+    }
+  ],
+  "notes": "З листа «Алістер - МЗ.pdf». Ранг 1: дві техніки й одна авантюра — рівно те, що дає перший ранг.",
+  "holotable": {
+    "format": "deployment",
+    "version": 1,
+    "source": "PDF листа посади на «Мандрівній Зорі»",
+    "checked": "2026-11-18"
+  }
+}

@@ -92,16 +92,16 @@ export interface RawShipModification {
   notes?: string;
 }
 
-/** A crewmember: one of the party's characters at one of the six deployments. */
+/**
+ * A crewmember: one of the party's characters at one of the six stations. Which station
+ * they man is a fact about this ship, so it lives here; their rank in that deployment is
+ * a fact about them, so it lives in their own sheet — `state/characters/deployments/`.
+ * One place per fact, or the two files start disagreeing after the first level-up.
+ */
 export interface RawShipCrew {
   /** Character slug, the same one `state/characters/` uses: krinzh-dor, sandra-vong… */
   character: string;
   deployment: DeploymentName;
-  /**
-   * Ranks in that deployment. Matters because the crew's proficiency bonus only applies
-   * to the ship's rolls from rank 1 (Combat: "if you have at least one deployment rank").
-   */
-  rank?: number;
 }
 
 /**
@@ -263,8 +263,8 @@ export function checkRawShip(data: unknown): string[] {
         if (!DEPLOYMENTS.includes(member['deployment'] as DeploymentName)) {
           problems.push(`«${String(member['character'])}»: посада мусить бути однією з ${DEPLOYMENTS.join(', ')}`);
         }
-        if (member['rank'] !== undefined && (!isWholeNumber(member['rank']) || (member['rank'] as number) > 5)) {
-          problems.push(`«${String(member['character'])}»: ранг — ціле число від 0 до 5`);
+        if (member['rank'] !== undefined) {
+          problems.push(`«${String(member['character'])}»: ранг живе в state/characters/deployments/, не в листі корабля`);
         }
       }
     }

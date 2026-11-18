@@ -1,0 +1,25 @@
+{
+  "character": "krinzh-dor",
+  "name": "Крінж-Дор",
+  "deployments": [
+    {
+      "name": "Coordinator",
+      "rank": 1,
+      "specialty": true,
+      "techniques": [
+        "Overwhelming Presence",
+        "Watch Out"
+      ],
+      "ventures": [
+        "Tactical Superiority"
+      ]
+    }
+  ],
+  "notes": "З листа «Крінж-Дор - МЗ.pdf». Ранг 1: дві техніки й одна авантюра — рівно те, що дає перший ранг.",
+  "holotable": {
+    "format": "deployment",
+    "version": 1,
+    "source": "PDF листа посади на «Мандрівній Зорі»",
+    "checked": "2026-11-18"
+  }
+}

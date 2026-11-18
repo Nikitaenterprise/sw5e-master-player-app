@@ -15,55 +15,153 @@
     "Charisma": 12
   },
   "abilityScoreImprovements": [],
-  "savingThrowProficiencies": ["Strength", "Dexterity"],
-  "skillProficiencies": ["Astrogation"],
+  "savingThrowProficiencies": [
+    "Strength",
+    "Dexterity"
+  ],
+  "skillProficiencies": [
+    "Astrogation"
+  ],
   "skillExpertise": [],
   "equipment": [
-    { "name": "Deflection armor", "category": "armor", "quantity": 1, "equipped": true },
-    { "name": "Quick-Charge shield", "category": "shield", "quantity": 1, "equipped": true },
-    { "name": "Fuel cell reactor", "category": "reactor", "quantity": 1, "equipped": true },
-    { "name": "Hub & spoke power coupling", "category": "powerCoupling", "quantity": 1, "equipped": true },
-    { "name": "Hyperdrive, class 15", "category": "hyperdrive", "quantity": 1, "equipped": true },
+    {
+      "name": "Deflection armor",
+      "category": "armor",
+      "quantity": 1,
+      "equipped": true
+    },
+    {
+      "name": "Quick-Charge shield",
+      "category": "shield",
+      "quantity": 1,
+      "equipped": true
+    },
+    {
+      "name": "Fuel cell reactor",
+      "category": "reactor",
+      "quantity": 1,
+      "equipped": true
+    },
+    {
+      "name": "Hub & spoke power coupling",
+      "category": "powerCoupling",
+      "quantity": 1,
+      "equipped": true
+    },
+    {
+      "name": "Hyperdrive, class 15",
+      "category": "hyperdrive",
+      "quantity": 1,
+      "equipped": true
+    },
     {
       "name": "Laser cannon",
       "category": "weapon",
-      "quantity": 2,
+      "quantity": 1,
+      "equipped": true,
+      "mounting": "turret",
+      "upgrades": [
+        "Direct Controller"
+      ],
+      "notes": "Турельне кріплення одне на кораблі, тому турельна гармата теж одна. Прямий контролер стоїть на ній: саме турель наводять із крісла."
+    },
+    {
+      "name": "Laser cannon",
+      "category": "weapon",
+      "quantity": 1,
       "equipped": true,
       "mounting": "fixed",
-      "upgrades": ["Direct Controller"],
-      "notes": "На листі власника обидві гармати на нерухомих кріпленнях (використано 2 з 2), турельне кріплення встановлене, але порожнє. У таблиці спільноти ті самі гармати позначені турельними — див. docs/ЗВІРКА-КОРАБЛЯ.md, питання 5."
+      "notes": "Друга гармата на нерухомому кріпленні: обмежений сектор обстрілу."
     }
   ],
   "modifications": [
-    { "name": "Hyperdrive Slot", "quantity": 1 },
-    { "name": "Hyperdrive, Backup", "quantity": 1 },
-    { "name": "Navcomputer", "quantity": 1 },
-    { "name": "Equipment Room", "quantity": 1, "stock": true, "notes": "Дає +4 слоти модифікацій: 30 за розміром + 4 = 34." },
-    { "name": "Escape Pods", "quantity": 1 },
-    { "name": "Quarters, Living", "quantity": 1 },
-    { "name": "Storage Compartment", "quantity": 2, "notes": "Кожен додає базову місткість трюму Medium (25 тонн): 25 + 25 + 25 = 75." },
-    { "name": "Sublight Drive, Makeshift", "quantity": 1, "stock": true },
-    { "name": "Direct Controller", "quantity": 1 },
-    { "name": "Hardpoint", "quantity": 2 },
-    { "name": "Turret Mounting", "quantity": 1 }
+    {
+      "name": "Hyperdrive Slot",
+      "quantity": 1
+    },
+    {
+      "name": "Hyperdrive, Backup",
+      "quantity": 1
+    },
+    {
+      "name": "Navcomputer",
+      "quantity": 1
+    },
+    {
+      "name": "Equipment Room",
+      "quantity": 1,
+      "stock": true,
+      "notes": "Дає +4 слоти модифікацій: 30 за розміром + 4 = 34."
+    },
+    {
+      "name": "Escape Pods",
+      "quantity": 1
+    },
+    {
+      "name": "Quarters, Basic",
+      "quantity": 1,
+      "notes": "Селить удвічі більше за місткість сюїти Medium (4), тобто вісьмох: пʼятеро постійних і місце для Кела чи Сіра Жопса. Living селив би тільки чотирьох. Ціна та сама — обидві сюїти нульового ґрейду."
+    },
+    {
+      "name": "Storage Compartment",
+      "quantity": 2,
+      "notes": "Кожен додає базову місткість трюму Medium (25 тонн): 25 + 25 + 25 = 75."
+    },
+    {
+      "name": "Sublight Drive, Makeshift",
+      "quantity": 1,
+      "stock": true
+    },
+    {
+      "name": "Direct Controller",
+      "quantity": 1
+    },
+    {
+      "name": "Hardpoint",
+      "quantity": 2
+    },
+    {
+      "name": "Turret Mounting",
+      "quantity": 1
+    }
   ],
   "crew": [
-    { "character": "nigra-4", "deployment": "Pilot" },
-    { "character": "alister", "deployment": "Gunner" },
-    { "character": "anam-melekh", "deployment": "Mechanic" },
-    { "character": "sandra-vong", "deployment": "Operator" },
-    { "character": "krinzh-dor", "deployment": "Coordinator" }
+    {
+      "character": "nigra-4",
+      "deployment": "Pilot"
+    },
+    {
+      "character": "alister",
+      "deployment": "Gunner"
+    },
+    {
+      "character": "anam-melekh",
+      "deployment": "Mechanic"
+    },
+    {
+      "character": "sandra-vong",
+      "deployment": "Operator"
+    },
+    {
+      "character": "krinzh-dor",
+      "deployment": "Coordinator"
+    }
   ],
   "currentStats": {
     "hullPointsLost": 0,
     "shieldPointsLost": 0,
     "fuelUsed": 0,
-    "hullDiceUsed": { "d8": 0 },
-    "powerDiceUsed": { "central": 0, "systems": {} },
+    "hullDiceUsed": {
+      "d8": 0
+    },
+    "powerDiceUsed": {
+      "central": 0,
+      "systems": {}
+    },
     "conditions": [],
     "featuresTimesUsed": {}
   },
-  "notes": "Лист зібрано з PDF власника (Листы персонажа/Мандрівна Зоря.pdf) і таблиці спільноти Starship Example. Рангів у посадах ніхто з екіпажу поки не має — поля rank немає, і це означає 0: без рангу бонус майстерності гравця не додається до кидків корабля (Combat, «if you have at least one deployment rank»). Звірка з книгою і знайдені розбіжності — docs/ЗВІРКА-КОРАБЛЯ.md.",
+  "notes": "Лист зібрано з PDF власника (Листы персонажа/Мандрівна Зоря.pdf) і таблиці спільноти, звірено з SotG у vendor/ і виправлено 18.11.2026: каюти Basic замість Living (селять вісьмох, а не чотирьох), одна з двох гармат турельна — бо турельне кріплення одне. Ранги посад екіпажу — у state/characters/deployments/. Звірка й розбіжності — docs/ЗВІРКА-КОРАБЛЯ.md.",
   "holotable": {
     "format": "ship",
     "version": 1,

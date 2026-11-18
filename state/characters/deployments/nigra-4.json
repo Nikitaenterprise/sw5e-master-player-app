@@ -1,0 +1,25 @@
+{
+  "character": "nigra-4",
+  "name": "Нигра 4 (Даг Меорі)",
+  "deployments": [
+    {
+      "name": "Pilot",
+      "rank": 1,
+      "specialty": true,
+      "techniques": [
+        "Break the Lock",
+        "Skim the Surface"
+      ],
+      "ventures": [
+        "Slippery Pilot"
+      ]
+    }
+  ],
+  "notes": "З листа «Нигра 4 (Даг Меорі) - МЗ.pdf». Ранг 1: дві техніки й одна авантюра — рівно те, що дає перший ранг.",
+  "holotable": {
+    "format": "deployment",
+    "version": 1,
+    "source": "PDF листа посади на «Мандрівній Зорі»",
+    "checked": "2026-11-18"
+  }
+}
