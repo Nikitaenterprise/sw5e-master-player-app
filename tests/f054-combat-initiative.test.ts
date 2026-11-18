@@ -67,7 +67,13 @@ async function screen(port: number, hello: object): Promise<Screen> {
   const got: FromServer[] = [];
   socket.on('message', (b) => got.push(JSON.parse(b.toString('utf8')) as FromServer));
   socket.on('error', () => undefined);
-  await new Promise((r) => socket.on('open', r));
+  // Bounded, like every other wait here: a socket that never opens fails with its own
+  // message instead of the whole test's silent timeout.
+  await new Promise<void>((resolve, reject) => {
+    const clock = setTimeout(() => reject(new Error('екран не підключився за 8 с')), 8000);
+    socket.once('open', () => { clearTimeout(clock); resolve(); });
+    socket.once('close', () => { clearTimeout(clock); reject(new Error('зʼєднання закрилось до підключення')); });
+  });
   socket.send(JSON.stringify({ type: 'hello', ...hello }));
   await until(() => got.some((m) => m.type === 'combat'));
   cleanup.push(() => socket.terminate());
@@ -320,8 +326,9 @@ describe('F-054 · бій: ініціатива і чий хід', () => {
     // Power cut: no shutdown, no flush, no goodbye. What the screen was shown is on disk,
     // because the line is appended and fsynced before anyone hears about it.
     const seen = gm.combat();
+    const exited = new Promise((r) => child.once('exit', r));
     child.kill('SIGKILL');
-    await new Promise((r) => child.once('exit', r));
+    await exited;
 
     server = await start(0, options(dir));
     const back = await screen(server.port, { role: 'gm' });
@@ -330,7 +337,10 @@ describe('F-054 · бій: ініціатива і чий хід', () => {
 
     // And a line cut off mid-write — the one event a power cut may cost — does not take
     // the fight with it.
-    await server.close();
+    await Promise.race([
+      server.close(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('сервер не закрився за 8 с')), 8000)),
+    ]);
     appendFileSync(join(dir, 'session-01.jsonl'), '{"id":"cut","type":"combat.ro', 'utf8');
     server = await start(0, options(dir));
     const afterTear = await screen(server.port, { role: 'gm' });
