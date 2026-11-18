@@ -1,0 +1,73 @@
+{
+  "name": "Мандрівна Зоря",
+  "slug": "mandrivna-zorya",
+  "model": "YT-1300f",
+  "manufacturer": "Верфі Кариди",
+  "size": "Medium",
+  "tier": 0,
+  "role": "Freighter",
+  "baseAbilityScores": {
+    "Strength": 13,
+    "Dexterity": 12,
+    "Constitution": 13,
+    "Intelligence": 12,
+    "Wisdom": 13,
+    "Charisma": 12
+  },
+  "abilityScoreImprovements": [],
+  "savingThrowProficiencies": ["Strength", "Dexterity"],
+  "skillProficiencies": ["Astrogation"],
+  "skillExpertise": [],
+  "equipment": [
+    { "name": "Deflection armor", "category": "armor", "quantity": 1, "equipped": true },
+    { "name": "Quick-Charge shield", "category": "shield", "quantity": 1, "equipped": true },
+    { "name": "Fuel cell reactor", "category": "reactor", "quantity": 1, "equipped": true },
+    { "name": "Hub & spoke power coupling", "category": "powerCoupling", "quantity": 1, "equipped": true },
+    { "name": "Hyperdrive, class 15", "category": "hyperdrive", "quantity": 1, "equipped": true },
+    {
+      "name": "Laser cannon",
+      "category": "weapon",
+      "quantity": 2,
+      "equipped": true,
+      "mounting": "fixed",
+      "upgrades": ["Direct Controller"],
+      "notes": "На листі власника обидві гармати на нерухомих кріпленнях (використано 2 з 2), турельне кріплення встановлене, але порожнє. У таблиці спільноти ті самі гармати позначені турельними — див. docs/ЗВІРКА-КОРАБЛЯ.md, питання 5."
+    }
+  ],
+  "modifications": [
+    { "name": "Hyperdrive Slot", "quantity": 1 },
+    { "name": "Hyperdrive, Backup", "quantity": 1 },
+    { "name": "Navcomputer", "quantity": 1 },
+    { "name": "Equipment Room", "quantity": 1, "stock": true, "notes": "Дає +4 слоти модифікацій: 30 за розміром + 4 = 34." },
+    { "name": "Escape Pods", "quantity": 1 },
+    { "name": "Quarters, Living", "quantity": 1 },
+    { "name": "Storage Compartment", "quantity": 2, "notes": "Кожен додає базову місткість трюму Medium (25 тонн): 25 + 25 + 25 = 75." },
+    { "name": "Sublight Drive, Makeshift", "quantity": 1, "stock": true },
+    { "name": "Direct Controller", "quantity": 1 },
+    { "name": "Hardpoint", "quantity": 2 },
+    { "name": "Turret Mounting", "quantity": 1 }
+  ],
+  "crew": [
+    { "character": "nigra-4", "deployment": "Pilot" },
+    { "character": "alister", "deployment": "Gunner" },
+    { "character": "anam-melekh", "deployment": "Mechanic" },
+    { "character": "sandra-vong", "deployment": "Operator" },
+    { "character": "krinzh-dor", "deployment": "Coordinator" }
+  ],
+  "currentStats": {
+    "hullPointsLost": 0,
+    "shieldPointsLost": 0,
+    "fuelUsed": 0,
+    "hullDiceUsed": { "d8": 0 },
+    "powerDiceUsed": { "central": 0, "systems": {} },
+    "conditions": [],
+    "featuresTimesUsed": {}
+  },
+  "notes": "Лист зібрано з PDF власника (Листы персонажа/Мандрівна Зоря.pdf) і таблиці спільноти Starship Example. Рангів у посадах ніхто з екіпажу поки не має — поля rank немає, і це означає 0: без рангу бонус майстерності гравця не додається до кидків корабля (Combat, «if you have at least one deployment rank»). Звірка з книгою і знайдені розбіжності — docs/ЗВІРКА-КОРАБЛЯ.md.",
+  "holotable": {
+    "format": "ship",
+    "version": 1,
+    "source": "PDF власника + таблиця спільноти (List of Ships, аркуш «Мандрівна Зоря»), звірено з SotG у vendor/",
+    "checked": "2026-11-18"
+  }
+}
