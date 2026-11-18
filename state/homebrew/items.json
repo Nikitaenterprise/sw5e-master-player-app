@@ -1,13 +1,14 @@
 {
-  "_help": "Хомбрю-предмети: назва предмета (як у листі, без різниці великих літер і пробілів на краях) → які ефекти він дає. target — на що: ability:Dexterity, skill:Persuasion, save:Wisdom, armorClass, initiative, attacks. bonus — число, АБО mode — advantage/disadvantage. until — fight (до кінця бою), short-rest, long-rest, manual (поки не знімуть). Після зміни перезапусти ЗАПУСТИТИ.bat.",
+  "_help": "Хомбрю-предмети: назва предмета (як у листі, без різниці великих літер і пробілів на краях) → які ефекти він дає. target — на що: ability:Dexterity, skill:Persuasion, save:Wisdom, armorClass, initiative, attacks. bonus — число, АБО mode — advantage/disadvantage. until — fight (до кінця бою), short-rest, long-rest, manual (поки не знімуть), rounds (тоді ще rounds — скільки раундів). consumable: false — предмет не витрачається (браслет); без нього — витрачається, мінус один за раз. Після зміни перезапусти ЗАПУСТИТИ.bat.",
   "items": {
     "Стимулятор": {
-      "note": "+2 Dexterity на 5 раундів (до кінця бою — зніми раніше, якщо бій довший)",
+      "note": "+2 Dexterity на 5 раундів",
       "effects": [
         {
           "target": "ability:Dexterity",
           "bonus": 2,
-          "until": "fight"
+          "until": "rounds",
+          "rounds": 5
         }
       ]
     },
@@ -43,6 +44,7 @@
     },
     "Bracelet": {
       "note": "+3 до КБ до кінця наступного ходу, раз на день — зніми після ходу",
+      "consumable": false,
       "effects": [
         {
           "target": "armorClass",

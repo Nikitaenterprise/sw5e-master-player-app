@@ -27,4 +27,5 @@ export const LABELS: Record<StateField, string> = {
   hitDiceUsed: 'Витрачено кубиків здоровʼя',
   deathSaves: 'Рятівні від смерті',
   holotableEffects: 'Ефекти',
+  holotableItemsUsed: 'Витрачені предмети',
 };

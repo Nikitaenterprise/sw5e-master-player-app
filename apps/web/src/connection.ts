@@ -190,6 +190,8 @@ export interface Controls {
   turnDone: () => void;
   /** A death saving throw (F-058). */
   deathSave: (character: string, roll: number, said?: number) => void;
+  /** Use a homebrew item; `spend: false` — the GM puts its effects on without using one up (F-067). */
+  useItem: (character: string, item: string, spend: boolean) => void;
   /**
    * Cut or restore the connection on purpose, as a wifi drop would (the four-screen
    * demo's button). The page stays, and so does its queue of unsent changes.
@@ -423,6 +425,11 @@ export function connect(
     attackRoll: (whom, weapon, roll, said) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'attack-roll', character: whom, weapon, roll, ...(said === undefined ? {} : { said }) };
+      socket.send(JSON.stringify(message));
+    },
+    useItem: (whom, item, spend) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'use-item', character: whom, item, spend };
       socket.send(JSON.stringify(message));
     },
     deathSave: (whom, roll, said) => {

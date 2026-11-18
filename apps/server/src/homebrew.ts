@@ -6,20 +6,19 @@
 // simply give nothing until it is fixed.
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { checkEffects, type HolotableEffect, type HomebrewItem } from '@holotable/protocol';
+import { checkEffects, itemKey as key, type HomebrewItem } from '@holotable/protocol';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 
 /** An item's effects as the file states them: everything but the id and the source. */
-export type ItemEffect = Omit<HolotableEffect, 'id' | 'source'>;
+export type ItemEffect = HomebrewItem['effects'][number];
 
 export interface Homebrew {
   /** By the item's name, trimmed and lower-cased (docs/ПАСТКИ-ДАНИХ.md, trap 12). */
-  items: Map<string, { name: string; note: string; effects: ItemEffect[] }>;
+  items: Map<string, { name: string; note: string; consumable: boolean; effects: ItemEffect[] }>;
   problems: string[];
 }
 
 export const homebrewFile = (stateDir: string): string => join(stateDir, 'homebrew', 'items.json');
-const key = (name: string): string => name.trim().toLowerCase();
 
 export function loadHomebrew(stateDir: string): Homebrew {
   const out: Homebrew = { items: new Map(), problems: [] };
@@ -48,11 +47,21 @@ export function loadHomebrew(stateDir: string): Homebrew {
       out.problems.push(`предмет «${name}»: ${problem}`);
       continue;
     }
+    const consumable = (raw as { consumable?: unknown }).consumable;
+    if (consumable !== undefined && typeof consumable !== 'boolean') {
+      out.problems.push(`предмет «${name}»: «consumable» — true або false`);
+      continue;
+    }
     out.items.set(key(name), {
       name,
       note: String((raw as { note?: unknown }).note ?? ''),
-      effects: (effects as ItemEffect[]).map(({ target, bonus, mode, until }) => ({
-        target, until, ...(bonus === undefined ? {} : { bonus }), ...(mode === undefined ? {} : { mode }),
+      // Used up by default: most homebrew at this table is stimulants and cigarettes.
+      consumable: consumable ?? true,
+      effects: (effects as ItemEffect[]).map(({ target, bonus, mode, until, rounds }) => ({
+        target, until,
+        ...(bonus === undefined ? {} : { bonus }),
+        ...(mode === undefined ? {} : { mode }),
+        ...(rounds === undefined ? {} : { rounds }),
       })),
     });
   }
@@ -67,7 +76,13 @@ export function itemsOf(raw: RawCharacter, homebrew: Homebrew): HomebrewItem[] {
     const known = homebrew.items.get(key(item.name));
     if (known === undefined) continue;
     const quantity = Number(item.quantity ?? 1);
-    out.push({ name: item.name.trim(), quantity: Number.isFinite(quantity) ? quantity : 1, note: known.note, effects: known.effects });
+    out.push({
+      name: item.name.trim(),
+      quantity: Number.isFinite(quantity) ? quantity : 1,
+      note: known.note,
+      consumable: known.consumable,
+      effects: known.effects,
+    });
   }
   return out;
 }

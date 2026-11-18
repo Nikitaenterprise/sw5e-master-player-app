@@ -153,6 +153,10 @@ try {
   ok('F-066 хомбрю-предмети: файл без помилок, Стимулятор у Нигри, Bracelet у Крінж-Дора',
     brew?.problems?.length === 0 && brew.items['nigra-4']?.some((i) => i.name === 'Стимулятор')
       && brew.items['krinzh-dor']?.some((i) => i.name === 'Bracelet'));
+  p2.ws.send(JSON.stringify({ type: 'use-item', character: 'nigra-4', item: 'Стимулятор' }));
+  ok('F-067 Нигра використала Стимулятор з телефона: витрачено 1, ефект на 5 раундів',
+    await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.note === 'використано: Стимулятор'
+      && m.state.holotableItemsUsed?.['стимулятор'] === 1 && m.state.holotableEffects?.some((e) => e.until === 'rounds'))));
   const comp = gm.got.find((m) => m.type === 'companions');
   ok('F-039 дроїд Нигри приходить окремо від партії, з правилами книги',
     comp?.companions?.['nigra-4-droid']?.name === 'BOBR-1488' && comp.rules.length === 2

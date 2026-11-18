@@ -70,7 +70,8 @@ export type ToServer =
   | EnemyConditions
   | AttackRoll
   | TurnDone
-  | DeathSave;
+  | DeathSave
+  | UseItem;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -153,6 +154,9 @@ export const STATE_FIELDS = [
   'deathSaves',
   // Ours, not sw5e.com's — so in the holotable namespace (ADR 0001). F-065.
   'holotableEffects',
+  // How many of each homebrew item are used up, by the item's key (F-067). The sheet's
+  // own quantity stays as sw5e.com wrote it; what is left is that minus this.
+  'holotableItemsUsed',
 ] as const;
 
 export type StateField = (typeof STATE_FIELDS)[number];
@@ -178,8 +182,15 @@ export interface HolotableEffect {
   target: string;
   bonus?: number;
   mode?: 'advantage' | 'disadvantage';
-  /** When it ends by itself: with the fight, with a rest — or only when someone takes it off. */
-  until: 'fight' | 'short-rest' | 'long-rest' | 'manual';
+  /** When it ends by itself: with the fight, with a rest, after some rounds — or only when someone takes it off. */
+  until: 'fight' | 'short-rest' | 'long-rest' | 'manual' | 'rounds';
+  /** For `until: 'rounds'`: how many rounds it lasts (F-067). */
+  rounds?: number;
+  /**
+   * For `until: 'rounds'`, put on during a fight: the round whose start ends it. Put on
+   * outside a fight, it has none and ends with the next fight.
+   */
+  endsAtRound?: number;
 }
 
 const ABILITY_NAMES = ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'];
@@ -217,7 +228,13 @@ export function checkEffects(value: unknown): string | null {
       return 'бонус ефекту — ціле число від −20 до 20, не нуль';
     }
     if (mode !== undefined && mode !== 'advantage' && mode !== 'disadvantage') return 'перевага чи недолік — одне з двох';
-    if (!['fight', 'short-rest', 'long-rest', 'manual'].includes(String(e['until']))) return 'до коли діє ефект — не зрозуміло';
+    if (!['fight', 'short-rest', 'long-rest', 'manual', 'rounds'].includes(String(e['until']))) return 'до коли діє ефект — не зрозуміло';
+    const rounds = e['rounds'];
+    if (e['until'] === 'rounds' && (typeof rounds !== 'number' || !Number.isInteger(rounds) || rounds < 1 || rounds > 100)) {
+      return 'скільки раундів діє ефект — ціле число від 1 до 100';
+    }
+    const ends = e['endsAtRound'];
+    if (ends !== undefined && (typeof ends !== 'number' || !Number.isInteger(ends) || ends < 1)) return 'раунд кінця ефекту — ціле число';
   }
   return null;
 }
@@ -240,12 +257,27 @@ export const UNTIL_TEXT: Record<HolotableEffect['until'], string> = {
   'short-rest': 'до відпочинку',
   'long-rest': 'до довгого відпочинку',
   manual: 'поки не знімуть',
+  rounds: 'кілька раундів',
 };
+
+/** A number of rounds with the noun in the right Ukrainian plural form. */
+export const roundsText = (n: number): string => {
+  const last = n % 10;
+  const teen = n % 100 >= 11 && n % 100 <= 14;
+  return `${n} ${!teen && last === 1 ? 'раунд' : !teen && last >= 2 && last <= 4 ? 'раунди' : 'раундів'}`;
+};
+
+/** Until when, in words — for rounds with the round it ends at, once that is known. */
+export function untilText(e: Pick<HolotableEffect, 'until' | 'rounds' | 'endsAtRound'>): string {
+  if (e.until !== 'rounds') return UNTIL_TEXT[e.until];
+  const n = roundsText(e.rounds ?? 1);
+  return e.endsAtRound === undefined ? `на ${n}` : `на ${n}, до раунду ${e.endsAtRound}`;
+}
 
 /** One effect in one line: its source, its target, what it gives and until when. */
 export function effectText(e: HolotableEffect, skill?: (english: string) => string): string {
   const what = e.bonus !== undefined ? `${e.bonus > 0 ? '+' : ''}${e.bonus}` : e.mode === 'advantage' ? 'перевага' : 'недолік';
-  return `${e.source}: ${effectTargetText(e.target, skill)} ${what} · ${UNTIL_TEXT[e.until]}`;
+  return `${e.source}: ${effectTargetText(e.target, skill)} ${what} · ${untilText(e)}`;
 }
 
 /**
@@ -257,7 +289,9 @@ export interface HomebrewItem {
   quantity: number;
   /** The owner's one-line reminder of what it does. */
   note: string;
-  effects: Omit<HolotableEffect, 'id' | 'source'>[];
+  /** Used up when used — a stimulant; or not — a bracelet (F-067). */
+  consumable: boolean;
+  effects: Omit<HolotableEffect, 'id' | 'source' | 'endsAtRound'>[];
 }
 
 /** Server → everyone on connect: each character's homebrew items with effects. */
@@ -268,10 +302,67 @@ export interface HomebrewMessage {
   problems: string[];
 }
 
+/** Effects still on once this round has started: those counted in rounds end on theirs (F-067). */
+export function effectsAtRound(list: HolotableEffect[], round: number): HolotableEffect[] {
+  return list.filter((e) => e.until !== 'rounds' || e.endsAtRound === undefined || round < e.endsAtRound);
+}
+
+/** How an item's name is matched: the exports carry "Bracelet " with a trailing space. */
+export const itemKey = (name: string): string => name.trim().toLowerCase();
+
+/** How many of this item are left: the sheet's quantity less what was used (F-067). */
+export function itemsLeft(item: HomebrewItem, used: StateValue | undefined): number {
+  const spent = typeof used === 'object' && used !== null && !Array.isArray(used) ? ((used as Record<string, number>)[itemKey(item.name)] ?? 0) : 0;
+  return Math.max(0, item.quantity - spent);
+}
+
+/**
+ * The effects of using an item, ready to go on: each with its own id and the item's
+ * name as its source; those counted in rounds learn their last round when there is a
+ * fight to count in.
+ */
+export function itemEffects(item: HomebrewItem, round: number | null, makeId: () => string): HolotableEffect[] {
+  return item.effects.map((e) => ({
+    ...e,
+    id: makeId(),
+    source: item.name,
+    ...(e.until === 'rounds' && round !== null ? { endsAtRound: round + (e.rounds ?? 1) } : {}),
+  }));
+}
+
+/** Player or GM → server: use a homebrew item (F-067). `spend: false` — the GM puts its effects on without using one up. */
+export interface UseItem {
+  type: 'use-item';
+  character: string;
+  item: string;
+  spend?: boolean;
+}
+
+export function parseUseItem(data: unknown): UseItem | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'use-item') return 'не використання предмета';
+  if (typeof o['character'] !== 'string' || o['character'] === '') return 'не вказано персонажа';
+  if (typeof o['item'] !== 'string' || o['item'].trim() === '' || o['item'].length > 120) return 'не вказано предмета';
+  if (o['spend'] !== undefined && typeof o['spend'] !== 'boolean') return '«витратити» — так або ні';
+  return { type: 'use-item', character: o['character'], item: o['item'], ...(o['spend'] === undefined ? {} : { spend: o['spend'] }) };
+}
+
+/** Used-up items: a map from the item's key to how many, each a whole number from zero. */
+export function checkItemsUsed(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'витрачені предмети — мапа «предмет → скільки»';
+  for (const [name, used] of Object.entries(value as Record<string, unknown>)) {
+    if (name === '' || name.length > 120) return 'назва предмета — від 1 до 120 знаків';
+    if (typeof used !== 'number' || !Number.isInteger(used) || used < 0) return `витрачено «${name}» — ціле невідʼємне число`;
+  }
+  return null;
+}
+
 /** Effects that end with this: the fight, or a rest (a long rest ends the short-rest ones too). */
 export function effectsAfter(list: HolotableEffect[], ending: 'fight' | 'short' | 'long'): HolotableEffect[] {
   return list.filter((e) => {
-    if (ending === 'fight') return e.until !== 'fight';
+    // Rounds only run inside a fight: whatever is left of them ends with it.
+    if (ending === 'fight') return e.until !== 'fight' && e.until !== 'rounds';
     if (ending === 'short') return e.until !== 'short-rest';
     return e.until !== 'short-rest' && e.until !== 'long-rest';
   });
@@ -810,6 +901,10 @@ function checkFields(changes: Record<string, unknown>): CharacterState | string 
       checked[field] = value as HolotableEffect[];
     } else if (field === 'deathSaves') {
       const problem = checkDeathSaves(value);
+      if (problem !== null) return problem;
+      checked[field] = value as HitDiceUsed;
+    } else if (field === 'holotableItemsUsed') {
+      const problem = checkItemsUsed(value);
       if (problem !== null) return problem;
       checked[field] = value as HitDiceUsed;
     } else if (field === 'hitDiceUsed') {

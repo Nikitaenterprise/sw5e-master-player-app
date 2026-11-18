@@ -12,12 +12,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
-import type { FromServer, HomebrewItem } from '../packages/protocol/src/index.js';
+import { itemEffects, type FromServer, type HomebrewItem } from '../packages/protocol/src/index.js';
 import type { RawCharacter } from '../packages/schema/src/rawCharacter.js';
 import { loadHomebrew, itemsOf, homebrewFile } from '../apps/server/src/homebrew.js';
 import { computeSummaries } from '../apps/server/src/sheets.js';
 import { start, type Server } from '../apps/server/src/index.js';
-import { Card, Effects, withItem } from '../apps/web/src/App.js';
+import { Card, Effects } from '../apps/web/src/App.js';
 
 const root = join(import.meta.dirname, '..');
 const STATE = join(root, 'state');
@@ -55,7 +55,7 @@ describe('F-066 · хомбрю-предмети з ефектами', () => {
     expect(itemsOf(raw('nigra-4'), homebrew).map((i) => i.name)).toEqual(['Стимулятор']);
     expect(itemsOf(raw('alister'), homebrew)).toEqual([]);
     const stim = itemsOf(raw('nigra-4'), homebrew)[0] as HomebrewItem;
-    expect(stim.effects).toEqual([{ target: 'ability:Dexterity', bonus: 2, until: 'fight' }]);
+    expect(stim.effects).toEqual([{ target: 'ability:Dexterity', bonus: 2, until: 'rounds', rounds: 5 }]);
   });
 
   it('зламаний предмет названо, решта працює; зламаний файл — сервер усе одно стартує', async () => {
@@ -98,19 +98,20 @@ describe('F-066 · хомбрю-предмети з ефектами', () => {
   it('екрани: у майстра «накласти» кладе всі ефекти предмета; коли діє — кнопка каже «діє»; у гравця без кнопок', () => {
     const items = itemsOf(raw('sandra-vong'), loadHomebrew(STATE));
     const sheet = computeSummaries(root, CHARACTERS)['sandra-vong'];
-    const card = renderToStaticMarkup(createElement(Card, { slug: 'sandra-vong', sheet, state: {}, setEffects: () => undefined, items }));
+    const card = renderToStaticMarkup(createElement(Card, { slug: 'sandra-vong', sheet, state: {}, setEffects: () => undefined, items, useItem: () => undefined }));
     expect(card).toContain('Cigarettes');
     expect(card).toContain('>накласти</button>');
 
     // The click itself: what goes to the server is the item's effects — the cough, as the
     // sheet describes smoking — each named after the item.
     const cig = items.find((i) => i.name === 'Cigarettes') as HomebrewItem;
-    const sent = withItem([], cig);
+    let n = 0;
+    const sent = itemEffects(cig, null, () => `id-${++n}`);
     expect(sent.map((e) => [e.target, e.mode])).toEqual([['skill:Acrobatics', 'disadvantage'], ['skill:Athletics', 'disadvantage']]);
     expect(sent.every((e) => e.source === 'Cigarettes')).toBe(true);
     expect(new Set(sent.map((e) => e.id)).size, 'у кожного свій id').toBe(2);
 
-    const on = renderToStaticMarkup(createElement(Effects, { list: sent, set: () => undefined, items: [cig] }));
+    const on = renderToStaticMarkup(createElement(Effects, { list: sent, set: () => undefined, items: [cig], use: () => undefined, spend: false }));
     expect(on).toContain('disabled="">діє</button>');
     const phone = renderToStaticMarkup(createElement(Effects, { list: [], items: [cig] }));
     expect(phone).toContain('Cigarettes');

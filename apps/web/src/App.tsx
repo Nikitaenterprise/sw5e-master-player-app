@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, CompanionSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, CompanionSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, effectText, effectTargetText, EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, effectText, effectTargetText, itemsLeft, EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
@@ -126,6 +126,7 @@ export function App(): JSX.Element {
                   {...companionOf(snapshot, slug, (c, changes) => controls.current?.sendChange(c, changes))}
                   setEffects={(list) => controls.current?.sendChange(slug, { holotableEffects: list })}
                   items={snapshot.homebrew[slug] ?? []}
+                  useItem={(item) => controls.current?.useItem(slug, item.name, false)}
                 />
               ))}
           </div>
@@ -272,6 +273,8 @@ function PlayerSheet({
       <Effects
         list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
         items={snapshot.homebrew[character] ?? []}
+        {...(state.holotableItemsUsed === undefined ? {} : { used: state.holotableItemsUsed })}
+        use={(item) => controls.current?.useItem(character, item.name, true)}
       />
       {(() => {
         const mine = companionOf(snapshot, character, (c, changes) => controls.current?.sendChange(c, changes)).companion;
@@ -750,12 +753,6 @@ function RollMode({ mode }: { mode: 'advantage' | 'disadvantage' | 'both' | unde
   return <i className={`roll-mode ${mode}`} title={words}>{mark}</i>;
 }
 
-/** The effects with all of this item's effects added, each named after the item (F-066). */
-export const withItem = (list: HolotableEffect[], item: HomebrewItem): HolotableEffect[] => [
-  ...list,
-  ...item.effects.map((e) => ({ ...e, id: effectId(), source: item.name })),
-];
-
 const effectId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 /**
@@ -768,11 +765,20 @@ export function Effects({
   list,
   set,
   items = [],
+  used,
+  use,
+  spend = true,
 }: {
   list: HolotableEffect[];
   set?: (list: HolotableEffect[]) => void;
-  /** Homebrew items with effects (F-066): the GM puts an item's effects on in one click. */
+  /** Homebrew items with effects (F-066). */
   items?: HomebrewItem[];
+  /** How many of each are used up (F-067). */
+  used?: StateValue;
+  /** Use an item — or, for the GM, put its effects on without using one up (F-067). */
+  use?: (item: HomebrewItem) => void;
+  /** Whether `use` uses one up: on the player's phone it does, on the GM's card it does not. */
+  spend?: boolean;
 }): JSX.Element | null {
   const term = useTerm();
   const skill = (x: string): string => term('skill', x);
@@ -782,6 +788,7 @@ export function Effects({
   const [kind, setKind] = useState<'bonus' | 'advantage' | 'disadvantage'>('bonus');
   const [bonus, setBonus] = useState('1');
   const [until, setUntil] = useState<HolotableEffect['until']>('fight');
+  const [rounds, setRounds] = useState('1');
   const [problem, setProblem] = useState<string | null>(null);
   if (list.length === 0 && set === undefined && items.length === 0) return null;
   // An item's effects are on when every one of them is: the button then says so.
@@ -793,15 +800,15 @@ export function Effects({
           {items.map((item) => (
             <span key={item.name} className="homebrew-item" title={item.effects.map((e) => effectText({ ...e, id: '', source: item.name }, skill)).join('\n')}>
               {item.name}
-              {item.quantity !== 1 && <small> ×{item.quantity}</small>}
+              {item.consumable ? <small> ×{itemsLeft(item, used)}</small> : item.quantity !== 1 && <small> ×{item.quantity}</small>}
               {item.note !== '' && <small className="item-note"> — {item.note}</small>}
-              {set !== undefined && (
+              {use !== undefined && (
                 <button
                   type="button"
-                  disabled={isOn(item)}
-                  onClick={() => set(withItem(list, item))}
+                  disabled={isOn(item) || (spend && item.consumable && itemsLeft(item, used) === 0)}
+                  onClick={() => use(item)}
                 >
-                  {isOn(item) ? 'діє' : 'накласти'}
+                  {isOn(item) ? 'діє' : spend ? (item.consumable && itemsLeft(item, used) === 0 ? 'закінчився' : 'використати') : 'накласти'}
                 </button>
               )}
             </span>
@@ -837,9 +844,16 @@ export function Effects({
               setProblem('бонус — ціле число від −20 до 20, не нуль');
               return;
             }
+            const r = Number(rounds);
+            if (until === 'rounds' && (!Number.isInteger(r) || r < 1 || r > 100)) {
+              setProblem('скільки раундів — ціле число від 1 до 100');
+              return;
+            }
+            // In a fight, the server works out the round it ends at (F-067).
             const effect: HolotableEffect = {
               id: effectId(), source: source.trim(), target, until,
               ...(kind === 'bonus' ? { bonus: n } : { mode: kind }),
+              ...(until === 'rounds' ? { rounds: r } : {}),
             };
             set([...list, effect]);
             setOpen(false);
@@ -866,6 +880,9 @@ export function Effects({
               <option key={u} value={u}>{UNTIL_TEXT[u]}</option>
             ))}
           </select>
+          {until === 'rounds' && (
+            <input type="number" value={rounds} onChange={(e) => setRounds(e.target.value)} aria-label="Скільки раундів" />
+          )}
           <button type="submit">накласти</button>
           <button type="button" onClick={() => setOpen(false)}>скасувати</button>
           {problem !== null && <span className="refusal">{problem}</span>}
@@ -1912,6 +1929,7 @@ export function Card({
   companion,
   setEffects,
   items,
+  useItem,
 }: {
   slug: string;
   state: CharacterState;
@@ -1925,6 +1943,8 @@ export function Card({
   setEffects?: (list: HolotableEffect[]) => void;
   /** Homebrew items the character carries that give effects (F-066). */
   items?: HomebrewItem[];
+  /** The GM puts an item's effects on, without using one up (F-067). */
+  useItem?: (item: HomebrewItem) => void;
 }): JSX.Element {
   const term = useTerm();
   const conditions = (Array.isArray(state.conditions) ? state.conditions : []) as string[];
@@ -2116,6 +2136,9 @@ export function Card({
         list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
         {...(setEffects === undefined ? {} : { set: setEffects })}
         {...(items === undefined ? {} : { items })}
+        {...(state.holotableItemsUsed === undefined ? {} : { used: state.holotableItemsUsed })}
+        {...(useItem === undefined ? {} : { use: useItem })}
+        spend={false}
       />
       <ExhaustionLine level={exhaustion} />
       {setConditions !== undefined ? (

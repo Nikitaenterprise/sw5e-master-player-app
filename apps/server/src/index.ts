@@ -40,6 +40,11 @@ import {
   type HolotableEffect,
   type GameEvent,
   effectsAfter,
+  effectsAtRound,
+  itemEffects,
+  itemKey,
+  itemsLeft,
+  parseUseItem,
   sessionCommitMessage,
   rebase,
   parseGlossarySet,
@@ -398,6 +403,17 @@ export async function start(
             return;
           }
           result = combat.move(authorOf(), turn.direction);
+          // A new round may end effects counted in rounds (F-067) — "a stimulant for 5 rounds".
+          const round = combat.view()?.round;
+          if (typeof result !== 'string' && round !== undefined) {
+            for (const slug of state.party()) {
+              const list = effectsOf(slug);
+              const after = effectsAtRound(list, round);
+              if (after.length === list.length) continue;
+              const changed = state.apply(slug, { holotableEffects: after }, { kind: 'system', id: 'system' }, `минули раунди: раунд ${round}`);
+              if (typeof changed !== 'string') publish(changed);
+            }
+          }
         }
         if (typeof result === 'string') {
           send(socket, { type: 'refused', reason: result });
@@ -486,6 +502,47 @@ export async function start(
       }
       // A death saving throw (F-058): the owner or the GM, only at 0 hit points. The book
       // decides what it does; the GM decides what three failures mean.
+      // Using a homebrew item (F-067): one less of it, and its effects on — in one event,
+      // written together or not at all. The player uses their own; the GM may use anyone's,
+      // or put an item's effects on without using one up.
+      if (kind === 'use-item') {
+        const use = parseUseItem(data);
+        if (typeof use === 'string') {
+          send(socket, { type: 'refused', reason: use });
+          return;
+        }
+        if (who.role === 'player' && who.character !== use.character) {
+          send(socket, { type: 'refused', reason: 'предмет використовує його власник або майстер' });
+          return;
+        }
+        const spend = use.spend ?? true;
+        if (!spend && who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'накласти, не витрачаючи, може лише майстер' });
+          return;
+        }
+        const item = homebrewItems[use.character]?.find((i) => itemKey(i.name) === itemKey(use.item));
+        const now = state.one(use.character);
+        if (item === undefined || now === undefined) {
+          send(socket, { type: 'refused', reason: `у листі немає «${use.item}» з ефектами` });
+          return;
+        }
+        const used = (now.holotableItemsUsed ?? {}) as Record<string, number>;
+        if (spend && item.consumable && itemsLeft(item, used) === 0) {
+          send(socket, { type: 'refused', reason: `«${item.name}» закінчився` });
+          return;
+        }
+        const effects = [...effectsOf(use.character), ...itemEffects(item, combat.view()?.round ?? null, () => randomUUID())];
+        const changes: CharacterState = { holotableEffects: effects };
+        if (spend && item.consumable) changes.holotableItemsUsed = { ...used, [itemKey(item.name)]: (used[itemKey(item.name)] ?? 0) + 1 };
+        const changed = state.apply(use.character, changes, authorOf(), `${spend ? 'використано' : 'накладено'}: ${item.name}`);
+        if (typeof changed === 'string') {
+          send(socket, { type: 'refused', reason: changed });
+          return;
+        }
+        publish(changed);
+        return;
+      }
+
       if (kind === 'death-save') {
         const save = parseDeathSave(data);
         if (typeof save === 'string') {
@@ -696,6 +753,11 @@ export async function start(
           refuse(`це не твій персонаж: ти ${who.character}, а зміна для ${intent.character}`);
           return;
         }
+        // Effects come from the GM or from using an item — never typed in by a player (F-067).
+        if (intent.changes.holotableEffects !== undefined || intent.changes.holotableItemsUsed !== undefined) {
+          refuse('ефекти накладає майстер; свій предмет — кнопкою «використати»');
+          return;
+        }
       }
 
       // What the person pressed is a difference from what they saw. Apply that
@@ -713,6 +775,13 @@ export async function start(
         && changes.hitPointsLost < maxHp && changes.deathSaves === undefined) {
         const marks = deathSavesOf(current);
         if (marks.successes > 0 || marks.failures > 0) changes.deathSaves = { successes: 0, failures: 0 };
+      }
+
+      // An effect for some rounds put on during a fight learns the round it ends at (F-067).
+      const round = combat.view()?.round;
+      if (Array.isArray(changes.holotableEffects) && round !== undefined) {
+        changes.holotableEffects = (changes.holotableEffects as HolotableEffect[]).map((e) =>
+          e.until === 'rounds' && e.endsAtRound === undefined ? { ...e, endsAtRound: round + (e.rounds ?? 1) } : e);
       }
 
       if (changes.hitDiceUsed !== undefined) {
