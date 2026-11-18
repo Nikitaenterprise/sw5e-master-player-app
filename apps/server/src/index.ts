@@ -36,6 +36,9 @@ import {
   type FromServer,
   type PrintData,
   type TermKind,
+  type HolotableEffect,
+  type GameEvent,
+  effectsAfter,
   sessionCommitMessage,
   rebase,
   parseGlossarySet,
@@ -45,7 +48,7 @@ import { Log } from './log.js';
 import { State } from './state.js';
 import { CombatTracker } from './combat.js';
 import { summarizeFights } from './summary.js';
-import { computeSummaries, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
+import { computeSummaries, computeSummary, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
@@ -150,7 +153,13 @@ export async function start(
   const state = new State(log, charactersDir, companionsDir);
   // Computed once at startup, never written anywhere (ADR 0003). An engine change shows
   // up on the next restart without touching a file in state/.
-  const sheets = computeSummaries(ROOT, charactersDir);
+  // Effects on a character (F-065) are part of its card: computed with them, and again
+  // whenever they change. The object stays the same, so everyone holding it sees the update.
+  const effectsOf = (slug: string): HolotableEffect[] => {
+    const list = state.one(slug)?.holotableEffects;
+    return Array.isArray(list) ? (list as HolotableEffect[]) : [];
+  };
+  const sheets = computeSummaries(ROOT, charactersDir, effectsOf);
   const restPlans = computeRestPlans(ROOT, charactersDir);
   const repoDir = options.repoDir ?? ROOT;
   const stateDir = options.stateDir ?? join(ROOT, 'state');
@@ -203,6 +212,18 @@ export async function start(
   };
 
   const broadcastClients = (): void => broadcastAll({ type: 'clients', clients: list() });
+
+  /**
+   * An event of character state, to everyone — and, when it changed someone's effects,
+   * their recomputed card too (F-065).
+   */
+  const publish = (event: GameEvent): void => {
+    broadcastAll({ type: 'event', event, state: state.one(event.character) ?? {} });
+    if (event.changes.some((c) => c.field === 'holotableEffects') && sheets[event.character] !== undefined) {
+      sheets[event.character] = computeSummary(ROOT, charactersDir, event.character, effectsOf(event.character));
+      broadcastAll({ type: 'sheets', sheets });
+    }
+  };
 
   const http = createServer((req, response) => {
     // The print page reads everything at once over plain HTTP: it is not a screen at
@@ -342,7 +363,15 @@ export async function start(
             const left = list.filter((c) => !off.includes(c));
             if (left.length === list.length) continue;
             const changed = state.apply(slug, { conditions: left }, authorOf(), 'кінець бою');
-            if (typeof changed !== 'string') broadcastAll({ type: 'event', event: changed, state: state.one(slug) ?? {} });
+            if (typeof changed !== 'string') publish(changed);
+          }
+          // Effects that last until the end of the fight end with it (F-065).
+          for (const slug of state.party()) {
+            const list = effectsOf(slug);
+            const after = effectsAfter(list, 'fight');
+            if (after.length === list.length) continue;
+            const changed = state.apply(slug, { holotableEffects: after }, authorOf(), 'кінець бою');
+            if (typeof changed !== 'string') publish(changed);
           }
           result = combat.end(authorOf());
           if (typeof result !== 'string') {
@@ -488,7 +517,7 @@ export async function start(
           send(socket, { type: 'refused', reason: event });
           return;
         }
-        broadcastAll({ type: 'event', event, state: state.one(save.character) ?? {} });
+        publish(event);
         return;
       }
 
@@ -548,7 +577,7 @@ export async function start(
           if (Object.keys(changes).length === 0) continue;
           const result = state.apply(slug, changes, author, word);
           if (typeof result === 'string') continue;
-          broadcastAll({ type: 'event', event: result, state: state.one(slug) ?? {} });
+          publish(result);
         }
         return;
       }
@@ -694,11 +723,7 @@ export async function start(
         return;
       }
 
-      broadcastAll({
-        type: 'event',
-        event: result,
-        state: state.one(intent.character) ?? {},
-      });
+      publish(result);
       done();
     });
 

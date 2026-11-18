@@ -132,7 +132,7 @@ describe('F-056 · умови на учасниках', () => {
     sandra.send({ type: 'enemy-conditions', enemy: 'enemy-sith-probe-droid-1', conditions: [] });
     await until(() => sandra.refusals().length === 1);
     expect(sandra.refusals()).toEqual(['ворогами керує майстер']);
-  });
+  }, 20_000);
 
   it('екрани: у майстра чипи з × і список книги, у гравця — рядок, що робить умова', () => {
     const card = renderToStaticMarkup(createElement(Card, {

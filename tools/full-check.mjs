@@ -156,6 +156,12 @@ try {
   p2.ws.send(JSON.stringify({ type: 'intent', character: 'nigra-4-droid', id: 'fc-droid', base: { hitPointsLost: 0 }, changes: { hitPointsLost: 3 } }));
   ok('F-039 гравець Нигри міняє ХП свого дроїда',
     await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.character === 'nigra-4-droid' && m.state.hitPointsLost === 3)));
+  const initBefore = sheets['nigra-4'].initiative;
+  gm.ws.send(JSON.stringify({ type: 'intent', character: 'nigra-4', changes: { holotableEffects: [
+    { id: 'fc-stim', source: 'Стимулятор', target: 'ability:Dexterity', bonus: 2, until: 'manual' },
+  ] } }));
+  ok('F-065 «Спритність +2» — лист Нигри перераховано: ініціатива +1',
+    await wait(gm, (g) => g.some((m) => m.type === 'sheets' && m.sheets['nigra-4'].initiative === initBefore + 1)));
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');

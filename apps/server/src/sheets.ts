@@ -10,8 +10,19 @@
 // without touching a single file in state/.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { usedOf, type CharacterState, type CompanionSummary, type HitDiceUsed, type SheetSummary } from '@holotable/protocol';
-import { loadCompendium } from '@holotable/compendium';
+import { effectsAfter, usedOf, type CharacterState, type CompanionSummary, type HitDiceUsed, type HolotableEffect, type SheetSummary } from '@holotable/protocol';
+import { loadCompendium as loadFresh, type Compendium } from '@holotable/compendium';
+
+// One compendium per root: a card is now recomputed whenever effects change (F-065),
+// and reading the archive again for each would cost a tenth of a second every time.
+const compendiums = new Map<string, Compendium>();
+function loadCompendium(options: { root: string }): Compendium {
+  const known = compendiums.get(options.root);
+  if (known !== undefined) return known;
+  const fresh = loadFresh(options);
+  compendiums.set(options.root, fresh);
+  return fresh;
+}
 // The engine and the schema are plain source folders, not workspace packages, so they
 // are imported by path. Giving them a package.json would mean a new link in
 // node_modules, which means the owner has to run ВСТАНОВИТИ.bat again before the app
@@ -25,17 +36,26 @@ const ABILITIES = [
   'Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma',
 ] as const;
 
-/** Reads every source export and computes a card for each. */
-export function computeSummaries(root: string, charactersDir: string): Record<string, SheetSummary> {
+/** Reads every source export and computes a card for each — with its active effects (F-065). */
+export function computeSummaries(
+  root: string,
+  charactersDir: string,
+  effectsOf: (slug: string) => HolotableEffect[] = () => [],
+): Record<string, SheetSummary> {
   const summaries: Record<string, SheetSummary> = {};
   if (!existsSync(charactersDir)) return summaries;
-  const compendium = loadCompendium({ root });
   for (const file of readdirSync(charactersDir).filter((f) => f.endsWith('.json'))) {
     const slug = basename(file, '.json');
-    const raw = JSON.parse(readFileSync(join(charactersDir, file), 'utf8')) as RawCharacter;
-    summaries[slug] = summarize(slug, computeSheet(raw, compendium), raw);
+    summaries[slug] = computeSummary(root, charactersDir, slug, effectsOf(slug));
   }
   return summaries;
+}
+
+/** One character's card, computed again — when the effects on them change (F-065). */
+export function computeSummary(root: string, charactersDir: string, slug: string, effects: HolotableEffect[] = []): SheetSummary {
+  const compendium = loadCompendium({ root });
+  const raw = JSON.parse(readFileSync(join(charactersDir, `${slug}.json`), 'utf8')) as RawCharacter;
+  return summarize(slug, computeSheet(raw, compendium, effects), raw);
 }
 
 function summarize(
@@ -146,6 +166,7 @@ function summarize(
     powers,
     skills: Object.entries(sheet.skills).map(([name, v]) => ({ name, modifier: v.modifier, proficiency: v.proficiency })),
     explain,
+    rollModes: sheet.rollModes,
     handEdits: computeHandEdits(raw, sheet).map((e) => ({ key: e.key, text: e.text, verdict: e.verdict })),
     warnings: sheet.warnings,
   };
@@ -201,6 +222,12 @@ export function applyRest(plan: RestPlan, current: CharacterState): CharacterSta
       left -= back;
     }
     if (left < plan.hitDiceBack) changes.hitDiceUsed = used;
+  }
+  // Effects that last until a rest end with it (F-065).
+  if (Array.isArray(current.holotableEffects)) {
+    const before = current.holotableEffects as HolotableEffect[];
+    const after = effectsAfter(before, plan.kind);
+    if (after.length !== before.length) changes.holotableEffects = after;
   }
   // Healed: the death saving throws start over (F-058).
   if (changes.hitPointsLost === 0) {

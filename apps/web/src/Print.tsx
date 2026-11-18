@@ -123,7 +123,7 @@ export function PrintSheet({
   const edited = (key: string): string =>
     sheet.handEdits.some((h) => h.key === key && h.verdict !== 'customItem') ? '✎' : '';
   const lost = num(state.hitPointsLost);
-  const conditions = Array.isArray(state.conditions) ? state.conditions : [];
+  const conditions = (Array.isArray(state.conditions) ? state.conditions : []) as string[];
 
   const classLine = sheet.classes
     .map((c) => `${term('class', c.name)} ${c.levels}${c.archetype === undefined ? '' : ` · ${term('archetype', c.archetype)}`}`)

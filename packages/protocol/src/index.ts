@@ -150,6 +150,8 @@ export const STATE_FIELDS = [
   'conditions',
   'hitDiceUsed',
   'deathSaves',
+  // Ours, not sw5e.com's — so in the holotable namespace (ADR 0001). F-065.
+  'holotableEffects',
 ] as const;
 
 export type StateField = (typeof STATE_FIELDS)[number];
@@ -161,7 +163,98 @@ export type StateField = (typeof STATE_FIELDS)[number];
 export type HitDiceUsed = Record<string, number>;
 
 /** The values these fields can take. */
-export type StateValue = number | boolean | string[] | HitDiceUsed;
+export type StateValue = number | boolean | string[] | HitDiceUsed | HolotableEffect[];
+
+/**
+ * An effect on a character right now (F-065): who or what gave it, which number or roll
+ * it touches, by how much — or advantage/disadvantage — and when it ends.
+ */
+export interface HolotableEffect {
+  id: string;
+  /** What gave it, as the GM says it: an item's name, a power's name. */
+  source: string;
+  /** A breakdown key (F-042): "ability:Dexterity", "skill:Persuasion", "save:Wisdom", "armorClass", "initiative", "attacks". */
+  target: string;
+  bonus?: number;
+  mode?: 'advantage' | 'disadvantage';
+  /** When it ends by itself: with the fight, with a rest — or only when someone takes it off. */
+  until: 'fight' | 'short-rest' | 'long-rest' | 'manual';
+}
+
+const ABILITY_NAMES = ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'];
+const SKILL_NAMES = [
+  'Acrobatics', 'Animal Handling', 'Athletics', 'Deception', 'Insight', 'Intimidation', 'Investigation', 'Lore',
+  'Medicine', 'Nature', 'Perception', 'Performance', 'Persuasion', 'Piloting', 'Sleight of Hand', 'Stealth',
+  'Survival', 'Technology',
+];
+
+/** Every target an effect may have. */
+export const EFFECT_TARGETS: string[] = [
+  ...ABILITY_NAMES.map((a) => `ability:${a}`),
+  ...ABILITY_NAMES.map((a) => `save:${a}`),
+  ...SKILL_NAMES.map((k) => `skill:${k}`),
+  'armorClass', 'initiative', 'attacks',
+];
+
+export const MAX_EFFECTS = 20;
+
+export function checkEffects(value: unknown): string | null {
+  if (!Array.isArray(value)) return 'ефекти — список';
+  if (value.length > MAX_EFFECTS) return `ефектів не більше ${MAX_EFFECTS}`;
+  const ids = new Set<string>();
+  for (const v of value) {
+    if (typeof v !== 'object' || v === null) return 'ефект — обʼєкт';
+    const e = v as Record<string, unknown>;
+    if (typeof e['id'] !== 'string' || e['id'] === '' || ids.has(e['id'])) return 'у ефекту немає власного id';
+    ids.add(e['id']);
+    if (typeof e['source'] !== 'string' || e['source'].trim() === '' || e['source'].length > 60) return 'джерело ефекту — від 1 до 60 знаків';
+    if (typeof e['target'] !== 'string' || !EFFECT_TARGETS.includes(e['target'])) return 'на що діє ефект — не зрозуміло';
+    const bonus = e['bonus'];
+    const mode = e['mode'];
+    if (bonus === undefined && mode === undefined) return 'ефект мусить дати число або перевагу/недолік';
+    if (bonus !== undefined && (typeof bonus !== 'number' || !Number.isInteger(bonus) || bonus === 0 || Math.abs(bonus) > 20)) {
+      return 'бонус ефекту — ціле число від −20 до 20, не нуль';
+    }
+    if (mode !== undefined && mode !== 'advantage' && mode !== 'disadvantage') return 'перевага чи недолік — одне з двох';
+    if (!['fight', 'short-rest', 'long-rest', 'manual'].includes(String(e['until']))) return 'до коли діє ефект — не зрозуміло';
+  }
+  return null;
+}
+
+const ABILITY_UK: Record<string, string> = {
+  Strength: 'Сила', Dexterity: 'Спритність', Constitution: 'Статура', Intelligence: 'Інтелект', Wisdom: 'Мудрість', Charisma: 'Харизма',
+};
+
+/** An effect's target in the words the screen shows: an ability, a save, a skill, armour class. */
+export function effectTargetText(target: string, skill: (english: string) => string = (x) => x): string {
+  const [kind, name = ''] = target.split(':');
+  if (kind === 'ability') return ABILITY_UK[name] ?? name;
+  if (kind === 'save') return `сейв: ${ABILITY_UK[name] ?? name}`;
+  if (kind === 'skill') return skill(name);
+  return ({ armorClass: 'КБ', initiative: 'ініціатива', attacks: 'усі атаки' } as Record<string, string>)[target] ?? target;
+}
+
+export const UNTIL_TEXT: Record<HolotableEffect['until'], string> = {
+  fight: 'до кінця бою',
+  'short-rest': 'до відпочинку',
+  'long-rest': 'до довгого відпочинку',
+  manual: 'поки не знімуть',
+};
+
+/** One effect in one line: its source, its target, what it gives and until when. */
+export function effectText(e: HolotableEffect, skill?: (english: string) => string): string {
+  const what = e.bonus !== undefined ? `${e.bonus > 0 ? '+' : ''}${e.bonus}` : e.mode === 'advantage' ? 'перевага' : 'недолік';
+  return `${e.source}: ${effectTargetText(e.target, skill)} ${what} · ${UNTIL_TEXT[e.until]}`;
+}
+
+/** Effects that end with this: the fight, or a rest (a long rest ends the short-rest ones too). */
+export function effectsAfter(list: HolotableEffect[], ending: 'fight' | 'short' | 'long'): HolotableEffect[] {
+  return list.filter((e) => {
+    if (ending === 'fight') return e.until !== 'fight';
+    if (ending === 'short') return e.until !== 'short-rest';
+    return e.until !== 'short-rest' && e.until !== 'long-rest';
+  });
+}
 
 /** Character state — a subset of currentStats in the sw5e.com format (ADR 0001). */
 export type CharacterState = Partial<Record<StateField, StateValue>>;
@@ -277,6 +370,8 @@ export interface SheetSummary {
    * attack:<index in attacks>.
    */
   explain: Record<string, Explanation>;
+  /** Advantage or disadvantage from active effects, per breakdown key (F-065). */
+  rollModes?: Record<string, 'advantage' | 'disadvantage' | 'both'>;
   /**
    * Every hand edit in the sheet, with a verdict (F-043): unknown origin, redundant,
    * a choice the sheet never recorded, or the stats of a custom item. `key` is the
@@ -688,7 +783,11 @@ function checkFields(changes: Record<string, unknown>): CharacterState | string 
   const checked: CharacterState = {};
   for (const [field, value] of Object.entries(changes)) {
     if (!isStateField(field)) return `поле «${field}» не можна міняти за столом`;
-    if (field === 'deathSaves') {
+    if (field === 'holotableEffects') {
+      const problem = checkEffects(value);
+      if (problem !== null) return problem;
+      checked[field] = value as HolotableEffect[];
+    } else if (field === 'deathSaves') {
       const problem = checkDeathSaves(value);
       if (problem !== null) return problem;
       checked[field] = value as HitDiceUsed;
@@ -741,10 +840,13 @@ export function rebase(current: CharacterState, base: CharacterState, wanted: Ch
     } else if (typeof to === 'boolean' && typeof was === 'boolean') {
       if (to !== was) result[field] = to;
     } else if (Array.isArray(to) && Array.isArray(was)) {
-      const added = to.filter((x) => !was.includes(x));
-      const removed = was.filter((x) => !to.includes(x));
-      const list = Array.isArray(now) ? now : [];
-      result[field] = [...list.filter((x) => !removed.includes(x)), ...added.filter((x) => !list.includes(x))];
+      // Items compare by what they are: a condition by its name, an effect by its id.
+      const key = (x: unknown): string => (typeof x === 'object' && x !== null ? String((x as { id?: unknown }).id) : String(x));
+      const has = (list: unknown[], x: unknown): boolean => list.some((y) => key(y) === key(x));
+      const added = (to as unknown[]).filter((x) => !has(was as unknown[], x));
+      const removed = (was as unknown[]).filter((x) => !has(to as unknown[], x));
+      const list = (Array.isArray(now) ? now : []) as unknown[];
+      result[field] = [...list.filter((x) => !has(removed, x)), ...added.filter((x) => !has(list, x))] as StateValue;
     } else if (isMap(to) && isMap(was)) {
       const map: HitDiceUsed = { ...(isMap(now) ? now : {}) };
       for (const size of new Set([...Object.keys(to), ...Object.keys(was)])) {

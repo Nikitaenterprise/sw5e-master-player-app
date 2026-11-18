@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, CompanionSummary, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, CompanionSummary, HolotableEffect, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, effectText, effectTargetText, EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import {
@@ -121,6 +121,7 @@ export function App(): JSX.Element {
                   conditionChoices={conditionChoices}
                   setConditions={(list) => controls.current?.sendChange(slug, { conditions: list })}
                   {...companionOf(snapshot, slug, (c, changes) => controls.current?.sendChange(c, changes))}
+                  setEffects={(list) => controls.current?.sendChange(slug, { holotableEffects: list })}
                 />
               ))}
           </div>
@@ -264,6 +265,7 @@ function PlayerSheet({
         />
       )}
       <Managed state={state} waiting={waiting} sendChange={sendChange} />
+      <Effects list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]} />
       {(() => {
         const mine = companionOf(snapshot, character, (c, changes) => controls.current?.sendChange(c, changes)).companion;
         return mine === undefined ? null : <CompanionBlock {...mine} />;
@@ -324,7 +326,7 @@ export function Managed({
 }): JSX.Element {
   const [fresh, setFresh] = useState('');
   const term = useTerm();
-  const conditions = Array.isArray(state.conditions) ? state.conditions : [];
+  const conditions = (Array.isArray(state.conditions) ? state.conditions : []) as string[];
 
   const addCondition = (): void => {
     const cleaned = fresh.trim();
@@ -733,6 +735,102 @@ export function CompanionBlock({
   );
 }
 
+/** ▲ advantage, ▼ disadvantage, ▲▼ both (they cancel out by the book) — from active effects. */
+function RollMode({ mode }: { mode: 'advantage' | 'disadvantage' | 'both' | undefined }): JSX.Element | null {
+  if (mode === undefined) return null;
+  const [mark, words] =
+    mode === 'advantage' ? ['▲', 'перевага (ефект)'] : mode === 'disadvantage' ? ['▼', 'недолік (ефект)'] : ['▲▼', 'і перевага, і недолік — гасять одне одного'];
+  return <i className={`roll-mode ${mode}`} title={words}>{mark}</i>;
+}
+
+const effectId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+/**
+ * Effects on a character (F-065): what is on them now, and — for the GM — a short form
+ * to put one on: where it comes from, what it touches, by how much (or advantage /
+ * disadvantage), and until when. Numbers it changes show up at once, with the effect
+ * named in "where does this number come from".
+ */
+export function Effects({ list, set }: { list: HolotableEffect[]; set?: (list: HolotableEffect[]) => void }): JSX.Element | null {
+  const term = useTerm();
+  const skill = (x: string): string => term('skill', x);
+  const [open, setOpen] = useState(false);
+  const [source, setSource] = useState('');
+  const [target, setTarget] = useState('ability:Dexterity');
+  const [kind, setKind] = useState<'bonus' | 'advantage' | 'disadvantage'>('bonus');
+  const [bonus, setBonus] = useState('1');
+  const [until, setUntil] = useState<HolotableEffect['until']>('fight');
+  const [problem, setProblem] = useState<string | null>(null);
+  if (list.length === 0 && set === undefined) return null;
+  return (
+    <div className="effects">
+      {list.map((e) => (
+        <span key={e.id} className="effect">
+          {effectText(e, skill)}
+          {set !== undefined && (
+            <button type="button" title="зняти" aria-label={`Зняти ефект ${e.source}`} onClick={() => set(list.filter((x) => x.id !== e.id))}>
+              ×
+            </button>
+          )}
+        </span>
+      ))}
+      {set !== undefined && !open && (
+        <button type="button" className="effect-add" onClick={() => setOpen(true)}>
+          + ефект
+        </button>
+      )}
+      {set !== undefined && open && (
+        <form
+          className="effect-form"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            const n = Number(bonus);
+            if (source.trim() === '') {
+              setProblem('звідки ефект? Наприклад, «Стимулятор»');
+              return;
+            }
+            if (kind === 'bonus' && (!Number.isInteger(n) || n === 0 || Math.abs(n) > 20)) {
+              setProblem('бонус — ціле число від −20 до 20, не нуль');
+              return;
+            }
+            const effect: HolotableEffect = {
+              id: effectId(), source: source.trim(), target, until,
+              ...(kind === 'bonus' ? { bonus: n } : { mode: kind }),
+            };
+            set([...list, effect]);
+            setOpen(false);
+            setSource('');
+            setProblem(null);
+          }}
+        >
+          <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="звідки: Стимулятор" aria-label="Звідки ефект" />
+          <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="На що діє">
+            {EFFECT_TARGETS.map((t) => (
+              <option key={t} value={t}>{effectTargetText(t, skill)}</option>
+            ))}
+          </select>
+          <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)} aria-label="Що дає">
+            <option value="bonus">число</option>
+            <option value="advantage">перевага</option>
+            <option value="disadvantage">недолік</option>
+          </select>
+          {kind === 'bonus' && (
+            <input type="number" value={bonus} onChange={(e) => setBonus(e.target.value)} aria-label="Бонус" />
+          )}
+          <select value={until} onChange={(e) => setUntil(e.target.value as HolotableEffect['until'])} aria-label="До коли">
+            {(Object.keys(UNTIL_TEXT) as HolotableEffect['until'][]).map((u) => (
+              <option key={u} value={u}>{UNTIL_TEXT[u]}</option>
+            ))}
+          </select>
+          <button type="submit">накласти</button>
+          <button type="button" onClick={() => setOpen(false)}>скасувати</button>
+          {problem !== null && <span className="refusal">{problem}</span>}
+        </form>
+      )}
+    </div>
+  );
+}
+
 /** How a fighter is named on screen: a party member by name, an enemy by creature and number. */
 export function fighterName(fighter: Fighter, term: Term): string {
   if (fighter.kind !== 'enemy') return name(fighter.character);
@@ -1006,7 +1104,7 @@ export function EndPanel({
   const term = useTerm();
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const offered = Object.entries(party).flatMap(([character, s]) =>
-    (Array.isArray(s.conditions) ? s.conditions : []).map((condition) => ({ character, condition, id: `${character}\u0000${condition}` })),
+    ((Array.isArray(s.conditions) ? s.conditions : []) as string[]).map((condition) => ({ character, condition, id: `${character}\u0000${condition}` })),
   );
   return (
     <div className="end-panel">
@@ -1768,6 +1866,7 @@ export function Card({
   conditionChoices,
   setConditions,
   companion,
+  setEffects,
 }: {
   slug: string;
   state: CharacterState;
@@ -1777,9 +1876,11 @@ export function Card({
   setConditions?: (list: string[]) => void;
   /** The character's companion, its state, and how to change it (F-039). */
   companion?: { summary: CompanionSummary; state: CharacterState; change: (changes: CharacterState) => void };
+  /** Put effects on and take them off (F-065). Absent — the effects are only shown. */
+  setEffects?: (list: HolotableEffect[]) => void;
 }): JSX.Element {
   const term = useTerm();
-  const conditions = Array.isArray(state.conditions) ? state.conditions : [];
+  const conditions = (Array.isArray(state.conditions) ? state.conditions : []) as string[];
   const lost = asNumber(state.hitPointsLost);
   const temporary = asNumber(state.temporaryHitPoints);
   const exhaustion = asNumber(state.exhaustion);
@@ -1919,6 +2020,7 @@ export function Card({
               <span className="what"><TermLink kind="weapon" english={a.name}>{term('weapon', a.name)}</TermLink></span>
               <span className="hit">
                 <Why sheet={sheet} what={`attack:${i}`} signedTotal>{signed(a.toHit)}</Why>
+                <RollMode mode={sheet.rollModes?.['attacks']} />
               </span>
               <span className="dmg">
                 {a.damageType === undefined ? a.damage : (
@@ -1954,6 +2056,7 @@ export function Card({
               <li key={k.name} className={k.proficiency === 'none' ? undefined : 'proficient'}>
                 <span className="what"><TermLink kind="skill" english={k.name}>{term('skill', k.name)}</TermLink></span>
                 <Why sheet={sheet} what={`skill:${k.name}`} signedTotal>{signed(k.modifier)}</Why>
+                <RollMode mode={sheet.rollModes?.[`skill:${k.name}`]} />
               </li>
             ))}
           </ul>
@@ -1962,6 +2065,7 @@ export function Card({
 
       {left === 0 && <p className="down-line">Без свідомості · {deathSavesText(state)}</p>}
       {companion !== undefined && <CompanionBlock {...companion} />}
+      <Effects list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]} {...(setEffects === undefined ? {} : { set: setEffects })} />
       <ExhaustionLine level={exhaustion} />
       {setConditions !== undefined ? (
         <Conditions list={conditions} choices={conditionChoices ?? []} set={setConditions} />

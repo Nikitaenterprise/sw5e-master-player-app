@@ -11,8 +11,8 @@
 // by the same person, on the same character, within a short window, are shown as one
 // row — with the oldest `from` and the newest `to`, which is also exactly what undoing
 // the whole run means.
-import { MISMATCH_MARK } from '@holotable/protocol';
-import type { Author, CharacterState, GameEvent, StateField, StateValue } from '@holotable/protocol';
+import { MISMATCH_MARK, effectText } from '@holotable/protocol';
+import type { Author, CharacterState, GameEvent, HolotableEffect, StateField, StateValue } from '@holotable/protocol';
 
 /** Notes that start with this mark an undo, so the feed can show it as one. */
 export const UNDO_MARK = 'відкат';
@@ -102,7 +102,11 @@ export function collapse(events: GameEvent[], windowMs = RUN_WINDOW_MS): FeedRow
 export function valueText(value: StateValue | undefined): string {
   if (value === undefined) return '—';
   if (typeof value === 'boolean') return value ? 'так' : 'ні';
-  if (Array.isArray(value)) return value.length === 0 ? 'немає' : value.join(', ');
+  if (Array.isArray(value)) {
+    if (value.length === 0) return 'немає';
+    // Effects (F-065) are objects: each in its words.
+    return (value as unknown[]).map((v) => (typeof v === 'object' && v !== null ? effectText(v as HolotableEffect) : String(v))).join(', ');
+  }
   if (typeof value === 'object') {
     // Death saves (F-058) read as words; hit dice as "d8: 1".
     const words: Record<string, string> = { successes: 'успіхів', failures: 'провалів' };
@@ -129,6 +133,7 @@ export function undoOf(row: FeedRow): CharacterState {
   if (row.from !== undefined) return { [row.field]: row.from };
   if (row.field === 'hasInspiration') return { [row.field]: false };
   if (row.field === 'conditions') return { [row.field]: [] };
+  if (row.field === 'holotableEffects') return { [row.field]: [] };
   if (row.field === 'hitDiceUsed') return { [row.field]: {} };
   if (row.field === 'deathSaves') return { [row.field]: { successes: 0, failures: 0 } };
   return { [row.field]: 0 };

@@ -570,3 +570,21 @@ a.ref-link:hover { color: var(--accent); }
 .combat .order .with-companion { flex-basis: 100%; display: flex; gap: .4rem; align-items: center; font-size: .82rem; color: var(--muted); padding-left: 1.5rem; }
 .combat .order .with-companion b { color: var(--text); }
 .companion-rules { margin-top: .5rem; }
+
+/* ── Effects (F-065) ───────────────────────────────────────────────────── */
+.effects { display: flex; flex-wrap: wrap; gap: .3rem .5rem; align-items: center; margin-top: .4rem; font-size: .78rem; }
+.effects .effect {
+  display: inline-flex; align-items: center; gap: .2rem; padding: .1rem .2rem .1rem .55rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 1rem;
+}
+.effects .effect button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0 .3rem; font-size: .85rem; }
+.effect-add { background: none; border: 1px dashed var(--border); color: var(--muted); border-radius: 1rem; padding: .1rem .55rem; font: inherit; font-size: .78rem; cursor: pointer; }
+.effect-form { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; flex-basis: 100%; }
+.effect-form input, .effect-form select {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem; padding: .2rem .4rem; font: inherit; font-size: .78rem;
+}
+.effect-form input[type="number"] { width: 4rem; }
+.effect-form button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem; padding: .2rem .5rem; font: inherit; font-size: .78rem; cursor: pointer; }
+.roll-mode { font-style: normal; font-size: .7rem; margin-left: .15rem; }
+.roll-mode.advantage { color: var(--accent); }
+.roll-mode.disadvantage { color: var(--bad); }

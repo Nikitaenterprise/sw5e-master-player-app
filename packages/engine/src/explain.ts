@@ -81,6 +81,7 @@ function explainAbility(sheet: ComputedSheet, ability: AbilityName): Explanation
       { label: 'риса', value: a.feats },
     ]),
     ...handEdits(computed, a.tweakOverride, a.tweakBonus),
+    ...(sheet.effectParts[`ability:${ability}`] ?? []),
   ];
   return {
     total: a.score,
@@ -176,5 +177,20 @@ export function explainSheet(sheet: ComputedSheet): SheetExplanations {
     };
   });
 
-  return { abilities, savingThrows, skills, hitPoints, armorClass, initiative, passivePerception, attacks };
+  // Effects (F-065): their parts join the breakdown of the number they change.
+  const withEffects = (key: string, e: Explanation): Explanation =>
+    key.startsWith('ability:') ? e : { ...e, parts: [...e.parts, ...(sheet.effectParts[key] ?? [])] };
+  for (const a of abilityNames) savingThrows[a] = withEffects(`save:${a}`, savingThrows[a]);
+  for (const k of Object.keys(skills) as SkillName[]) skills[k] = withEffects(`skill:${k}`, skills[k]);
+  const passive = { ...passivePerception, parts: [{ label: 'основа', value: 10 }, ...skills.Perception.parts] };
+  return {
+    abilities,
+    savingThrows,
+    skills,
+    hitPoints,
+    armorClass: withEffects('armorClass', armorClass),
+    initiative: withEffects('initiative', initiative),
+    passivePerception: passive,
+    attacks: attacks.map((e, i) => withEffects(`attack:${i}`, e)),
+  };
 }

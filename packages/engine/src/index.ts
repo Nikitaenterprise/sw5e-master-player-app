@@ -29,6 +29,8 @@ export interface AbilityBreakdown {
   feats: number;
   tweakBonus: number;
   tweakOverride: number | null;
+  /** What active effects add to the score (F-065). */
+  effectBonus: number;
   score: number;
   modifier: number;
 }
@@ -73,6 +75,10 @@ export interface ComputedSheet {
   pendingChoices: PendingChoice[];
   /** Movement, read from the species traits. */
   speed: Speed;
+  /** What active effects add, per breakdown key, with their source (F-065). */
+  effectParts: Record<string, { label: string; value: number }[]>;
+  /** Advantage or disadvantage from effects, per breakdown key (F-065). */
+  rollModes: Record<string, 'advantage' | 'disadvantage' | 'both'>;
   /** Initiative is the Dexterity modifier; nothing in the five sheets changes it yet. */
   initiative: number;
   passivePerception: number;
@@ -276,7 +282,37 @@ function proficiencyBonus(
   return Math.floor((level - 1) / 4) + 2;
 }
 
-export function computeSheet(raw: RawCharacter, compendium: Compendium): ComputedSheet {
+/**
+ * A temporary effect on the character (F-065): a stimulant, a bracelet, a spell — a
+ * bonus to a number, or advantage/disadvantage on a roll. The target uses the same keys
+ * as the breakdowns (F-042): "ability:Dexterity", "skill:Persuasion", "save:Wisdom",
+ * "armorClass", "initiative", or "attacks" for every attack.
+ */
+export interface SheetEffect {
+  source: string;
+  target: string;
+  bonus?: number;
+  mode?: 'advantage' | 'disadvantage';
+}
+
+export function computeSheet(raw: RawCharacter, compendium: Compendium, effects: SheetEffect[] = []): ComputedSheet {
+  // What the effects add, per target, and where it came from — for the breakdowns.
+  const effectParts: Record<string, { label: string; value: number }[]> = {};
+  const rollModes: Record<string, 'advantage' | 'disadvantage' | 'both'> = {};
+  const bonusFor = (target: string): number => {
+    let total = 0;
+    for (const e of effects) {
+      if (e.target !== target || e.bonus === undefined || e.bonus === 0) continue;
+      total += e.bonus;
+      (effectParts[target] ??= []).push({ label: `ефект: ${e.source}`, value: e.bonus });
+    }
+    return total;
+  };
+  for (const e of effects) {
+    if (e.mode === undefined) continue;
+    const now = rollModes[e.target];
+    rollModes[e.target] = now === undefined || now === e.mode ? e.mode : 'both';
+  }
   const warnings: string[] = [];
   const level = totalLevel(raw);
   const bonus = proficiencyBonus(raw, compendium, level, warnings);
@@ -297,9 +333,11 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     const override = tweak?.override ?? null;
     const tweakBonus = tweak?.bonus ?? 0;
     // Hand edits last: override replaces the computed total, bonus adds on top.
-    const score = (override ?? base + species + improvements + feats) + tweakBonus;
+    // Effects come after the hand edits: a stimulant adds to whatever the sheet says.
+    const effectBonus = bonusFor(`ability:${ability}`);
+    const score = (override ?? base + species + improvements + feats) + tweakBonus + effectBonus;
     abilities[ability] = {
-      base, species, improvements, feats, tweakBonus, tweakOverride: override,
+      base, species, improvements, feats, tweakBonus, tweakOverride: override, effectBonus,
       score, modifier: abilityModifier(score),
     };
   }
@@ -329,7 +367,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     const proficient = proficientSaves.has(ability);
     savingThrows[ability] = {
       proficient,
-      modifier: abilities[ability].modifier + (proficient ? bonus : 0),
+      modifier: abilities[ability].modifier + (proficient ? bonus : 0) + bonusFor(`save:${ability}`),
     };
   }
 
@@ -363,7 +401,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     skills[skill] = {
       ability,
       proficiency,
-      modifier: abilities[ability].modifier + extra,
+      modifier: abilities[ability].modifier + extra + bonusFor(`skill:${skill}`),
     };
   }
 
@@ -387,6 +425,16 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     ABILITIES.map((a) => [a, abilities[a].score]),
   ) as Record<AbilityName, number>;
   const weapons = computeWeapons(raw, compendium, modifiers, scores, bonus, warnings);
+  // Effects on every attack, and on armour class — after everything else, like hand edits.
+  const attackEffect = bonusFor('attacks');
+  if (attackEffect !== 0) {
+    const parts = effectParts['attacks'] ?? [];
+    weapons.forEach((w, i) => {
+      w.attackBonus += attackEffect;
+      effectParts[`attack:${i}`] = parts;
+    });
+  }
+  armorClass.value += bonusFor('armorClass');
   const casting = computeCasting(raw, compendium, modifiers, bonus, warnings);
   const superiority = computeManeuvers(raw, compendium, modifiers, bonus, warnings);
 
@@ -409,8 +457,10 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium): Compute
     superiority,
     pendingChoices,
     speed: speciesSpeed(compendium, raw.species.name, warnings),
-    initiative: abilities.Dexterity.modifier,
+    initiative: abilities.Dexterity.modifier + bonusFor('initiative'),
     passivePerception: 10 + skills.Perception.modifier,
+    effectParts,
+    rollModes,
     warnings,
   };
 }
