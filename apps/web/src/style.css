@@ -466,6 +466,14 @@ a.ref-link:hover { color: var(--accent); }
 .enemy-hp small { color: var(--muted); }
 .enemy .buttons button { padding: .1rem .45rem; font-size: .75rem; }
 .enemy .remove { color: var(--muted); }
+/* An enemy's saving throws (F-084): the bestiary's own numbers stand out from the
+   plain ability modifiers, and the effect marks sit right beside them. */
+.enemy-saves { display: flex; gap: .5rem; flex-wrap: wrap; color: var(--muted); align-items: center; }
+.enemy-saves span { cursor: help; font-variant-numeric: tabular-nums; }
+.enemy-saves span.book { color: var(--text); font-weight: 600; }
+.enemy-saves span b { color: var(--bad); }
+.enemy-init-mode { color: var(--muted); }
+.enemy .effects { flex-basis: 100%; margin-top: 0; }
 .enemy-attacks { display: flex; gap: .7rem; flex-wrap: wrap; color: var(--muted); }
 .enemy-attacks span { cursor: help; text-decoration: underline dotted; text-underline-offset: .2em; }
 .add-enemies { margin: .6rem 0; display: flex; flex-direction: column; gap: .4rem; }

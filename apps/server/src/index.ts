@@ -23,6 +23,7 @@ import {
   parseEnemyDamage,
   parseEnemyRemove,
   parseEnemyConditions,
+  parseEnemyEffects,
   parseAttackRoll,
   parseDeathSave,
   deathSaveOutcome,
@@ -504,6 +505,8 @@ export async function start(
               const changed = state.apply(slug, { holotableEffects: after }, { kind: 'system', id: 'system' }, `ефект скінчився: раунд ${round}`);
               if (typeof changed !== 'string') publish(changed);
             }
+            // The same for the enemies (F-084): their effects run on the same clock.
+            combat.expireEffects({ kind: 'system', id: 'system' }, round, view?.turn ?? null);
           }
         }
         if (typeof result === 'string') {
@@ -544,7 +547,8 @@ export async function start(
       }
 
       // Enemies from the bestiary (F-055): the GM's alone to bring in, hurt and send off.
-      if (kind === 'enemies-add' || kind === 'enemy-damage' || kind === 'enemy-remove' || kind === 'enemy-conditions') {
+      if (kind === 'enemies-add' || kind === 'enemy-damage' || kind === 'enemy-remove'
+        || kind === 'enemy-conditions' || kind === 'enemy-effects') {
         if (who.role !== 'gm') {
           send(socket, { type: 'refused', reason: 'ворогами керує майстер' });
           return;
@@ -553,6 +557,23 @@ export async function start(
         if (kind === 'enemies-add') {
           const add = parseEnemiesAdd(data);
           result = typeof add === 'string' ? add : combat.addEnemies(authorOf(), add.monster, add.count, add.hp);
+        } else if (kind === 'enemy-effects') {
+          // An effect on an enemy learns the round it ends at, exactly as a character's
+          // does (F-067, F-074): the creature's own next turn settles "until next turn".
+          const put = parseEnemyEffects(data);
+          if (typeof put === 'string') {
+            result = put;
+          } else {
+            const round = combat.view()?.round;
+            const next = nextTurnOf(put.enemy);
+            const effects = round === undefined ? put.effects : put.effects.map((e) => {
+              if (e.endsAtRound !== undefined) return e;
+              if (e.until === 'rounds') return { ...e, endsAtRound: round + (e.rounds ?? 1) };
+              if (e.until === 'next-turn' && next !== undefined) return { ...e, endsAtRound: next.round, endsOnTurnOf: next.of };
+              return e;
+            });
+            result = combat.setEffects(authorOf(), put.enemy, effects);
+          }
         } else if (kind === 'enemy-conditions') {
           const set = parseEnemyConditions(data);
           result = typeof set === 'string' ? set : combat.setConditions(authorOf(), set.enemy, set.conditions);

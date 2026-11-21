@@ -68,6 +68,7 @@ export type ToServer =
   | EnemyDamage
   | EnemyRemove
   | EnemyConditions
+  | EnemyEffects
   | AttackRoll
   | TurnDone
   | DeathSave
@@ -1261,6 +1262,30 @@ export interface Fighter {
 /** What an enemy looks like from across the table: words, never numbers (F-055). */
 export type EnemyStatus = 'цілий' | 'поранений' | 'важко поранений' | 'знешкоджений';
 
+/**
+ * One saving throw of an enemy (F-084). The bestiary states a save only when the
+ * creature is good at it ("Dex +4"); otherwise the save IS the ability modifier, and
+ * `book` says which of the two this is, so the GM can see where the number came from.
+ */
+export interface EnemySave {
+  ability: string;
+  /** From the bestiary, or the ability modifier — before any effect. */
+  base: number;
+  /** What effects add, 0 when none. */
+  effect: number;
+  /** base + effect: the number the creature rolls with. */
+  modifier: number;
+  book: boolean;
+  /**
+   * The bestiary names this save but its number did not come through (the archive holds
+   * `["Cha"]` for the Grand Admiral). The ability modifier is used and the screen says
+   * the number is in doubt — a silent zero would be worse.
+   */
+  unclear?: boolean;
+  /** Advantage or disadvantage from an effect; both of them cancel out, as in the books. */
+  mode?: 'advantage' | 'disadvantage' | 'both';
+}
+
 /** An enemy's numbers, from the bestiary — the GM's secret. */
 export interface EnemyInfo {
   /** Compendium key of the creature, for the reference page. */
@@ -1275,7 +1300,14 @@ export interface EnemyInfo {
   hpRoll: string;
   challenge: string;
   speed: string;
-  attacks: { name: string; toHit: number; text: string }[];
+  /** `mode` — advantage or disadvantage on this attack, from an effect (F-084). */
+  attacks: { name: string; toHit: number; text: string; mode?: 'advantage' | 'disadvantage' | 'both' }[];
+  /** All six saves, in the order of the rules (F-084). */
+  saves: EnemySave[];
+  /** Effects on this creature right now (F-084): the same effects the party gets. */
+  effects: HolotableEffect[];
+  /** Advantage or disadvantage on this creature's initiative, from an effect (F-084). */
+  initiativeMode?: 'advantage' | 'disadvantage' | 'both';
 }
 
 /** The words for an enemy's state. Half or less is badly hurt; nothing left is down. */
@@ -1338,6 +1370,52 @@ export function parseEnemyConditions(data: unknown): EnemyConditions | string {
   const problem = checkConditions(o['conditions']);
   if (problem !== null) return problem;
   return { type: 'enemy-conditions', enemy, conditions: (o['conditions'] as string[]).map((c) => c.trim()) };
+}
+
+/**
+ * What an effect on an enemy may touch (F-084). Shorter than a character's list on
+ * purpose: a creature has no sheet, so the app can only honestly promise the numbers
+ * its own line shows — the six saves, armour class, initiative and its attacks. The
+ * rest would be a silent zero, and a silent zero is worse than a refusal.
+ */
+export const ENEMY_EFFECT_TARGETS: string[] = [
+  ...ABILITY_NAMES.map((a) => `save:${a}`),
+  'armorClass', 'initiative', 'attacks',
+];
+
+/**
+ * What is wrong with this list of effects for an ENEMY, in words — or null when it is
+ * fine. On top of the ordinary check: the target must be one the enemy's line shows,
+ * and armour class takes no advantage or disadvantage, because nobody rolls it.
+ */
+export function checkEnemyEffects(value: unknown): string | null {
+  const problem = checkEffects(value);
+  if (problem !== null) return problem;
+  for (const e of value as HolotableEffect[]) {
+    if (!ENEMY_EFFECT_TARGETS.includes(e.target)) {
+      return 'на ворога ефект кладуть на сейв, КБ, ініціативу або атаки';
+    }
+    if (e.target === 'armorClass' && e.mode !== undefined) return 'КБ не кидають — перевага чи недолік тут нічого не значить';
+  }
+  return null;
+}
+
+/** GM → server: the effects on one enemy, the whole list (F-084). */
+export interface EnemyEffects {
+  type: 'enemy-effects';
+  enemy: string;
+  effects: HolotableEffect[];
+}
+
+export function parseEnemyEffects(data: unknown): EnemyEffects | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'enemy-effects') return 'не ефекти ворога';
+  const enemy = o['enemy'];
+  if (typeof enemy !== 'string' || enemy === '') return 'не вказано ворога';
+  const problem = checkEnemyEffects(o['effects']);
+  if (problem !== null) return problem;
+  return { type: 'enemy-effects', enemy, effects: o['effects'] as HolotableEffect[] };
 }
 
 /** GM → server: an enemy leaves the fight — fled, or no longer worth a line. */
@@ -1537,6 +1615,8 @@ export type CombatEventType =
   | 'combat.enemies-added' | 'combat.enemy-hp' | 'combat.enemy-removed'
   // F-056: conditions on an enemy.
   | 'combat.enemy-conditions'
+  // F-084: effects on an enemy.
+  | 'combat.enemy-effects'
   // F-057: an attack typed on the "your turn" screen.
   | 'combat.attack';
 
@@ -1575,6 +1655,9 @@ export interface CombatEvent {
   /** combat.enemy-conditions: the list before and after. */
   conditionsFrom?: string[];
   conditionsTo?: string[];
+  /** combat.enemy-effects: the list before and after — the pair that makes undo free. */
+  effectsFrom?: HolotableEffect[];
+  effectsTo?: HolotableEffect[];
 }
 
 /** A line of the log: a change of character state, or something in the fight. */

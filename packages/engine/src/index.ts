@@ -504,3 +504,4 @@ export { explainSheet, ABILITY_UK, type Explanation, type Part, type SheetExplan
 export { computeHandEdits, isDebt, type HandEdit, type HandEditVerdict } from './handEdits.js';
 export { speciesSpeed, type Speed } from './speed.js';
 export { featureEffects, type FeatureEffect, type FeatureEffectSpec } from './featureEffects.js';
+export { monsterSaves, toMonsterAbility, type MonsterSave } from './monsters.js';

@@ -10,9 +10,12 @@
 // shown something that is not already on disk.
 import { randomUUID } from 'node:crypto';
 import type { Compendium, CompendiumDoc } from '@holotable/compendium';
+// The engine is a plain source folder, not a workspace package (see sheets.ts).
+import { monsterSaves } from '../../../packages/engine/src/monsters.js';
 import {
   checkDeclaredTotal,
   checkInitiativeRoll,
+  effectsAtRound,
   enemyStatus,
   MAX_ENEMIES_AT_ONCE,
   initiativeOrder,
@@ -23,7 +26,9 @@ import {
   type CombatState,
   type CompanionSummary,
   type EnemyInfo,
+  type EnemySave,
   type Fighter,
+  type HolotableEffect,
   type LastAttack,
   type SheetSummary,
   type WhoCounts,
@@ -44,7 +49,11 @@ export class CombatTracker {
    * kept: which creature, its number at the table, hit points the GM rolled by hand,
    * and how many it has lost. AC, attacks and the average come from the book each time.
    */
-  private readonly enemies = new Map<string, { monster: string; number: number; hp?: number; lost: number; conditions: string[] }>();
+  private readonly enemies = new Map<string, {
+    monster: string; number: number; hp?: number; lost: number; conditions: string[];
+    /** Effects on this creature (F-084), the same shape the party's have. */
+    effects: HolotableEffect[];
+  }>();
 
   constructor(
     private readonly log: Log,
@@ -213,6 +222,35 @@ export class CombatTracker {
     return this.write({ type: 'combat.enemy-conditions', author, enemy: id, conditionsFrom: [...enemy.conditions], conditionsTo: [...conditions] });
   }
 
+  /**
+   * The effects on one enemy, the whole list (F-084) — checked by the caller, as the
+   * conditions are. Before and after both go in the log, so undo costs nothing.
+   */
+  setEffects(author: Author, id: string, effects: HolotableEffect[]): CombatEvent | string {
+    const enemy = this.fighting ? this.enemies.get(id) : undefined;
+    if (enemy === undefined) return 'такого ворога в бою немає';
+    if (JSON.stringify(enemy.effects) === JSON.stringify(effects)) return 'нічого не змінилось';
+    return this.write({ type: 'combat.enemy-effects', author, enemy: id, effectsFrom: [...enemy.effects], effectsTo: effects });
+  }
+
+  /**
+   * Effects counted in rounds, or lasting until someone's next turn, end by themselves
+   * when that moment comes — exactly as the party's do (F-067, F-074). Called after the
+   * turn moves on; one line in the log per creature that lost something.
+   */
+  expireEffects(author: Author, round: number, turn: string | null): CombatEvent[] {
+    const out: CombatEvent[] = [];
+    for (const [id, enemy] of [...this.enemies]) {
+      const after = effectsAtRound(enemy.effects, round, turn);
+      if (after.length === enemy.effects.length) continue;
+      out.push(this.write({
+        type: 'combat.enemy-effects', author, enemy: id,
+        effectsFrom: [...enemy.effects], effectsTo: after,
+      }));
+    }
+    return out;
+  }
+
   /** An enemy leaves the fight. The log keeps that it was here. */
   removeEnemy(author: Author, id: string): CombatEvent | string {
     if (!this.fighting || !this.enemies.has(id)) return 'такого ворога в бою немає';
@@ -238,19 +276,50 @@ export class CombatTracker {
 
   /** An enemy built from the bestiary, the way a party member is built from the sheet. */
   private enemyOf(id: string): Fighter {
-    const enemy = this.enemies.get(id) as { monster: string; number: number; hp?: number; lost: number; conditions: string[] };
+    const enemy = this.enemies.get(id) as {
+      monster: string; number: number; hp?: number; lost: number; conditions: string[]; effects: HolotableEffect[];
+    };
     const doc = this.monsterOf(enemy.monster);
     const abilities = doc?.['abilities'] as Record<string, { modifier?: number }> | undefined;
-    const modifier = abilities?.['dexterity']?.modifier ?? 0;
+    // Effects (F-084) are applied where the creature's own line shows a number, and
+    // nowhere else: the six saves, armour class, initiative, its attacks.
+    const bonusFor = (target: string): number => enemy.effects
+      .filter((e) => e.target === target && e.bonus !== undefined)
+      .reduce((sum, e) => sum + (e.bonus ?? 0), 0);
+    const modeFor = (target: string): 'advantage' | 'disadvantage' | 'both' | undefined => {
+      let mode: 'advantage' | 'disadvantage' | 'both' | undefined;
+      for (const e of enemy.effects) {
+        if (e.target !== target || e.mode === undefined) continue;
+        mode = mode === undefined || mode === e.mode ? e.mode : 'both';
+      }
+      return mode;
+    };
+    const modifier = (abilities?.['dexterity']?.modifier ?? 0) + bonusFor('initiative');
     const thrown = this.rolls.get(id);
     const roll = thrown?.roll ?? null;
     const maxHp = this.maxHpOf(enemy);
     const hp = maxHp - enemy.lost;
     const name = String(doc?.name ?? enemy.monster);
     const behaviors = (doc?.['behaviors'] as { name?: string; attackType?: string; attackBonus?: number; description?: string }[] | undefined) ?? [];
+    const saves: EnemySave[] = monsterSaves(doc).map((save) => {
+      const effect = bonusFor(`save:${save.ability}`);
+      const mode = modeFor(`save:${save.ability}`);
+      return {
+        ability: save.ability,
+        base: save.modifier,
+        effect,
+        modifier: save.modifier + effect,
+        book: save.book,
+        ...(save.unclear === true ? { unclear: true } : {}),
+        ...(mode === undefined ? {} : { mode }),
+      };
+    });
+    const attackEffect = bonusFor('attacks');
+    const attackMode = modeFor('attacks');
+    const initiativeMode = modeFor('initiative');
     const info: EnemyInfo = {
       key: enemy.monster,
-      ac: Number((doc?.['armor'] as { class?: number } | undefined)?.class ?? 10),
+      ac: Number((doc?.['armor'] as { class?: number } | undefined)?.class ?? 10) + bonusFor('armorClass'),
       hp,
       maxHp,
       hpFrom: enemy.hp === undefined ? 'average' : 'gm',
@@ -259,7 +328,15 @@ export class CombatTracker {
       speed: String((doc?.['speed'] as { text?: string } | undefined)?.text ?? ''),
       attacks: behaviors
         .filter((b) => b.attackType !== undefined && b.attackType !== 'none')
-        .map((b) => ({ name: String(b.name ?? ''), toHit: b.attackBonus ?? 0, text: String(b.description ?? '') })),
+        .map((b) => ({
+          name: String(b.name ?? ''),
+          toHit: (b.attackBonus ?? 0) + attackEffect,
+          text: String(b.description ?? ''),
+          ...(attackMode === undefined ? {} : { mode: attackMode }),
+        })),
+      saves,
+      effects: [...enemy.effects],
+      ...(initiativeMode === undefined ? {} : { initiativeMode }),
     };
     return {
       id,
@@ -358,7 +435,10 @@ export class CombatTracker {
         break;
       case 'combat.enemies-added':
         for (const e of event.enemies ?? []) {
-          this.enemies.set(e.id, { monster: e.monster, number: e.number, ...(e.hp === undefined ? {} : { hp: e.hp }), lost: 0, conditions: [] });
+          this.enemies.set(e.id, {
+            monster: e.monster, number: e.number, ...(e.hp === undefined ? {} : { hp: e.hp }),
+            lost: 0, conditions: [], effects: [],
+          });
         }
         break;
       case 'combat.enemy-hp': {
@@ -369,6 +449,11 @@ export class CombatTracker {
       case 'combat.enemy-conditions': {
         const enemy = event.enemy === undefined ? undefined : this.enemies.get(event.enemy);
         if (enemy !== undefined) enemy.conditions = [...(event.conditionsTo ?? [])];
+        break;
+      }
+      case 'combat.enemy-effects': {
+        const enemy = event.enemy === undefined ? undefined : this.enemies.get(event.enemy);
+        if (enemy !== undefined) enemy.effects = [...(event.effectsTo ?? [])];
         break;
       }
       case 'combat.enemy-removed':

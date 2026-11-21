@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, weaponTarget, EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
@@ -106,6 +106,7 @@ export function App(): JSX.Element {
           damageEnemy={(enemy, amount) => controls.current?.damageEnemy(enemy, amount)}
           removeEnemy={(enemy) => controls.current?.removeEnemy(enemy)}
           setEnemyConditions={(enemy, list) => controls.current?.setEnemyConditions(enemy, list)}
+          setEnemyEffects={(enemy, list) => controls.current?.setEnemyEffects(enemy, list)}
           conditionChoices={conditionChoices}
         />
       )}
@@ -882,6 +883,7 @@ export function Effects({
   use,
   spend = true,
   weapons = [],
+  targets,
 }: {
   list: HolotableEffect[];
   set?: (list: HolotableEffect[]) => void;
@@ -895,13 +897,19 @@ export function Effects({
   spend?: boolean;
   /** This character's weapons, so an effect can go on one of them by name (F-083). */
   weapons?: { name: string }[];
+  /**
+   * The targets to offer instead of a character's own (F-084): an enemy has no sheet,
+   * so only its saves, armour class, initiative and attacks are on the list.
+   */
+  targets?: string[];
 }): JSX.Element | null {
   const term = useTerm();
   const skill = (x: string): string => term('skill', x);
   const weaponName = (x: string): string => term('weapon', x);
   const [open, setOpen] = useState(false);
+  const options = targets ?? effectTargetOptions(weapons);
   const [source, setSource] = useState('');
-  const [target, setTarget] = useState('ability:Dexterity');
+  const [target, setTarget] = useState(targets === undefined ? 'ability:Dexterity' : (targets[0] ?? 'armorClass'));
   const [kind, setKind] = useState<'bonus' | 'advantage' | 'disadvantage'>('bonus');
   const [bonus, setBonus] = useState('1');
   const [until, setUntil] = useState<HolotableEffect['until']>('fight');
@@ -980,7 +988,7 @@ export function Effects({
         >
           <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="звідки: Стимулятор" aria-label="Звідки ефект" />
           <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="На що діє">
-            {effectTargetOptions(weapons).map((t) => (
+            {options.map((t) => (
               <option key={t} value={t}>{effectTargetText(t, skill, weaponName)}</option>
             ))}
           </select>
@@ -1028,16 +1036,21 @@ function EnemyDetails({
   damage,
   remove,
   setConditions,
+  setEffects,
   conditionChoices = [],
 }: {
   fighter: Fighter;
   damage: (enemy: string, amount: number) => void;
   remove: (enemy: string) => void;
   setConditions?: (enemy: string, list: string[]) => void;
+  /** Effects on this creature (F-084). Absent — they are only shown. */
+  setEffects?: (enemy: string, list: HolotableEffect[]) => void;
   conditionChoices?: string[];
 }): JSX.Element | null {
   const e = fighter.enemy;
   if (e === undefined) return null;
+  const full = (ability: string): string =>
+    ({ Strength: 'Сила', Dexterity: 'Спритність', Constitution: 'Статура', Intelligence: 'Інтелект', Wisdom: 'Мудрість', Charisma: 'Харизма' } as Record<string, string>)[ability] ?? ability;
   return (
     <div className="enemy">
       <span className={`enemy-hp${e.hp === 0 ? ' down' : e.hp * 2 <= e.maxHp ? ' low' : ''}`}>
@@ -1072,15 +1085,40 @@ function EnemyDetails({
       {setConditions !== undefined && (
         <Conditions list={fighter.conditions ?? []} choices={conditionChoices} set={(list) => setConditions(fighter.id, list)} />
       )}
+      {/* The six saves (F-084). Bold is the bestiary's own number; the rest is just the
+          ability modifier, which is what the books mean when they say nothing. */}
+      <span className="enemy-saves">
+        Сейви:
+        {e.saves.map((save) => (
+          <span
+            key={save.ability}
+            className={save.book ? 'book' : undefined}
+            title={`${full(save.ability)}${save.book ? ' — з бестіарію' : ' — модифікатор характеристики, бестіарій сейва не дає'}${save.effect === 0 ? '' : ` · ефект ${signed(save.effect)}`}`}
+          >
+            {(ABILITY_SHORT.find((a) => a.key === save.ability)?.label ?? save.ability)} {signed(save.modifier)}
+            {save.unclear === true && <b title="у бестіарії сейв названий, але число не приїхало — узято модифікатор характеристики">?</b>}
+            <RollMode mode={save.mode} />
+          </span>
+        ))}
+        {e.initiativeMode !== undefined && (
+          <span className="enemy-init-mode">ініціатива<RollMode mode={e.initiativeMode} /></span>
+        )}
+      </span>
       {e.attacks.length > 0 && (
         <span className="enemy-attacks">
           {e.attacks.map((a) => (
             <span key={a.name} title={a.text}>
               {a.name} {signed(a.toHit)}
+              <RollMode mode={a.mode} />
             </span>
           ))}
         </span>
       )}
+      <Effects
+        list={e.effects}
+        targets={ENEMY_EFFECT_TARGETS}
+        {...(setEffects === undefined ? {} : { set: (list: HolotableEffect[]) => setEffects(fighter.id, list) })}
+      />
     </div>
   );
 }
@@ -1187,6 +1225,7 @@ function OrderRow({
   damage,
   remove,
   setConditions,
+  setEffects,
   conditionChoices,
 }: {
   fighter: Fighter;
@@ -1195,6 +1234,7 @@ function OrderRow({
   damage?: (enemy: string, amount: number) => void;
   remove?: (enemy: string) => void;
   setConditions?: (enemy: string, list: string[]) => void;
+  setEffects?: (enemy: string, list: HolotableEffect[]) => void;
   conditionChoices?: string[];
 }): JSX.Element {
   const term = useTerm();
@@ -1256,6 +1296,7 @@ function OrderRow({
           damage={damage}
           remove={remove}
           {...(setConditions === undefined ? {} : { setConditions })}
+          {...(setEffects === undefined ? {} : { setEffects })}
           {...(conditionChoices === undefined ? {} : { conditionChoices })}
         />
       )}
@@ -1367,6 +1408,7 @@ export function CombatBoard({
   damageEnemy,
   removeEnemy,
   setEnemyConditions,
+  setEnemyEffects,
   conditionChoices,
   party,
   rest,
@@ -1386,6 +1428,8 @@ export function CombatBoard({
   removeEnemy?: (enemy: string) => void;
   /** Conditions on enemies (F-056). */
   setEnemyConditions?: (enemy: string, list: string[]) => void;
+  /** Effects on enemies (F-084): a number or advantage/disadvantage, with a duration. */
+  setEnemyEffects?: (enemy: string, list: HolotableEffect[]) => void;
   conditionChoices?: string[];
 }): JSX.Element {
   const term = useTerm();
@@ -1417,6 +1461,7 @@ export function CombatBoard({
             {...(damageEnemy === undefined ? {} : { damage: damageEnemy })}
             {...(removeEnemy === undefined ? {} : { remove: removeEnemy })}
             {...(setEnemyConditions === undefined ? {} : { setConditions: setEnemyConditions })}
+            {...(setEnemyEffects === undefined ? {} : { setEffects: setEnemyEffects })}
             {...(conditionChoices === undefined ? {} : { conditionChoices })}
           />
         ))}

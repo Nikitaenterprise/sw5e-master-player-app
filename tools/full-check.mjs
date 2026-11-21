@@ -116,6 +116,7 @@ try {
     await wait(p1, (g) => g.some((m) => m.type === 'refused' && m.reason === 'перемикає майстер')));
   gm.ws.send(JSON.stringify({ type: 'enemies-add', monster: 'sith-probe-droid', count: 2 }));
   const foes = (g) => [...g].reverse().find((m) => m.type === 'combat')?.combat?.order.filter((f) => f.kind === 'enemy') ?? [];
+  const lastCombatOf = (g) => [...g].reverse().find((m) => m.type === 'combat')?.combat;
   ok('F-055 майстер привів двох ворогів — у нього КБ і ХП з бестіарію',
     await wait(gm, (g) => foes(g).length === 2 && foes(g)[0].enemy?.ac === 11));
   ok('F-055 у гравця вороги без жодного числа, лише стан словами',
@@ -123,6 +124,28 @@ try {
   gm.ws.send(JSON.stringify({ type: 'enemy-conditions', enemy: 'enemy-sith-probe-droid-1', conditions: ['Prone'] }));
   ok('F-056 умова на ворогові видна гравцеві, числа — ні',
     await wait(p1, (g) => foes(g)[0]?.conditions?.[0] === 'Prone' && foes(g)[0]?.enemy === undefined));
+  // F-084: saves from the bestiary, and an effect on one creature.
+  gm.ws.send(JSON.stringify({ type: 'enemies-add', monster: 'trandoshan-warrior', count: 1, hp: 20 }));
+  const trandoshan = (g) => foes(g).find((f) => f.enemy?.key === 'trandoshan-warrior');
+  const saveOf = (f, ability) => f?.enemy?.saves?.find((s) => s.ability === ability);
+  ok('F-084 сейви ворога: книжкові з бестіарію, решта — модифікатор характеристики',
+    await wait(gm, (g) => saveOf(trandoshan(g), 'Wisdom')?.modifier === 3 && saveOf(trandoshan(g), 'Wisdom')?.book === true
+      && saveOf(trandoshan(g), 'Dexterity')?.book === false && saveOf(trandoshan(g), 'Dexterity')?.modifier === 1));
+  gm.ws.send(JSON.stringify({ type: 'enemy-effects', enemy: 'enemy-trandoshan-warrior-1', effects: [
+    { id: 'fc-dark', source: 'Сила Сандри', target: 'save:Wisdom', mode: 'disadvantage', until: 'fight' },
+  ] }));
+  ok('F-084 недолік на сейв Мудрості — у майстра на карточці ворога',
+    await wait(gm, (g) => saveOf(trandoshan(g), 'Wisdom')?.mode === 'disadvantage' && saveOf(trandoshan(g), 'Strength')?.mode === undefined));
+  ok('F-084 гравцеві не дійшло ні сейвів, ні ефектів ворога',
+    await wait(p1, (g) => foes(g).length === 3) && !JSON.stringify(lastCombatOf(p1.got)).includes('Сила Сандри')
+      && foes(p1.got).every((f) => f.enemy === undefined));
+  gm.ws.send(JSON.stringify({ type: 'enemy-effects', enemy: 'enemy-trandoshan-warrior-1', effects: [
+    { id: 'fc-nope', source: 'Хиба', target: 'skill:Stealth', bonus: 2, until: 'fight' },
+  ] }));
+  ok('F-084 на ворога не кладуть ефект, якого його рядок не покаже',
+    await wait(gm, (g) => g.some((m) => m.type === 'refused' && m.reason === 'на ворога ефект кладуть на сейв, КБ, ініціативу або атаки')));
+  gm.ws.send(JSON.stringify({ type: 'enemy-remove', enemy: 'enemy-trandoshan-warrior-1' }));
+  await wait(gm, (g) => trandoshan(g) === undefined);
   const briefsMsg = gm.got.find((m) => m.type === 'briefs');
   ok('F-056 таблиця виснаження з книги приходить на екран', briefsMsg?.exhaustion?.length === 6 && briefsMsg.exhaustion[5] === 'Death');
   const lastCombat = (g) => [...g].reverse().find((m) => m.type === 'combat')?.combat;

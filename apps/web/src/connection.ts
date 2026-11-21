@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type Handout, type HomebrewDef, type HomebrewItem, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -193,6 +193,8 @@ export interface Controls {
   removeEnemy: (enemy: string) => void;
   /** The conditions on one enemy, the whole list (F-056). */
   setEnemyConditions: (enemy: string, conditions: string[]) => void;
+  /** The effects on one enemy, the whole list (F-084). */
+  setEnemyEffects: (enemy: string, effects: HolotableEffect[]) => void;
   /** An attack roll from the "your turn" screen (F-057). */
   attackRoll: (character: string, weapon: string, roll: number, said?: number) => void;
   /** "Turn over" from the phone (F-057). */
@@ -481,6 +483,11 @@ export function connect(
     setEnemyConditions: (enemy, conditions) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'enemy-conditions', enemy, conditions };
+      socket.send(JSON.stringify(message));
+    },
+    setEnemyEffects: (enemy, effects) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'enemy-effects', enemy, effects };
       socket.send(JSON.stringify(message));
     },
     removeEnemy: (enemy) => {
