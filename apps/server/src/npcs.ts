@@ -14,6 +14,7 @@ import {
   MAX_SCENE_NPCS,
   npcNoteText,
   npcsFor,
+  termKey,
   type Author,
   type NpcEvent,
   type NpcNote,
@@ -25,10 +26,22 @@ import type { Log } from './log.js';
 export class SceneNpcs {
   /** In the order they came into the scene. */
   private readonly people = new Map<string, NpcRecord>();
-  private readonly trace: NpcNote[] = [];
+  /** What changed, as the pairs themselves: the words are made when they are asked for. */
+  private readonly trace: { at: number; before: NpcRecord | null; after: NpcRecord | null }[] = [];
 
-  constructor(private readonly log: Log) {
-    for (const event of log.readAll().npcs) this.replay(event);
+  constructor(
+    private readonly log: Log,
+    /**
+     * The owner's glossary, read live: a skill renamed mid-session must show its new
+     * name in the trace too (F-025, F-033).
+     */
+    private readonly glossary: () => Record<string, string> = () => ({}),
+  ) {
+    // THIS session's lines only, unlike character state and unlike the fight. A scene
+    // belongs to one evening: "the scene is over — the list is gone" is the feature's
+    // own boundary (F-085), and reading every session would bring last month's merchant
+    // back onto the GM's screen — and his name onto the players' phones.
+    for (const event of log.read().npcs) this.replay(event);
   }
 
   /** The scene as one screen may see it: the GM everything, a player the shown names. */
@@ -36,9 +49,14 @@ export class SceneNpcs {
     return npcsFor([...this.people.values()], role);
   }
 
-  /** What the GM's feed shows about NPCs, oldest first. Rebuilt from the log. */
+  /**
+   * What the GM's feed shows about NPCs, oldest first. Rebuilt from the log, and put
+   * into words here rather than when the line was written, so the glossary applies.
+   */
   notes(): NpcNote[] {
-    return [...this.trace];
+    const terms = this.glossary();
+    const skill = (english: string): string => terms[termKey('skill', english)] ?? english;
+    return this.trace.map((step) => ({ at: step.at, text: npcNoteText(step.before, step.after, skill) }));
   }
 
   has(id: string): boolean {
@@ -66,6 +84,11 @@ export class SceneNpcs {
     return this.write({ type: 'npc.scene-cleared', author, cleared: [...this.people.values()] });
   }
 
+  /** Whether anybody is in the scene — the session's closing asks before clearing it. */
+  get count(): number {
+    return this.people.size;
+  }
+
   private write(part: Omit<NpcEvent, 'id' | 'at'>): NpcEvent {
     const event: NpcEvent = { id: randomUUID(), at: Date.now(), ...part };
     this.log.append(event);
@@ -78,18 +101,18 @@ export class SceneNpcs {
       case 'npc.set':
         if (event.npc !== undefined) {
           this.people.set(event.npc.id, event.npc);
-          this.trace.push({ at: event.at, text: npcNoteText(event.was ?? null, event.npc) });
+          this.trace.push({ at: event.at, before: event.was ?? null, after: event.npc });
         }
         break;
       case 'npc.removed':
         if (event.npcId !== undefined) {
           this.people.delete(event.npcId);
-          this.trace.push({ at: event.at, text: npcNoteText(event.was ?? null, null) });
+          this.trace.push({ at: event.at, before: event.was ?? null, after: null });
         }
         break;
       case 'npc.scene-cleared':
         this.people.clear();
-        this.trace.push({ at: event.at, text: 'сцена скінчилась — НПС прибрано' });
+        this.trace.push({ at: event.at, before: null, after: null });
         break;
     }
   }

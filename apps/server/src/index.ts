@@ -178,7 +178,7 @@ export async function start(
   const sendHandouts = (c: { socket: WebSocket; role: string; character?: string }): void =>
     send(c.socket, { type: 'handouts', handouts: handoutsFor(handouts, c.role === 'gm' ? 'gm' : 'player', c.character) });
   // The scene's NPCs (F-085): rebuilt from the log, like the fight.
-  const npcs = new SceneNpcs(log);
+  const npcs = new SceneNpcs(log, () => glossary.terms);
   const sendNpcs = (c: { socket: WebSocket; role: string }): void =>
     send(c.socket, { type: 'npcs', npcs: npcs.view(c.role === 'gm' ? 'gm' : 'player') });
   const broadcastNpcs = (): void => {
@@ -799,6 +799,13 @@ export async function start(
         closing = true;
         const closed = log.sessionNumber;
         const events = log.read().events.length;
+        // The scene belongs to the evening that is ending (F-085): whoever is still in it
+        // goes now, with a line in THIS session's log, so neither the GM's screen nor a
+        // player's phone carries last month's merchant into the next game.
+        if (npcs.count > 0) {
+          npcs.clear({ kind: 'system', id: 'system' });
+          broadcastNpcs();
+        }
         const opened = log.next();
         const saving = demo
           ? Promise.resolve({ saved: false as const, reason: DEMO_NOT_SAVED })

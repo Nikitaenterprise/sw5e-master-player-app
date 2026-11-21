@@ -110,6 +110,8 @@ describe('F-085 · НПС у сцені', () => {
     expect(checkNpc(ron({ modifiers: [{ id: 'm', source: 'цигарка', target: 'all' }] }))).toBe('модифікатор мусить дати число або перевагу/недолік');
     expect(checkNpc(ron({ modifiers: [{ ...cigarette, bonus: 0 }] }))).toBe('модифікатор — ціле число від −20 до 20, не нуль');
     expect(checkNpc(ron({ modifiers: [cigarette, cigarette] }))).toBe('у модифікатора немає власного id');
+    expect(checkNpc(ron({ modifiers: [{ ...cigarette, id: 'x'.repeat(41) }] })), 'id модифікатора теж має стелю')
+      .toBe('у модифікатора немає власного id');
     expect(NPC_MODIFIER_TARGETS[0], 'перший варіант — будь-яка перевірка').toBe('all');
     expect(NPC_MODIFIER_TARGETS).toContain('skill:Persuasion');
     expect(NPC_MODIFIER_TARGETS).toContain('ability:Charisma');
@@ -179,6 +181,32 @@ describe('F-085 · НПС у сцені', () => {
     expect(JSON.stringify(theirs), 'ні ставлення, ні модифікаторів, ні «чого хоче»').not.toMatch(/hostile|цигарка|Міролл/);
   });
 
+  it('сцена не переживає закриття сесії: минулий вечір не повертається', () => {
+    // The boundary of the feature: "the scene is over — the list is gone". Character
+    // state is the sum of every session (F-024), a scene is one evening's.
+    const dir = mkdtempSync(join(tmpdir(), 'holotable-f085-sessions-'));
+    const first = new SceneNpcs(new Log(dir, 1));
+    first.set(gm, ron({ shown: true }));
+    expect(first.view('player'), 'у своїй сесії він у сцені').toHaveLength(1);
+    const next = new SceneNpcs(new Log(dir, 2));
+    expect(next.view('gm'), 'наступна сесія починається з порожньої сцени').toEqual([]);
+    expect(next.notes(), 'і чужого сліду не тягне').toEqual([]);
+    // Within one session a restart still brings everyone back.
+    expect(new SceneNpcs(new Log(dir, 1)).view('gm')).toHaveLength(1);
+  });
+
+  it('слід у стрічці перекладає навичку глосарієм власника', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'holotable-f085-glossary-'));
+    const terms = { 'skill.persuasion': 'Переконання' };
+    const t = new SceneNpcs(new Log(dir, 1), () => terms);
+    t.set(gm, ron());
+    t.set(gm, ron({ modifiers: [cigarette] }));
+    expect(t.notes().at(-1)?.text).toContain('+ цигарка: Переконання +1');
+    // The glossary is read when the line is shown, so a word renamed mid-session takes.
+    terms['skill.persuasion'] = 'Умовляння';
+    expect(t.notes().at(-1)?.text).toContain('+ цигарка: Умовляння +1');
+  });
+
   it('слід у стрічці говорить саме про те, що змінилось', () => {
     expect(npcNoteText(null, ron({ wants: '' }))).toBe('Торговець Рон у сцені · байдужий');
     expect(npcNoteText(ron(), null)).toBe('Торговець Рон пішов зі сцени');
@@ -187,6 +215,12 @@ describe('F-085 · НПС у сцені', () => {
     expect(npcNoteText(ron(), ron({ wants: '' }))).toBe('Торговець Рон: уже нічого не хоче');
     expect(npcNoteText(ron({ shown: true }), ron({ shown: false }))).toBe('Торговець Рон: прихований від гравців');
     expect(npcNoteText(ron(), ron())).toBe('Торговець Рон: без змін');
+    expect(npcNoteText(null, null), 'сцена скінчилась').toBe('сцена скінчилась — НПС прибрано');
+    // The same modifier written over says what it says now, not "nothing changed".
+    expect(npcNoteText(ron({ modifiers: [cigarette] }), ron({ modifiers: [{ ...cigarette, bonus: 2 }] })))
+      .toBe('Торговець Рон: тепер цигарка: Persuasion +2');
+    expect(npcNoteText(ron({ modifiers: [cigarette] }), ron({ modifiers: [cigarette] }), () => 'Переконання'))
+      .toBe('Торговець Рон: без змін');
   });
 
   it('живий стіл: майстер веде сцену, гравець бачить лише імʼя показаного; гравець не веде', async () => {
@@ -226,15 +260,26 @@ describe('F-085 · НПС у сцені', () => {
     await until(() => master.refusals().length === 1);
     expect(master.refusals()).toEqual(['ставлення — ворожий, байдужий або прихильний']);
 
-    // The scene ends, and the next screen that connects sees an empty scene and the trace.
-    master.send({ type: 'npcs-clear' });
+    // Closing the session takes the scene with it, on every screen (F-024 + F-085).
+    master.send({ type: 'close-session' });
     await until(() => master.npcs().length === 0 && sandra.npcs().length === 0);
+    expect(master.notes().at(-1)).toBe('сцена скінчилась — НПС прибрано');
+    master.send({ type: 'npcs-clear' });
+    await until(() => master.refusals().length === 2);
+    expect(master.refusals().at(-1), 'прибирати вже нікого').toBe('у сцені нікого немає');
+    // Restarted on the session that closing opened (no number forced, the way
+    // ЗАПУСТИТИ.bat starts it): a new evening begins with an empty scene and an empty
+    // trace, while a restart WITHIN a session keeps both.
+    await server.close();
+    server = await start(0, { eventsDir: dir, charactersDir: CHARACTERS, repoDir: dir, stateDir: dir });
+    const back = await screen(server.port, { role: 'gm' });
+    expect(back.npcs(), 'нова сесія — порожня сцена').toEqual([]);
+    expect(back.notes(), 'і слід закритої сесії з собою не тягне').toEqual([]);
     await server.close();
     server = await start(0, options);
-    const back = await screen(server.port, { role: 'gm' });
-    expect(back.npcs()).toEqual([]);
-    expect(back.notes().at(-1)).toBe('сцена скінчилась — НПС прибрано');
-    expect(back.notes().length, 'увесь слід сцени — із журналу').toBeGreaterThan(2);
+    const within = await screen(server.port, { role: 'gm' });
+    expect(within.npcs(), 'у своїй сесії сцену прибрано, бо її закрили').toEqual([]);
+    expect(within.notes().at(-1), 'а слід тієї сесії лишився').toBe('сцена скінчилась — НПС прибрано');
   }, 30_000);
 
   it('імʼя й «чого хоче» пишуться при виході з поля, а не на кожну літеру', () => {

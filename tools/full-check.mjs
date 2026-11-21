@@ -261,7 +261,14 @@ try {
   gm.ws.send(JSON.stringify({ type: 'npcs-clear' }));
   ok('F-085 «Сцена скінчилась» прибирає всіх',
     await wait(gm, (g) => npcsOf(g).length === 0) && await wait(p1, (g) => npcsOf(g).length === 0));
+  // And closing the session takes whoever is left in the scene with it.
+  gm.ws.send(JSON.stringify({ type: 'npc-set', npc: {
+    id: 'fc-left', name: 'Забутий НПС', attitude: 'hostile', wants: '', modifiers: [], shown: true,
+  } }));
+  await wait(gm, (g) => npcsOf(g).length === 1);
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
+  ok('F-085 закриття сесії забирає сцену з собою',
+    await wait(gm, (g) => npcsOf(g).length === 0) && await wait(p1, (g) => npcsOf(g).length === 0));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');
   ok('F-024/F-037 закриття сесії в демо — без коміту', closed && c.opened === 2 && c.save.saved === false && c.save.reason.includes('демо'));

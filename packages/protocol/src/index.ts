@@ -1871,7 +1871,7 @@ export function checkNpc(value: unknown): NpcRecord | string {
   for (const item of raw) {
     if (typeof item !== 'object' || item === null) return 'модифікатор — обʼєкт';
     const m = item as Record<string, unknown>;
-    if (typeof m['id'] !== 'string' || m['id'] === '' || ids.has(m['id'])) return 'у модифікатора немає власного id';
+    if (typeof m['id'] !== 'string' || m['id'] === '' || m['id'].length > 40 || ids.has(m['id'])) return 'у модифікатора немає власного id';
     ids.add(m['id']);
     if (typeof m['source'] !== 'string' || m['source'].trim() === '' || m['source'].length > 60) return 'звідки модифікатор — від 1 до 60 знаків';
     if (typeof m['target'] !== 'string' || !NPC_MODIFIER_TARGETS.includes(m['target'])) return 'на що діє модифікатор — не зрозуміло';
@@ -1928,7 +1928,12 @@ export function npcsFor(list: NpcRecord[], role: 'gm' | 'player'): SceneNpc[] {
  * come into the scene, `after` is null when he has left. Several changes at once make
  * one line, because that is how the GM pressed them: one save, one line.
  */
-export function npcNoteText(before: NpcRecord | null, after: NpcRecord | null): string {
+export function npcNoteText(
+  before: NpcRecord | null,
+  after: NpcRecord | null,
+  skill: (english: string) => string = (x) => x,
+): string {
+  if (after === null && before === null) return 'сцена скінчилась — НПС прибрано';
   if (after === null) return `${before?.name ?? 'НПС'} пішов зі сцени`;
   if (before === null) {
     const wants = after.wants === '' ? '' : ` · хоче: ${after.wants}`;
@@ -1939,9 +1944,14 @@ export function npcNoteText(before: NpcRecord | null, after: NpcRecord | null): 
   if (before.attitude !== after.attitude) parts.push(`${ATTITUDE_TEXT[before.attitude]} → ${ATTITUDE_TEXT[after.attitude]}`);
   if (before.wants !== after.wants) parts.push(after.wants === '' ? 'уже нічого не хоче' : `хоче: ${after.wants}`);
   if (before.shown !== after.shown) parts.push(after.shown ? 'гравці його бачать' : 'прихований від гравців');
-  const had = new Set(before.modifiers.map((m) => m.id));
+  const had = new Map(before.modifiers.map((m) => [m.id, m]));
   const has = new Set(after.modifiers.map((m) => m.id));
-  for (const m of after.modifiers) if (!had.has(m.id)) parts.push(`+ ${npcModifierText(m)}`);
+  for (const m of after.modifiers) {
+    const old = had.get(m.id);
+    if (old === undefined) parts.push(`+ ${npcModifierText(m, skill)}`);
+    // The same modifier, written over: say what it says now, not "nothing changed".
+    else if (JSON.stringify(old) !== JSON.stringify(m)) parts.push(`тепер ${npcModifierText(m, skill)}`);
+  }
   for (const m of before.modifiers) if (!has.has(m.id)) parts.push(`− ${m.source}`);
   return `${after.name}: ${parts.length === 0 ? 'без змін' : parts.join(' · ')}`;
 }
