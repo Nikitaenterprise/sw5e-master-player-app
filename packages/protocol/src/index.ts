@@ -755,7 +755,64 @@ export interface PrintData {
   deployments?: Record<string, DeploymentSummary[]>;
   /** What is wrong with the owner's ship or deployment files, in words (F-031). */
   shipProblems?: string[];
+  /** The six station cards, in the book's order (F-032). */
+  roles?: RoleCard[];
+  /** The actions of starship combat, as the book states them (F-032). */
+  shipActions?: ShipActionCard[];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Role cards (F-032). One card per station on the ship: what the book says the station
+// is, what its abilities are at the rank this character has, and the text of the
+// gambits and ventures they chose. Every word comes from the archive at the moment the
+// card is asked for — nothing on a card is stored (ADR 0003).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One named piece of book text on a card. */
+export interface RoleCardText {
+  name: string;
+  text: string;
+  /** Where the power die must sit, for abilities that burn one. */
+  powerDie?: string;
+  /** What the book demands before a venture can be chosen. */
+  prerequisite?: string;
+}
+
+export interface RoleCard {
+  /** The station, as the book names it: Pilot, Gunner, … */
+  deployment: string;
+  /** The book's one sentence about what this station does. */
+  role: string;
+  /** What this station calls its powered abilities: Tactics, Gambits, … */
+  word: string;
+  /** The station's abilities at this character's rank. */
+  rankFeatures: RoleCardText[];
+  /** Who mans the station, by slug; null when nobody does. */
+  character: string | null;
+  /** Their name as the table says it, when someone mans the station. */
+  name?: string;
+  rank: number | null;
+  specialty: boolean;
+  techniques: RoleCardText[];
+  ventures: RoleCardText[];
+  /** Names the book does not know, and anything else wrong with this card. */
+  problems: string[];
+}
+
+export interface ShipActionCard {
+  name: string;
+  text: string;
+  /**
+   * The checks the book states for the action, e.g. "DC 10 Strength (Boost)". Empty
+   * where the book states none: there the GM decides what roll the action needs, and
+   * the card says so rather than showing a number nobody wrote.
+   */
+  checks: string[];
+  /** Helm is the pilot's alone; the rest are anyone's, as logic dictates. */
+  pilotOnly: boolean;
+  parts: { name: string; checks: string[] }[];
+}
+
 
 /** Server → client: the computed sheets. Sent once, on connect. */
 export interface Sheets {
@@ -947,7 +1004,16 @@ export function termUrl(kind: TermKind, english: string): string {
 
 /** A link straight into the reference at one section of a rules chapter (F-085). */
 export function ruleUrl(key: string, anchor?: string): string {
-  return `/?as=ref&doc=rule/${key}${anchor === undefined ? '' : `#${anchor}`}`;
+  return docUrl('rule', key, anchor);
+}
+
+/**
+ * The same address for any kind of document in the archive, not only the `rule` ones:
+ * starship rules, species, equipment. The reference page takes the type from the
+ * address, so a card can link straight to the page it quotes (F-032).
+ */
+export function docUrl(type: string, key: string, anchor?: string): string {
+  return `/?as=ref&doc=${type}/${key}${anchor === undefined ? '' : `#${anchor}`}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

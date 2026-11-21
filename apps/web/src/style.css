@@ -747,18 +747,34 @@ a.ref-link:hover { color: var(--accent); }
 .s-saves td.proficient::after { content: ' ●'; font-size: .6rem; vertical-align: super; }
 .s-crew { list-style: none; padding: 0; margin: .2rem 0; display: flex; flex-direction: column; gap: .3rem; font-size: .88rem; }
 .s-crew small { color: var(--muted); }
-.ship-sheet .s-quiet {
-  color: #6b7280;
-}
-
 .s-crew-line { color: var(--muted); font-size: .8rem; }
+.s-quiet { font-style: italic; }
 .s-alarm { color: var(--bad); }
 .s-warnings ul { margin: .2rem 0; padding-left: 1.1rem; font-size: .82rem; color: var(--muted); }
 .s-foot { margin-top: .6rem; border-top: 1px solid var(--border); padding-top: .3rem; }
 .s-foot p { margin: .1rem 0; font-size: .82rem; }
 
+/* Station cards (F-032): one card per sheet of paper, handed to the player at that station. */
+.role-cards { display: flex; flex-direction: column; gap: 1rem; }
+.role-card { max-width: 48rem; margin: 0 auto; padding: 1rem 1.2rem; border: 1px solid var(--border); border-radius: .5rem; background: var(--panel); }
+.role-card h2 { margin: 0; font-size: 1.15rem; }
+.role-card h3 { margin: .8rem 0 .3rem; font-size: .95rem; border-bottom: 1px solid var(--border); padding-bottom: .15rem; }
+.role-card h4 { margin: .5rem 0 .15rem; font-size: .88rem; }
+.role-who { font-weight: 400; color: var(--muted); }
+.role-role { margin: .2rem 0; font-size: .92rem; }
+.role-meta { margin: .1rem 0; color: var(--muted); font-size: .8rem; }
+.role-piece p { margin: .2rem 0; font-size: .86rem; }
+.role-warnings ul { margin: .3rem 0; padding-left: 1.1rem; font-size: .82rem; color: var(--bad); }
+.role-actions { list-style: none; padding: 0; margin: .2rem 0; display: flex; flex-direction: column; gap: .2rem; font-size: .86rem; }
+.role-only { color: var(--bad); font-size: .78rem; }
+.role-parts { color: var(--muted); font-size: .78rem; display: flex; flex-wrap: wrap; gap: .4rem; }
+.role-foot { margin-top: .8rem; border-top: 1px solid var(--border); padding-top: .3rem; color: var(--muted); font-size: .78rem; }
+
 @media print {
   .s-root .print-toolbar { display: none; }
+  .role-card { max-width: none; margin: 0; padding: 0; border: none; background: #fff; color: #000; page-break-before: always; }
+  .role-meta, .role-who, .role-parts, .role-foot { color: #444; }
+  .role-card h3 { border-color: #999; }
   .s-sheet { max-width: none; margin: 0; padding: 0; border: none; background: #fff; color: #000; page-break-after: always; }
   .s-sheet:last-child { page-break-after: auto; }
   .s-abilities th, .s-abilities td, .s-weapons th, .s-weapons td { border-color: #999; }

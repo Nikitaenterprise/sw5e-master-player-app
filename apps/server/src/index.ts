@@ -90,6 +90,7 @@ import { summarizeFights } from './summary.js';
 import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptHashes, MAX_MESSAGE_BYTES } from './guard.js';
 import { loadShips, ShipStates, systemDamageTable } from './ships.js';
 import { loadDeployments } from './deployments.js';
+import { roleCards, shipActionCards } from './roles.js';
 import { loadScenario, withScenarioGrants, withScenarioItems } from './scenario.js';
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
@@ -406,6 +407,15 @@ export async function start(
           .map(([slug, summary]) => [slug, { summary, state: ships.one(slug) ?? {} }])),
         deployments: loadedDeployments.byCharacter,
         shipProblems: [...loadedShips.problems, ...loadedDeployments.problems],
+        // The station cards (F-032): the book's text for every station, with what the
+        // player at it actually chose. Built on the spot from the archive.
+        roles: roleCards(
+          compendium,
+          Object.values(loadedShips.summaries).flatMap((summary) => summary.crew),
+          loadedDeployments.byCharacter,
+          Object.fromEntries(Object.entries(sheets).map(([slug, sheet]) => [slug, sheet.name])),
+        ),
+        shipActions: shipActionCards(compendium),
       };
       response.writeHead(200, { 'content-type': TYPES['.json'] as string, 'cache-control': 'no-store' });
       response.end(JSON.stringify(data));

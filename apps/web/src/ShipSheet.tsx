@@ -5,8 +5,9 @@
 // page is the other half: the sheet, the way F-030 is the sheet for a character.
 //
 // Same rules as the paper sheets: one HTTP request, the engine's numbers (ADR 0003),
-// no socket and no place at the table. The markup is deliberately print-ready — F-062
-// adds the button and the role cards on top of it, and nothing here has to move.
+// no socket and no place at the table. The markup is print-ready; the six station cards
+// (F-032) are printed from this page too, after the sheet, and F-062 adds the button on
+// the GM's screen that opens it.
 import { useEffect, useState, type JSX, type ReactNode } from 'react';
 import {
   showTerm,
@@ -22,6 +23,7 @@ import {
 import { name } from './characters.js';
 import { feet } from './Print.js';
 import { readMode } from './terms.js';
+import { RoleCards } from './RoleCards.js';
 
 const ABILITIES: { key: string; short: string }[] = [
   { key: 'Strength', short: 'СИЛ' },
@@ -287,6 +289,7 @@ export function ShipSheetPage(): JSX.Element {
   if (error !== null) return <p className="print-message">Не вдалося взяти лист корабля в сервера: {error}</p>;
   if (data === null) return <p className="print-message">Беру лист корабля в сервера…</p>;
   const ships = data.ships ?? {};
+  const cards = data.roles ?? [];
   const slugs = Object.keys(ships).filter((s) => only === null || s === only);
   if (slugs.length === 0) {
     return <p className="print-message">У `state/ships/` немає жодного листа корабля — покласти його туди може лише власник.</p>;
@@ -296,7 +299,8 @@ export function ShipSheetPage(): JSX.Element {
       <div className="print-toolbar">
         <button type="button" onClick={() => window.print()}>Друкувати</button>
         <span>
-          {slugs.length === 1 ? 'Один аркуш' : `${slugs.length} аркушів`} A4: лист корабля з числами рушія.
+          {slugs.length === 1 ? 'Один аркуш' : `${slugs.length} аркушів`} A4: лист корабля з числами рушія
+          {cards.length > 0 && `, далі ${cards.length} карток станцій — по одній на аркуш`}.
           У вікні друку — «Зберегти як PDF».
         </span>
       </div>
@@ -314,6 +318,7 @@ export function ShipSheetPage(): JSX.Element {
           problems={data.shipProblems ?? []}
         />
       ))}
+      {cards.length > 0 && <RoleCards cards={cards} actions={data.shipActions ?? []} />}
     </div>
   );
 }

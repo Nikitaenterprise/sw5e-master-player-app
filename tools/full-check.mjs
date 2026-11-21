@@ -36,6 +36,21 @@ try {
       && printData.deployments['alister'][0].deployment === 'Gunner'
       && printData.deployments['alister'][0].rank === 1
       && (printData.shipProblems ?? []).length === 0);
+  // F-032: the six station cards, with the book's own text and checks.
+  const roleNames = (printData.roles ?? []).map((c) => c.deployment);
+  const gunnerCard = (printData.roles ?? []).find((c) => c.deployment === 'Gunner');
+  const helm = (printData.shipActions ?? []).find((a) => a.name === 'Helm');
+  ok('F-032 картки станцій: шість станцій, узяте навідника, Helm лише пілот',
+    roleNames.join(',') === 'Pilot,Gunner,Mechanic,Operator,Technician,Coordinator'
+      && gunnerCard?.name === 'Алістер'
+      && gunnerCard.techniques.map((t) => t.name).join(',') === 'Penetrating Shot,Disabling Shot'
+      && gunnerCard.role === 'Controls one or more weapon emplacements'
+      && helm?.pilotOnly === true
+      && (printData.shipActions ?? []).filter((a) => a.pilotOnly).length === 1
+      && (printData.roles ?? []).flatMap((c) => c.problems).length === 0);
+  ok('F-032 станція без екіпажу не вигадує людину',
+    (printData.roles ?? []).find((c) => c.deployment === 'Technician')?.character === null
+      && ((printData.roles ?? []).find((c) => c.deployment === 'Technician')?.rankFeatures.length ?? 0) > 0);
   const shipPage = await (await fetch(`http://localhost:${port}/?as=ship`)).text();
   ok('F-031 сторінка листа корабля роздається', /<script[^>]+assets\/index-/.test(shipPage));
   const refHits = await (await fetch(`http://localhost:${port}/api/search?q=${encodeURIComponent('Витонченість')}`)).json();
