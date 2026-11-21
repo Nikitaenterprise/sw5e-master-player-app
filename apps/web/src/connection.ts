@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type ShipDamageOptions, type ShipState, type ShipSummary, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type ShipDamageOptions, type ShipState, type ShipSummary, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type RoleCard, type ShipActionCard, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -75,6 +75,12 @@ export interface Snapshot {
   sceneNotes: SceneNote[];
   /** The scene's weather: what is on, what can be turned on (F-086). */
   weather: WeatherNow | null;
+  /** This player's own station card, when the GM has seated them (F-061). */
+  roleCard: RoleCard | null;
+  /** The ship whose station this player mans. */
+  roleShip: string | null;
+  /** The actions of starship combat, for the card (F-032). */
+  roleActions: ShipActionCard[];
 }
 
 export const EMPTY: Snapshot = {
@@ -108,6 +114,9 @@ export const EMPTY: Snapshot = {
   npcs: [],
   sceneNotes: [],
   weather: null,
+  roleCard: null,
+  roleShip: null,
+  roleActions: [],
   glossaryFound: { q: '', rows: [] },
   combat: null,
   counts: {},
@@ -236,6 +245,8 @@ export interface Controls {
   /** Damage to a ship — shields first; or a change to its state. GM only (F-060). */
   shipDamage: (ship: string, amount: number, options?: ShipDamageOptions) => void;
   shipSet: (ship: string, changes: ShipState) => void;
+  /** Seat someone at a station, or free it with null. GM only (F-061). */
+  crewSet: (ship: string, deployment: string, character: string | null) => void;
   /** Space combat (F-063): the ship's turn starts; a destruction save; a power die moved. */
   shipTurn: (ship: string, regenerate: boolean, recovered?: number) => void;
   shipDestructionSave: (ship: string, roll: number) => void;
@@ -341,6 +352,9 @@ export function connect(
           break;
         case 'homebrew':
           update({ homebrew: m.items, homebrewProblems: m.problems });
+          break;
+        case 'role-card':
+          update({ roleCard: m.card, roleShip: m.ship, roleActions: m.actions });
           break;
         case 'ships':
           update({ ships: m.ships, systemDamageLevels: m.systemDamageLevels ?? [] });
@@ -526,6 +540,11 @@ export function connect(
     shipSet: (ship, changes) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'ship-set', ship, changes };
+      socket.send(JSON.stringify(message));
+    },
+    crewSet: (ship, deployment, character) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'crew-set', ship, deployment, character };
       socket.send(JSON.stringify(message));
     },
     sendHandout: (title, text, to) => {

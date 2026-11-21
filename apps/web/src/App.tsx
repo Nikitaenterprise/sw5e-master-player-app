@@ -21,6 +21,7 @@ import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
 import { HandoutDesk, Handouts } from './Handouts.js';
 import { ShipPanel, ShipStrip } from './Ship.js';
+import { MyStation } from './RoleCards.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, isMismatch, type FeedRow,
 } from './feed.js';
@@ -176,6 +177,7 @@ export function App(): JSX.Element {
           turn={(regenerate, recovered) => controls.current?.shipTurn(slug, regenerate, recovered)}
           destructionSave={(roll) => controls.current?.shipDestructionSave(slug, roll)}
           move={(from, to) => controls.current?.shipPower(slug, from, to)}
+          seat={(deployment, who) => controls.current?.crewSet(slug, deployment, who)}
           fighting={snapshot.combat !== null}
           initiative={shipInitiative(ship.summary.crew.map((c) => c.character), snapshot.combat)}
           party={snapshot.characters}
@@ -347,6 +349,9 @@ function PlayerSheet({
           move={(from, to) => controls.current?.shipPower(slug, from, to)}
         />
       ))}
+      {Object.keys(snapshot.ships).length > 0 && (
+        <MyStation card={snapshot.roleCard} actions={snapshot.roleActions} />
+      )}
       <NpcsInScene npcs={snapshot.npcs} />
       <WeatherBar weather={snapshot.weather} />
       <h2>Мій стан</h2>

@@ -84,7 +84,8 @@ export type ToServer =
   | ShipSet
   | ShipTurn
   | ShipDestructionSave
-  | ShipPower;
+  | ShipPower
+  | CrewSet;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -153,7 +154,8 @@ export type FromServer =
   | NpcsMessage
   | SceneNotesMessage
   | WeatherMessage
-  | ShipsMessage;
+  | ShipsMessage
+  | RoleCardMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -768,6 +770,11 @@ export interface PrintData {
 // card is asked for — nothing on a card is stored (ADR 0003).
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** The six stations of a ship, in the book's order. */
+export const DEPLOYMENTS = [
+  'Pilot', 'Gunner', 'Mechanic', 'Operator', 'Technician', 'Coordinator',
+] as const;
+
 /** One named piece of book text on a card. */
 export interface RoleCardText {
   name: string;
@@ -797,6 +804,18 @@ export interface RoleCard {
   ventures: RoleCardText[];
   /** Names the book does not know, and anything else wrong with this card. */
   problems: string[];
+}
+
+/**
+ * Server → one screen: the card of the station this screen's player mans (F-061). The
+ * GM's screens get nothing here — the GM prints all six from the ship's page (F-032).
+ * A player with no station gets `card: null`, and the phone says so plainly.
+ */
+export interface RoleCardMessage {
+  type: 'role-card';
+  ship: string | null;
+  card: RoleCard | null;
+  actions: ShipActionCard[];
 }
 
 export interface ShipActionCard {
@@ -1751,7 +1770,7 @@ export interface CombatEvent {
 }
 
 /** A line of the log: character state, the fight, a handout, an NPC, the scene. */
-export type LogLine = GameEvent | CombatEvent | Handout | NpcEvent | SceneEvent | ShipEvent;
+export type LogLine = GameEvent | CombatEvent | Handout | NpcEvent | SceneEvent | ShipEvent | ShipCrewEvent;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The ship at the table (F-060). A ship is a living thing like a character: its state
@@ -1795,6 +1814,26 @@ export interface ShipEvent {
 
 export function isShipEvent(line: LogLine): line is ShipEvent {
   return line.type === 'ship.changed';
+}
+
+/**
+ * A line of the log: who sits at which station (F-061). The ship's own sheet says who
+ * sits where at the start; from then on the GM moves people around the table, and that
+ * is a choice, so it lives in the log like any other (ADR 0002). Both sides of every
+ * change are written down, so taking a seating back is free.
+ */
+export interface ShipCrewEvent {
+  id: string;
+  at: number;
+  author: Author;
+  type: 'ship.crew';
+  ship: string;
+  changes: { deployment: string; from: string | null; to: string | null }[];
+  note?: string;
+}
+
+export function isShipCrewEvent(line: LogLine): line is ShipCrewEvent {
+  return line.type === 'ship.crew';
 }
 
 /** The numbers of a ship, worked out by the engine from its sheet (ADR 0003). */
@@ -1889,6 +1928,34 @@ export function parseShipDamage(data: unknown): ShipDamage | string {
     ...(o['critical'] === true ? { critical: true } : {}),
     ...(o['disable'] === true ? { disable: true } : {}),
   };
+}
+
+/**
+ * GM → server: seat someone at a station, or free it with null (F-061). One station
+ * holds one person, and one person holds one station on a ship: seating someone who is
+ * already aboard moves them, it does not clone them.
+ */
+export interface CrewSet {
+  type: 'crew-set';
+  ship: string;
+  deployment: string;
+  character: string | null;
+}
+
+export function parseCrewSet(data: unknown): CrewSet | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'crew-set') return 'не посадка на станцію';
+  if (typeof o['ship'] !== 'string' || o['ship'] === '') return 'не вказано корабля';
+  const deployment = o['deployment'];
+  if (typeof deployment !== 'string' || !(DEPLOYMENTS as readonly string[]).includes(deployment)) {
+    return 'такої станції на кораблі немає';
+  }
+  const character = o['character'];
+  if (character !== null && (typeof character !== 'string' || character === '' || character.length > 64)) {
+    return 'персонаж — слаґ або нічого';
+  }
+  return { type: 'crew-set', ship: o['ship'], deployment, character };
 }
 
 export function parseShipSet(data: unknown): ShipSet | string {

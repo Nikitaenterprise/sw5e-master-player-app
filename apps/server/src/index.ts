@@ -58,6 +58,7 @@ import {
   parseHandoutSend,
   parseShipDamage,
   parseShipSet,
+  parseCrewSet,
   parseShipTurn,
   parseShipDestructionSave,
   parseShipPower,
@@ -71,6 +72,8 @@ import {
   SHIP_DESTROYED,
   POWER_SPENT,
   type ShipState,
+  type ShipSummary,
+  type RoleCard,
   nextTurnRound,
   handoutsFor,
   type Handout,
@@ -91,6 +94,7 @@ import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptH
 import { loadShips, ShipStates, systemDamageTable } from './ships.js';
 import { loadDeployments } from './deployments.js';
 import { roleCards, shipActionCards } from './roles.js';
+import { CrewStations } from './crew.js';
 import { loadScenario, withScenarioGrants, withScenarioItems } from './scenario.js';
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
@@ -263,11 +267,47 @@ export async function start(
   // what they took there. The owner's files; a broken one is named, not fatal.
   const loadedDeployments = loadDeployments(join(dirname(charactersDir), 'deployments'));
   for (const problem of loadedDeployments.problems) console.log(`  Увага: ${problem}`);
+  // Who sits at which station (F-061): the sheet says where they started, the log says
+  // where the GM has moved them since. Every screen reads the stations from here, so a
+  // seating change shows up on the ship's strip, the sheet and the cards at once.
+  const crew = new CrewStations(
+    log,
+    new Map(Object.entries(loadedShips.summaries).map(([slug, summary]) => [slug, summary.crew])),
+  );
+  const shipSummary = (slug: string): ShipSummary | undefined => {
+    const summary = loadedShips.summaries[slug];
+    return summary === undefined ? undefined : { ...summary, crew: crew.of(slug) };
+  };
+  const shipSummaries = (): Record<string, ShipSummary> =>
+    Object.fromEntries(Object.keys(loadedShips.summaries).map((slug) => [slug, shipSummary(slug) as ShipSummary]));
   const shipsMessage = (): FromServer => ({
     type: 'ships',
-    ships: Object.fromEntries(Object.entries(loadedShips.summaries).map(([slug, summary]) => [slug, { summary, state: ships.one(slug) ?? {} }])),
+    ships: Object.fromEntries(Object.entries(shipSummaries()).map(([slug, summary]) => [slug, { summary, state: ships.one(slug) ?? {} }])),
     systemDamageLevels,
   });
+  const partyNames = (): Record<string, string> =>
+    Object.fromEntries(Object.entries(sheets).map(([slug, sheet]) => [slug, sheet.name]));
+  const allRoleCards = (): RoleCard[] => roleCards(
+    compendium,
+    Object.values(shipSummaries()).flatMap((summary) => summary.crew),
+    loadedDeployments.byCharacter,
+    partyNames(),
+  );
+  /** The card of the station this player mans, or none when the GM has not seated them. */
+  const roleCardFor = (character: string | undefined): FromServer => {
+    const actions = shipActionCards(compendium);
+    if (character === undefined) return { type: 'role-card', ship: null, card: null, actions };
+    const slug = Object.keys(loadedShips.summaries).find((s) => crew.stationOf(s, character) !== undefined);
+    if (slug === undefined) return { type: 'role-card', ship: null, card: null, actions };
+    const card = roleCards(compendium, crew.of(slug), loadedDeployments.byCharacter, partyNames())
+      .find((c) => c.character === character) ?? null;
+    return { type: 'role-card', ship: slug, card, actions };
+  };
+  const broadcastRoleCards = (): void => {
+    for (const c of connected.values()) {
+      if (c.role !== 'gm') send(c.socket, roleCardFor(c.character));
+    }
+  };
   // Every name the glossary can hold (F-052), and the editor's list built from it.
   const catalog = buildTermCatalog(compendium, sheets, SKILLS);
   // Rebuilt after every glossary edit: a word just added for a creature must be findable.
@@ -403,18 +443,13 @@ export async function start(
         glossary: glossary.terms,
         // The ship sheet (F-031) reads the same way the paper sheets do: one request,
         // the engine's numbers, no socket and no place at the table.
-        ships: Object.fromEntries(Object.entries(loadedShips.summaries)
+        ships: Object.fromEntries(Object.entries(shipSummaries())
           .map(([slug, summary]) => [slug, { summary, state: ships.one(slug) ?? {} }])),
         deployments: loadedDeployments.byCharacter,
         shipProblems: [...loadedShips.problems, ...loadedDeployments.problems],
         // The station cards (F-032): the book's text for every station, with what the
         // player at it actually chose. Built on the spot from the archive.
-        roles: roleCards(
-          compendium,
-          Object.values(loadedShips.summaries).flatMap((summary) => summary.crew),
-          loadedDeployments.byCharacter,
-          Object.fromEntries(Object.entries(sheets).map(([slug, sheet]) => [slug, sheet.name])),
-        ),
+        roles: allRoleCards(),
         shipActions: shipActionCards(compendium),
       };
       response.writeHead(200, { 'content-type': TYPES['.json'] as string, 'cache-control': 'no-store' });
@@ -540,6 +575,7 @@ export async function start(
         send(socket, { type: 'state', characters: state.all(), companions: state.companions() });
         sendHandouts({ socket, role: hello.role, ...(hello.character === undefined ? {} : { character: hello.character }) });
         send(socket, shipsMessage());
+        if (hello.role !== 'gm') send(socket, roleCardFor(hello.character));
         send(socket, { type: 'npcs', npcs: npcs.view(hello.role === 'gm' ? 'gm' : 'player') });
         send(socket, { type: 'weather', weather: weatherFor(hello.role) });
         if (hello.role === 'gm') send(socket, { type: 'scene-notes', notes: sceneNotes() });
@@ -973,7 +1009,7 @@ export async function start(
           send(socket, { type: 'refused', reason: parsed });
           return;
         }
-        const summary = loadedShips.summaries[parsed.ship];
+        const summary = shipSummary(parsed.ship);
         const now = ships.one(parsed.ship);
         if (summary === undefined || now === undefined) {
           send(socket, { type: 'refused', reason: `немає корабля «${parsed.ship}»` });
@@ -981,7 +1017,7 @@ export async function start(
         }
         // The crew distributes and spends the power dice ("the crew determines how these
         // dice are distributed"); everything else about the ship is the GM's (F-063).
-        const crewMember = who.character !== undefined && summary.crew.some((c) => c.character === who.character);
+        const crewMember = who.character !== undefined && summary.crew.some((station) => station.character === who.character);
         if (who.role !== 'gm' && !(parsed.type === 'ship-power' && crewMember)) {
           send(socket, { type: 'refused', reason: parsed.type === 'ship-power' ? 'живлення розподіляє екіпаж цього корабля' : 'стан корабля міняє майстер' });
           return;
@@ -1040,6 +1076,33 @@ export async function start(
           return;
         }
         broadcastAll(shipsMessage());
+        return;
+      }
+
+      // Stations (F-061): the GM seats people and frees seats; the player at a station
+      // gets their card on their phone. Players do not seat themselves — at the table
+      // it is the GM who says who flies and who shoots.
+      if (kind === 'crew-set') {
+        const parsed = parseCrewSet(data);
+        if (typeof parsed === 'string') {
+          send(socket, { type: 'refused', reason: parsed });
+          return;
+        }
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'на станції садить майстер' });
+          return;
+        }
+        if (parsed.character !== null && sheets[parsed.character] === undefined) {
+          send(socket, { type: 'refused', reason: `немає такого персонажа «${parsed.character}»` });
+          return;
+        }
+        const result = crew.seat(parsed.ship, parsed.deployment, parsed.character, authorOf(), partyNames());
+        if (typeof result === 'string') {
+          send(socket, { type: 'refused', reason: result });
+          return;
+        }
+        broadcastAll(shipsMessage());
+        broadcastRoleCards();
         return;
       }
 

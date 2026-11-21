@@ -10,6 +10,7 @@
 // screen pretends to know it.
 import { useState, type JSX } from 'react';
 import {
+  DEPLOYMENTS,
   POWER_SPENT,
   SHIP_DAMAGE_TYPES,
   SHIP_DESTROYED,
@@ -158,6 +159,47 @@ export function ShipStrip({
   );
 }
 
+/**
+ * The GM's seating plan (F-061): six stations, one person each. Changing a station is
+ * one click; nobody is seated twice, because seating a person who already sits
+ * somewhere moves them, and the ship's strip on their phone says where they now are.
+ */
+export function Stations({
+  summary,
+  party,
+  seat,
+}: {
+  summary: ShipSummary;
+  party: Record<string, CharacterState>;
+  seat: (deployment: string, character: string | null) => void;
+}): JSX.Element {
+  const slugs = Object.keys(party).sort((a, b) => name(a).localeCompare(name(b), 'uk'));
+  return (
+    <div className="ship-stations">
+      <h3>Станції</h3>
+      {DEPLOYMENTS.map((deployment) => {
+        const here = summary.crew.find((c) => c.deployment === deployment);
+        return (
+          <label key={deployment} className="ship-station">
+            <span className="ship-station-name">{deployment}</span>
+            <select
+              value={here?.character ?? ''}
+              onChange={(e) => seat(deployment, e.target.value === '' ? null : e.target.value)}
+            >
+              <option value="">вільна</option>
+              {slugs.map((slug) => <option key={slug} value={slug}>{name(slug)}</option>)}
+            </select>
+          </label>
+        );
+      })}
+      <p className="hint">
+        Одна станція — одна людина. Хто вже стоїть на іншій станції, той на неї переходить,
+        а не роздвоюється. Картка станції зʼявляється в того, кого посадили, на телефоні.
+      </p>
+    </div>
+  );
+}
+
 /** The GM's panel: the numbers from the rules, the state now, and the buttons that change it. */
 export function ShipPanel({
   summary,
@@ -172,11 +214,14 @@ export function ShipPanel({
   party = {},
   exhaustionLevels = [],
   systemDamageLevels = [],
+  seat,
 }: {
   summary: ShipSummary;
   state: ShipState;
   damage: (amount: number, options: ShipDamageOptions) => void;
   set: (changes: ShipState) => void;
+  /** Seating someone at a station, or freeing it with null (F-061). */
+  seat?: (deployment: string, character: string | null) => void;
   turn?: (regenerate: boolean, recovered?: number) => void;
   destructionSave?: (roll: number) => void;
   move?: (from: string, to: string) => void;
@@ -335,6 +380,7 @@ export function ShipPanel({
           </li>
         ))}
       </ul>
+      {seat !== undefined && <Stations summary={summary} party={party} seat={seat} />}
       <ul className="ship-crew">
         {summary.crew.map((c) => (
           <li key={c.character}>{crewLine(c.character, c.deployment, party[c.character], exhaustionLevels)}</li>

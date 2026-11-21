@@ -332,6 +332,26 @@ try {
   gm.ws.send(JSON.stringify({ type: 'npcs-clear' }));
   ok('F-085 «Сцена скінчилась» прибирає всіх',
     await wait(gm, (g) => npcsOf(g).length === 0) && await wait(p1, (g) => npcsOf(g).length === 0));
+  // F-061: the GM seats someone and the card reaches that phone, through real sockets.
+  const lastOf = (c, type) => [...c.got].reverse().find((m) => m.type === type);
+  await wait(p1, (g) => g.some((m) => m.type === 'role-card'));
+  const stationBefore = lastOf(p1, 'role-card')?.card?.deployment;
+  gm.ws.send(JSON.stringify({ type: 'crew-set', ship: 'mandrivna-zorya', deployment: 'Technician', character: 'sandra-vong' }));
+  await wait(p1, (g) => g.some((m) => m.type === 'role-card' && m.card?.deployment === 'Technician'));
+  const seated = lastOf(p1, 'role-card')?.card;
+  const crewNow = lastOf(gm, 'ships')?.ships['mandrivna-zorya']?.summary.crew ?? [];
+  ok('F-061 станції: майстер пересадив — картка приїхала на той телефон',
+    stationBefore === 'Operator'
+      && seated?.deployment === 'Technician'
+      && seated.name === 'Сандра Вонг'
+      && crewNow.filter((c) => c.character === 'sandra-vong').length === 1
+      && crewNow.find((c) => c.deployment === 'Operator') === undefined);
+  p1.ws.send(JSON.stringify({ type: 'crew-set', ship: 'mandrivna-zorya', deployment: 'Pilot', character: 'sandra-vong' }));
+  ok('F-061 гравець себе на станцію не садить',
+    await wait(p1, (g) => g.some((m) => m.type === 'refused' && m.reason === 'на станції садить майстер')));
+  // Put her back, so the rest of the run sees the ship as its own sheet describes it.
+  gm.ws.send(JSON.stringify({ type: 'crew-set', ship: 'mandrivna-zorya', deployment: 'Operator', character: 'sandra-vong' }));
+  await wait(p1, (g) => g.some((m) => m.type === 'role-card' && m.card?.deployment === 'Operator'));
   // F-090: two GM pages editing one NPC, and taking a line back.
   const gm2 = await client({ role: 'gm' });
   await wait(gm2, (g) => g.some((m) => m.type === 'npcs'));

@@ -119,6 +119,26 @@ export function StationCard({ card, actions }: { card: RoleCard; actions: ShipAc
   );
 }
 
+/**
+ * The phone (F-061): the card of the station this player mans, folded away until they
+ * need it. With no station there is one line instead — the GM has not seated them, and
+ * guessing a station for them would be worse than saying so.
+ */
+export function MyStation({ card, actions }: { card: RoleCard | null; actions: ShipActionCard[] }): JSX.Element {
+  if (card === null) {
+    return <p className="ship-line role-none">Станції поки немає: майстер садить за них на кораблі.</p>;
+  }
+  return (
+    <details className="role-mine">
+      <summary>
+        Твоя станція: <b>{card.deployment}</b>
+        {card.rank !== null && <small> · ранг {card.rank}</small>}
+      </summary>
+      <StationCard card={card} actions={actions} />
+    </details>
+  );
+}
+
 export function RoleCards({ cards, actions }: { cards: RoleCard[]; actions: ShipActionCard[] }): JSX.Element {
   return (
     <div className="role-cards">
