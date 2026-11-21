@@ -256,6 +256,14 @@ try {
   ok('F-063 гравець не лагодить корабель — це майстер',
     await wait(p2, (g) => g.some((m) => m.type === 'refused' && m.reason === 'стан корабля міняє майстер')));
 
+  // F-087: the test-session scenario — offered to the demo page, its items in hand.
+  const scenario = await (await fetch(`http://localhost:${port}/api/scenario`)).json();
+  ok('F-087 сценарій тестової сесії: девʼять сцен без проблем у файлі',
+    scenario.scenes?.length === 9 && scenario.problems?.length === 0);
+  const scenarioItems = [...gm.got].reverse().find((m) => m.type === 'homebrew')?.items ?? {};
+  ok('F-087 предмети сценарію в демо: бакта-інʼєктор у Крінж-Дора, приладдя в Нигри',
+    scenarioItems['krinzh-dor']?.some((i) => i.name === 'Бакта-інʼєктор') && scenarioItems['nigra-4']?.some((i) => i.name === 'Приладдя на гвинтівку'));
+
   // F-086: weather as an effect of the scene — the owner's own file, on everyone.
   const weatherOf = (g) => [...g].reverse().find((m) => m.type === 'weather')?.weather;
   const npcsOf = (g) => [...g].reverse().find((m) => m.type === 'npcs')?.npcs ?? [];

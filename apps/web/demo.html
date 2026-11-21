@@ -27,6 +27,23 @@
       .label button:first-of-type { margin-left:auto; }
       .label button + button { margin-left:.3rem; }
       iframe { flex:1; width:100%; border:0; min-height:0; }
+      .header button { margin-left:auto; background:none; border:1px solid var(--accent); color:var(--accent);
+                        border-radius:.3rem; font:inherit; font-size:.8rem; padding:.15rem .6rem; cursor:pointer; }
+      .scenario { position:fixed; top:0; right:0; bottom:0; width:min(380px, 92vw); overflow:auto;
+                   background:#141922; border-left:1px solid var(--border); padding:.8rem 1rem; display:none;
+                   box-shadow:-8px 0 24px rgba(0,0,0,.4); }
+      .scenario.open { display:block; }
+      .scenario h2 { font-size:1rem; margin:.2rem 0 .6rem; color:var(--accent); }
+      .scenario details { border:1px solid var(--border); border-radius:.4rem; padding:.4rem .6rem; margin:.4rem 0; }
+      .scenario details.done summary { color:var(--muted); text-decoration:line-through; }
+      .scenario summary { cursor:pointer; font-weight:600; }
+      .scenario p { margin:.35rem 0; font-size:.85rem; }
+      .scenario p b { color:var(--muted); font-weight:500; }
+      .scenario .row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-top:.3rem; font-size:.82rem; }
+      .scenario .row button { background:none; border:1px solid var(--border); color:var(--text); border-radius:.3rem;
+                               font:inherit; padding:.1rem .5rem; cursor:pointer; }
+      .scenario .status { color:var(--muted); font-size:.8rem; }
+      .scenario .problem { color:#e07a6a; font-size:.8rem; }
     </style>
   </head>
   <body>
@@ -34,8 +51,10 @@
       <strong>Демо на чотирьох екранах</strong>
       <span>Майстер і три гравці на одному сервері. Закрий один — решта оновиться. Обірви
         гравцю wifi, натисни «−5 ХП» — зміна дійде, щойно wifi повернеться.</span>
+      <button type="button" id="scenario-toggle" hidden>Сценарій тестової сесії</button>
     </div>
     <div class="grid" id="grid"></div>
+    <aside class="scenario" id="scenario" aria-label="Сценарій тестової сесії"></aside>
     <script>
       const screens = [
         { label: 'Майстер', url: '/?as=gm' },
@@ -75,6 +94,104 @@
         }
         panel.append(label, frame);
         grid.append(panel);
+      }
+
+      // The test-session scenario (F-087): nine scenes, what to do and what must happen,
+      // and a button that sets each one up — with ordinary GM actions over a socket of
+      // this page's own, checked by the server like any click. Demo only: the server
+      // offers no scenario outside it.
+      const aside = document.getElementById('scenario');
+      const toggle = document.getElementById('scenario-toggle');
+      // Without its place on the page (or without fetch) the scenario stays off, and the
+      // grid above works exactly as before.
+      if (aside !== null && toggle !== null && typeof fetch === 'function') setUpScenario(aside, toggle);
+
+      function setUpScenario(aside, toggle) {
+      toggle.addEventListener('click', () => aside.classList.toggle('open'));
+      let socket = null;
+      const gm = () => new Promise((resolve, reject) => {
+        if (socket !== null && socket.readyState === 1) return resolve(socket);
+        socket = new WebSocket(`ws://${location.host}`);
+        socket.addEventListener('open', () => socket.send(JSON.stringify({ type: 'hello', role: 'gm' })));
+        socket.addEventListener('message', (e) => {
+          if (JSON.parse(e.data).type === 'welcome') resolve(socket);
+        });
+        socket.addEventListener('error', () => reject(new Error('немає звʼязку з сервером')));
+      });
+      const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+      const doneKey = (i) => `holotable-scenario-done-${i}`;
+      const isDone = (i) => { try { return localStorage.getItem(doneKey(i)) === '1'; } catch { return false; } };
+      const setDone = (i, on) => { try { localStorage.setItem(doneKey(i), on ? '1' : '0'); } catch { /* private window */ } };
+      fetch('/api/scenario').then((r) => (r.ok ? r.json() : null)).then((data) => {
+        if (data === null) return;
+        toggle.hidden = false;
+        const title = document.createElement('h2');
+        title.textContent = data.name;
+        aside.append(title);
+        for (const problem of data.problems ?? []) {
+          const p = document.createElement('p');
+          p.className = 'problem';
+          p.textContent = problem;
+          aside.append(p);
+        }
+        data.scenes.forEach((scene, i) => {
+          const box = document.createElement('details');
+          if (isDone(i)) box.className = 'done';
+          const summary = document.createElement('summary');
+          summary.textContent = scene.title;
+          const line = (label, text) => {
+            const p = document.createElement('p');
+            const b = document.createElement('b');
+            b.textContent = label;
+            p.append(b, document.createTextNode(` ${text}`));
+            return p;
+          };
+          const what = line('Що робити:', scene.do);
+          const must = line('Мусить статися:', scene.check);
+          const row = document.createElement('div');
+          row.className = 'row';
+          const status = document.createElement('span');
+          status.className = 'status';
+          if (scene.setup.length > 0) {
+            const prepare = document.createElement('button');
+            prepare.type = 'button';
+            prepare.textContent = 'Підготувати';
+            prepare.addEventListener('click', async () => {
+              prepare.disabled = true;
+              status.textContent = 'готую…';
+              const refused = [];
+              try {
+                const ws = await gm();
+                const listen = (e) => { const m = JSON.parse(e.data); if (m.type === 'refused') refused.push(m.reason); };
+                ws.addEventListener('message', listen);
+                for (const step of scene.setup) {
+                  ws.send(JSON.stringify(step));
+                  await pause(250);
+                }
+                await pause(300);
+                ws.removeEventListener('message', listen);
+                status.textContent = refused.length === 0 ? 'підготовлено' : `не вийшло: ${refused.join('; ')}`;
+              } catch (error) {
+                status.textContent = error.message;
+              }
+              prepare.disabled = false;
+            });
+            row.append(prepare);
+          }
+          const label = document.createElement('label');
+          const tick = document.createElement('input');
+          tick.type = 'checkbox';
+          tick.checked = isDone(i);
+          tick.addEventListener('change', () => {
+            setDone(i, tick.checked);
+            box.className = tick.checked ? 'done' : '';
+          });
+          label.append(tick, document.createTextNode(' пройдено'));
+          row.append(label, status);
+          box.append(summary, what, must, row);
+          aside.append(box);
+        });
+      }).catch(() => undefined);
       }
     </script>
   </body>

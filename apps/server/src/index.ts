@@ -89,6 +89,7 @@ import { SceneWeather, loadWeather } from './weather.js';
 import { summarizeFights } from './summary.js';
 import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptHashes, MAX_MESSAGE_BYTES } from './guard.js';
 import { loadShips, ShipStates, systemDamageTable } from './ships.js';
+import { loadScenario, withScenarioGrants, withScenarioItems } from './scenario.js';
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 import { computeSummaries, computeSummary, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
@@ -302,12 +303,18 @@ export async function start(
   for (const slug of Object.keys(sheets)) {
     raws[slug] = JSON.parse(readFileSync(join(charactersDir, `${slug}.json`), 'utf8')) as RawCharacter;
   }
-  let homebrew = loadHomebrew(homebrewDir);
+  // The test-session scenario (F-087): its items and who carries them — in the demo only.
+  const scenarioData = demo ? loadScenario(stateDir, Object.keys(raws)) : { scenario: null, problems: [] };
+  for (const problem of scenarioData.problems) console.log(`  Увага: ${problem}`);
+  const readHomebrew = () => withScenarioItems(loadHomebrew(homebrewDir), scenarioData.scenario);
+  let homebrew = readHomebrew();
   for (const problem of homebrew.problems) console.log(`  Увага: ${problem}`);
   // Looked up by names screens send: no prototype, so "__proto__" finds nothing (F-070).
   const homebrewItems: Record<string, ReturnType<typeof itemsOf>> = Object.create(null) as Record<string, ReturnType<typeof itemsOf>>;
   const matchHomebrew = (): void => {
-    for (const slug of Object.keys(raws)) homebrewItems[slug] = itemsOf(raws[slug] as RawCharacter, homebrew);
+    for (const slug of Object.keys(raws)) {
+      homebrewItems[slug] = itemsOf(withScenarioGrants(raws[slug] as RawCharacter, slug, scenarioData.scenario), homebrew);
+    }
   };
   matchHomebrew();
   const homebrewFileMessage = (): FromServer => ({
@@ -390,6 +397,15 @@ export async function start(
     }
     // The reference (F-049): plain HTTP too, for phones as much as for the GM.
     const url = new URL(req.url ?? '/', 'http://local');
+    // The test-session scenario for the demo page (F-087). Outside the demo there is none.
+    if (url.pathname === '/api/scenario') {
+      const scenario = scenarioData.scenario;
+      response.writeHead(scenario === null ? 404 : 200, { 'content-type': TYPES['.json'] as string, 'cache-control': 'no-store' });
+      response.end(JSON.stringify(scenario === null
+        ? { error: 'сценарій тестової сесії є лише в демо' }
+        : { name: scenario.name, scenes: scenario.scenes, problems: scenarioData.problems }));
+      return;
+    }
     if (url.pathname === '/api/search') {
       const only = url.searchParams.get('type') ?? undefined;
       const hits = searchReference(
@@ -1148,7 +1164,7 @@ export async function start(
           send(socket, { type: 'refused', reason: problem });
           return;
         }
-        homebrew = loadHomebrew(homebrewDir);
+        homebrew = readHomebrew();
         matchHomebrew();
         broadcastAll({ type: 'homebrew', items: homebrewItems, problems: homebrew.problems });
         for (const c of connected.values()) if (c.role === 'gm') send(c.socket, homebrewFileMessage());
