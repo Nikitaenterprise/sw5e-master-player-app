@@ -183,7 +183,11 @@ export interface HolotableEffect {
   id: string;
   /** What gave it, as the GM says it: an item's name, a power's name. */
   source: string;
-  /** A breakdown key (F-042): "ability:Dexterity", "skill:Persuasion", "save:Wisdom", "armorClass", "initiative", "attacks". */
+  /**
+   * A breakdown key (F-042): "ability:Dexterity", "skill:Persuasion", "save:Wisdom",
+   * "armorClass", "initiative", "attacks" — or, narrower than every attack (F-083),
+   * "attack:ranged", "attack:melee", "attack:<weapon name>".
+   */
   target: string;
   bonus?: number;
   mode?: 'advantage' | 'disadvantage';
@@ -211,13 +215,41 @@ const SKILL_NAMES = [
   'Survival', 'Technology',
 ];
 
-/** Every target an effect may have. */
+/**
+ * Attack targets that name no weapon (F-083): every attack, every ranged one, every
+ * melee one. One weapon is named instead as `attack:<weapon name>`, which no list can
+ * hold because the weapons differ from character to character.
+ */
+export const ATTACK_TARGETS: string[] = ['attacks', 'attack:ranged', 'attack:melee'];
+
+/** Every target an effect may have, apart from one named weapon (F-083). */
 export const EFFECT_TARGETS: string[] = [
   ...ABILITY_NAMES.map((a) => `ability:${a}`),
   ...ABILITY_NAMES.map((a) => `save:${a}`),
   ...SKILL_NAMES.map((k) => `skill:${k}`),
-  'armorClass', 'initiative', 'attacks',
+  'armorClass', 'initiative', ...ATTACK_TARGETS,
 ];
+
+/** The target of an effect on one named weapon (F-083): "Bowcaster" -> "attack:Bowcaster". */
+export const weaponTarget = (weapon: string): string => `attack:${weapon.trim()}`;
+
+/** The weapon a target names, or null when it names none: every attack, ranged, melee. */
+export function targetWeapon(target: string): string | null {
+  if (!target.startsWith('attack:')) return null;
+  const weapon = target.slice('attack:'.length).trim();
+  return weapon === '' || weapon === 'ranged' || weapon === 'melee' ? null : weapon;
+}
+
+/**
+ * Whether a target is one the app knows. A weapon's name cannot be checked against a
+ * list — the GM picks it from the character's own weapons, so the screen offers only
+ * what that character carries, and a name that matches nothing simply changes nothing.
+ */
+export function isEffectTarget(target: string): boolean {
+  if (EFFECT_TARGETS.includes(target)) return true;
+  const weapon = targetWeapon(target);
+  return weapon !== null && weapon.length <= 120;
+}
 
 export const MAX_EFFECTS = 20;
 
@@ -231,7 +263,7 @@ export function checkEffects(value: unknown): string | null {
     if (typeof e['id'] !== 'string' || e['id'] === '' || ids.has(e['id'])) return 'у ефекту немає власного id';
     ids.add(e['id']);
     if (typeof e['source'] !== 'string' || e['source'].trim() === '' || e['source'].length > 60) return 'джерело ефекту — від 1 до 60 знаків';
-    if (typeof e['target'] !== 'string' || !EFFECT_TARGETS.includes(e['target'])) return 'на що діє ефект — не зрозуміло';
+    if (typeof e['target'] !== 'string' || !isEffectTarget(e['target'])) return 'на що діє ефект — не зрозуміло';
     const bonus = e['bonus'];
     const mode = e['mode'];
     if (bonus === undefined && mode === undefined) return 'ефект мусить дати число або перевагу/недолік';
@@ -256,13 +288,25 @@ const ABILITY_UK: Record<string, string> = {
   Strength: 'Сила', Dexterity: 'Спритність', Constitution: 'Статура', Intelligence: 'Інтелект', Wisdom: 'Мудрість', Charisma: 'Харизма',
 };
 
-/** An effect's target in the words the screen shows: an ability, a save, a skill, armour class. */
-export function effectTargetText(target: string, skill: (english: string) => string = (x) => x): string {
+/**
+ * An effect's target in the words the screen shows: an ability, a save, a skill, armour
+ * class, attacks — all of them, the ranged ones, the melee ones, or one weapon (F-083).
+ */
+export function effectTargetText(
+  target: string,
+  skill: (english: string) => string = (x) => x,
+  weapon: (english: string) => string = (x) => x,
+): string {
   const [kind, name = ''] = target.split(':');
   if (kind === 'ability') return ABILITY_UK[name] ?? name;
   if (kind === 'save') return `сейв: ${ABILITY_UK[name] ?? name}`;
   if (kind === 'skill') return skill(name);
-  return ({ armorClass: 'КБ', initiative: 'ініціатива', attacks: 'усі атаки' } as Record<string, string>)[target] ?? target;
+  const named = targetWeapon(target);
+  if (named !== null) return `атака: ${weapon(named)}`;
+  return ({
+    armorClass: 'КБ', initiative: 'ініціатива', attacks: 'усі атаки',
+    'attack:ranged': 'далекобійні атаки', 'attack:melee': 'рукопашні атаки',
+  } as Record<string, string>)[target] ?? target;
 }
 
 export const UNTIL_TEXT: Record<HolotableEffect['until'], string> = {
@@ -290,9 +334,13 @@ export function untilText(e: Pick<HolotableEffect, 'until' | 'rounds' | 'endsAtR
 }
 
 /** One effect in one line: its source, its target, what it gives and until when. */
-export function effectText(e: HolotableEffect, skill?: (english: string) => string): string {
+export function effectText(
+  e: HolotableEffect,
+  skill?: (english: string) => string,
+  weapon?: (english: string) => string,
+): string {
   const what = e.bonus !== undefined ? `${e.bonus > 0 ? '+' : ''}${e.bonus}` : e.mode === 'advantage' ? 'перевага' : 'недолік';
-  return `${e.source}: ${effectTargetText(e.target, skill)} ${what} · ${untilText(e)}`;
+  return `${e.source}: ${effectTargetText(e.target, skill, weapon)} ${what} · ${untilText(e)}`;
 }
 
 /**
@@ -599,8 +647,11 @@ export interface SheetSummary {
   forcePoints?: { max: number; dcLight: number; dcDark: number };
   techPoints?: { max: number; dc: number };
   superiority?: { quantity: number; size: string };
-  /** Attacks, so the GM can call for a roll without opening the sheet. */
-  attacks: { name: string; toHit: number; damage: string; damageDice: string; damageType: string; properties: string[] }[];
+  /**
+   * Attacks, so the GM can call for a roll without opening the sheet. `kind` says
+   * whether the weapon shoots or strikes, so an effect can hit just one sort (F-083).
+   */
+  attacks: { name: string; kind: 'ranged' | 'melee'; toHit: number; damage: string; damageDice: string; damageType: string; properties: string[] }[];
   /** What the A4 sheet needs on top of the card (F-030). Computed, never stored. */
   details: SheetDetails;
   /** The parts of `line`, kept apart so each can be translated (F-025). */
@@ -618,7 +669,11 @@ export interface SheetSummary {
    * attack:<index in attacks>.
    */
   explain: Record<string, Explanation>;
-  /** Advantage or disadvantage from active effects, per breakdown key (F-065). */
+  /**
+   * Advantage or disadvantage from active effects, per breakdown key (F-065). An
+   * attack's key is `attack:<index in attacks>`, because an effect may hit one weapon
+   * and not the next one (F-083).
+   */
   rollModes?: Record<string, 'advantage' | 'disadvantage' | 'both'>;
   /** Features that give an effect the GM can put on (F-069). Absent when there are none. */
   featureEffects?: FeatureEffectSummary[];

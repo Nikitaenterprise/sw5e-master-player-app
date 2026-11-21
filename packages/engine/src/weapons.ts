@@ -16,6 +16,12 @@ export type WeaponTier = 'simple' | 'martial' | 'exotic';
 
 export interface WeaponAttack {
   name: string;
+  /**
+   * Whether the weapon shoots or strikes. Blasters shoot; lightweapons and vibroweapons
+   * strike. A thrown vibroweapon stays melee — that is how the books count it, and a GM
+   * who means otherwise puts the effect on that weapon by name (F-083).
+   */
+  kind: 'ranged' | 'melee';
   /** Which ability the attack and damage use. */
   ability: AbilityName;
   proficient: boolean;
@@ -158,6 +164,28 @@ function collectRules(
   return { rules, named };
 }
 
+/** Whether a target is about attacks at all: every attack, ranged, melee, one weapon. */
+export function isAttackTarget(target: string): boolean {
+  return target === 'attacks' || target.startsWith('attack:');
+}
+
+/**
+ * Whether an effect's target hits this weapon (F-083). "attacks" hits every one,
+ * "attack:ranged" and "attack:melee" hit their sort, and "attack:<name>" hits the
+ * weapon of that name — the name as the sheet writes it, case and spaces aside.
+ */
+export function attackEffectHits(
+  target: string,
+  weapon: Pick<WeaponAttack, 'name' | 'kind'>,
+): boolean {
+  if (target === 'attacks') return true;
+  if (target === 'attack:ranged') return weapon.kind === 'ranged';
+  if (target === 'attack:melee') return weapon.kind === 'melee';
+  if (!target.startsWith('attack:')) return false;
+  const named = target.slice('attack:'.length).trim().toLowerCase();
+  return named !== '' && named === weapon.name.trim().toLowerCase();
+}
+
 export function computeWeapons(
   raw: RawCharacter,
   compendium: Compendium,
@@ -209,6 +237,7 @@ export function computeWeapons(
     const computed = abilityMod + profPart;
     out.push({
       name,
+      kind: ranged ? 'ranged' : 'melee',
       ability,
       proficient,
       attackBonus: (tweakOverride ?? computed) + tweakBonus,
@@ -253,6 +282,7 @@ export function computeWeapons(
   // Everyone can punch, and everyone is proficient at it.
   out.push({
     name: 'Unarmed Strike',
+    kind: 'melee',
     ability: 'Strength',
     proficient: true,
     attackBonus: modifiers.Strength + proficiencyBonus,

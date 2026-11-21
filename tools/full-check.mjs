@@ -197,6 +197,25 @@ try {
   ] } }));
   ok('F-065 «Спритність +2» — лист Нигри перераховано: ініціатива +1',
     await wait(gm, (g) => g.some((m) => m.type === 'sheets' && m.sheets['nigra-4'].initiative === initBefore + 1)));
+  // F-083: a sight on one weapon, and advantage on the ranged ones only.
+  const latest = () => [...gm.got].reverse().find((m) => m.type === 'sheets')?.sheets['nigra-4'];
+  const hitOf = (sheet, name) => sheet?.attacks.find((a) => a.name === name)?.toHit;
+  const indexOf = (sheet, name) => sheet?.attacks.findIndex((a) => a.name === name);
+  const beforeSight = latest();
+  const rifleBefore = hitOf(beforeSight, 'Bowcaster');
+  const sabreBefore = hitOf(beforeSight, 'Vibrosabre');
+  gm.ws.send(JSON.stringify({ type: 'intent', character: 'nigra-4', changes: { holotableEffects: [
+    { id: 'fc-stim', source: 'Стимулятор', target: 'ability:Dexterity', bonus: 2, until: 'manual' },
+    { id: 'fc-sight', source: 'Приладдя', target: 'attack:Bowcaster', bonus: 1, until: 'manual' },
+    { id: 'fc-aim', source: 'Приціл', target: 'attack:ranged', mode: 'advantage', until: 'manual' },
+  ] } }));
+  const sighted = await wait(gm, (g) => g.some((m) => m.type === 'sheets' && hitOf(m.sheets['nigra-4'], 'Bowcaster') === rifleBefore + 1));
+  const withSight = latest();
+  ok('F-083 приладдя на гвинтівці: +1 лише їй, перевага — лише далекобійним',
+    sighted && hitOf(withSight, 'Vibrosabre') === sabreBefore
+      && withSight.rollModes?.[`attack:${indexOf(withSight, 'Bowcaster')}`] === 'advantage'
+      && withSight.rollModes?.[`attack:${indexOf(withSight, 'Vibrosabre')}`] === undefined
+      && withSight.explain[`attack:${indexOf(withSight, 'Bowcaster')}`]?.parts.some((part) => part.label === 'ефект: Приладдя'));
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');

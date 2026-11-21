@@ -16,7 +16,7 @@ import type { Compendium, SpeciesDoc } from '../../compendium/src/index.js';
 import { ABILITIES, abilityModifier, toAbility } from './abilities.js';
 import { computeHitPoints, type HitPointsResult } from './hitPoints.js';
 import { computeArmorClass, type ArmorClassResult } from './armorClass.js';
-import { computeWeapons, type WeaponAttack } from './weapons.js';
+import { attackEffectHits, computeWeapons, isAttackTarget, type WeaponAttack } from './weapons.js';
 import { computeCasting, type CastingResult } from './casting.js';
 import { computeManeuvers, type SuperiorityResult } from './maneuvers.js';
 import { SKILLS, SKILL_ABILITY } from './skills.js';
@@ -286,7 +286,9 @@ function proficiencyBonus(
  * A temporary effect on the character (F-065): a stimulant, a bracelet, a spell — a
  * bonus to a number, or advantage/disadvantage on a roll. The target uses the same keys
  * as the breakdowns (F-042): "ability:Dexterity", "skill:Persuasion", "save:Wisdom",
- * "armorClass", "initiative", or "attacks" for every attack.
+ * "armorClass", "initiative", or "attacks" for every attack. Narrower than every attack
+ * (F-083): "attack:ranged", "attack:melee", "attack:<weapon name>" — a scope attached
+ * to one weapon, as a sight screwed onto a rifle is.
  */
 export interface SheetEffect {
   source: string;
@@ -309,7 +311,9 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium, effects:
     return total;
   };
   for (const e of effects) {
-    if (e.mode === undefined) continue;
+    // Attacks are worked out per weapon below: one effect may hit the rifle and not
+    // the sabre, so their mark belongs to the weapon, not to the word "attacks" (F-083).
+    if (e.mode === undefined || isAttackTarget(e.target)) continue;
     const now = rollModes[e.target];
     rollModes[e.target] = now === undefined || now === e.mode ? e.mode : 'both';
   }
@@ -425,15 +429,23 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium, effects:
     ABILITIES.map((a) => [a, abilities[a].score]),
   ) as Record<AbilityName, number>;
   const weapons = computeWeapons(raw, compendium, modifiers, scores, bonus, warnings);
-  // Effects on every attack, and on armour class — after everything else, like hand edits.
-  const attackEffect = bonusFor('attacks');
-  if (attackEffect !== 0) {
-    const parts = effectParts['attacks'] ?? [];
-    weapons.forEach((w, i) => {
-      w.attackBonus += attackEffect;
-      effectParts[`attack:${i}`] = parts;
-    });
-  }
+  // Effects on attacks, and on armour class — after everything else, like hand edits.
+  // Each weapon is asked separately (F-083), because an effect may be on every attack,
+  // on the ranged ones, on the melee ones, or on that one weapon by name.
+  weapons.forEach((weapon, i) => {
+    const parts: { label: string; value: number }[] = [];
+    let mode: 'advantage' | 'disadvantage' | 'both' | undefined;
+    for (const e of effects) {
+      if (!attackEffectHits(e.target, weapon)) continue;
+      if (e.bonus !== undefined && e.bonus !== 0) {
+        weapon.attackBonus += e.bonus;
+        parts.push({ label: `ефект: ${e.source}`, value: e.bonus });
+      }
+      if (e.mode !== undefined) mode = mode === undefined || mode === e.mode ? e.mode : 'both';
+    }
+    if (parts.length > 0) effectParts[`attack:${i}`] = parts;
+    if (mode !== undefined) rollModes[`attack:${i}`] = mode;
+  });
   armorClass.value += bonusFor('armorClass');
   const casting = computeCasting(raw, compendium, modifiers, bonus, warnings);
   const superiority = computeManeuvers(raw, compendium, modifiers, bonus, warnings);
@@ -468,6 +480,7 @@ export function computeSheet(raw: RawCharacter, compendium: Compendium, effects:
 export { ABILITIES, abilityModifier, toAbility } from './abilities.js';
 export { SKILLS, SKILL_ABILITY, toSkill } from './skills.js';
 export { computeHitPoints } from './hitPoints.js';
+export { attackEffectHits, isAttackTarget } from './weapons.js';
 export { computeArmorClass, parseArmorFormula } from './armorClass.js';
 export {
   computeWeapons, parseClassification, parseProficiencyClause, splitProficiencyClauses,

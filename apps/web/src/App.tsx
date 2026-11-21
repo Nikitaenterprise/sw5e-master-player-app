@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, weaponTarget, EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
@@ -860,6 +860,15 @@ export function FeatureButton({
 const effectId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 /**
+ * What an effect may be put on for this character (F-083): the fixed targets, and then
+ * the weapons this character carries, by name — so a sight goes onto the rifle rather
+ * than onto every attack. Nothing is typed by hand, so no name can be misspelt.
+ */
+export function effectTargetOptions(weapons: { name: string }[]): string[] {
+  return [...EFFECT_TARGETS, ...weapons.map((w) => weaponTarget(w.name))];
+}
+
+/**
  * Effects on a character (F-065): what is on them now, and — for the GM — a short form
  * to put one on: where it comes from, what it touches, by how much (or advantage /
  * disadvantage), and until when. Numbers it changes show up at once, with the effect
@@ -872,6 +881,7 @@ export function Effects({
   used,
   use,
   spend = true,
+  weapons = [],
 }: {
   list: HolotableEffect[];
   set?: (list: HolotableEffect[]) => void;
@@ -883,9 +893,12 @@ export function Effects({
   use?: (item: HomebrewItem) => void;
   /** Whether `use` uses one up: on the player's phone it does, on the GM's card it does not. */
   spend?: boolean;
+  /** This character's weapons, so an effect can go on one of them by name (F-083). */
+  weapons?: { name: string }[];
 }): JSX.Element | null {
   const term = useTerm();
   const skill = (x: string): string => term('skill', x);
+  const weaponName = (x: string): string => term('weapon', x);
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState('');
   const [target, setTarget] = useState('ability:Dexterity');
@@ -902,7 +915,7 @@ export function Effects({
       {items.length > 0 && (
         <div className="homebrew-items">
           {items.map((item) => (
-            <span key={item.name} className="homebrew-item" title={item.effects.map((e) => effectText({ ...e, id: '', source: item.name }, skill)).join('\n')}>
+            <span key={item.name} className="homebrew-item" title={item.effects.map((e) => effectText({ ...e, id: '', source: item.name }, skill, weaponName)).join('\n')}>
               {item.name}
               {item.consumable ? <small> ×{itemsLeft(item, used)}</small> : item.quantity !== 1 && <small> ×{item.quantity}</small>}
               {item.note !== '' && <small className="item-note"> — {item.note}</small>}
@@ -921,7 +934,7 @@ export function Effects({
       )}
       {list.map((e) => (
         <span key={e.id} className="effect">
-          {effectText(e, skill)}
+          {effectText(e, skill, weaponName)}
           {set !== undefined && (
             <button type="button" title="зняти" aria-label={`Зняти ефект ${e.source}`} onClick={() => set(list.filter((x) => x.id !== e.id))}>
               ×
@@ -967,8 +980,8 @@ export function Effects({
         >
           <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="звідки: Стимулятор" aria-label="Звідки ефект" />
           <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="На що діє">
-            {EFFECT_TARGETS.map((t) => (
-              <option key={t} value={t}>{effectTargetText(t, skill)}</option>
+            {effectTargetOptions(weapons).map((t) => (
+              <option key={t} value={t}>{effectTargetText(t, skill, weaponName)}</option>
             ))}
           </select>
           <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)} aria-label="Що дає">
@@ -1564,7 +1577,7 @@ export function MyTurn({
       <h2>Твій хід · раунд {combat.round}</h2>
       <h3>Атаки</h3>
       <ul className="turn-attacks">
-        {sheet.attacks.map((a) => (
+        {sheet.attacks.map((a, i) => (
           <li key={a.name}>
             <span className="what">
               <TermLink kind="weapon" english={a.name}>{term('weapon', a.name)}</TermLink>
@@ -1573,6 +1586,7 @@ export function MyTurn({
                   ? ` ${signed(a.toHit)} · ${a.damageDice} ${term('damage', a.damageType)}`
                   : ` шкода ${diceOnly(a.damageDice)} ${term('damage', a.damageType)}`}
               </small>
+              <RollMode mode={sheet.rollModes?.[`attack:${i}`]} />
             </span>
             <RollInput
               label={`Атака: ${a.name}, що випало на d20`}
@@ -2198,7 +2212,7 @@ export function Card({
               <span className="what"><TermLink kind="weapon" english={a.name}>{term('weapon', a.name)}</TermLink></span>
               <span className="hit">
                 <Why sheet={sheet} what={`attack:${i}`} signedTotal>{signed(a.toHit)}</Why>
-                <RollMode mode={sheet.rollModes?.['attacks']} />
+                <RollMode mode={sheet.rollModes?.[`attack:${i}`]} />
               </span>
               <span className="dmg">
                 {a.damageType === undefined ? a.damage : (
@@ -2245,6 +2259,7 @@ export function Card({
       {companion !== undefined && <CompanionBlock {...companion} />}
       <Effects
         list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
+        weapons={sheet.attacks}
         {...(setEffects === undefined ? {} : { set: setEffects })}
         {...(items === undefined ? {} : { items })}
         {...(state.holotableItemsUsed === undefined ? {} : { used: state.holotableItemsUsed })}

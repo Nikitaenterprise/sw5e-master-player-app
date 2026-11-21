@@ -132,6 +132,7 @@ function summarize(
       : { superiority: { quantity: superiority.diceQuantity, size: superiority.diceSize } }),
     attacks: sheet.weapons.map((w) => ({
       name: w.name,
+      kind: w.kind,
       toHit: w.attackBonus,
       damage: `${w.damage} ${w.damageType}`,
       damageDice: w.damage,
