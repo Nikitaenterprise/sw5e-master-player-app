@@ -26,6 +26,7 @@ import {
   parseEnemyEffects,
   parseNpcRemove,
   parseNpcSet,
+  rebaseNpc,
   ATTITUDE_BRIEF_KEY,
   parseAttackRoll,
   parseDeathSave,
@@ -874,7 +875,17 @@ export async function start(
         let result: ReturnType<SceneNpcs['set']>;
         if (kind === 'npc-set') {
           const put = parseNpcSet(data);
-          result = typeof put === 'string' ? put : npcs.set(authorOf(), put.npc);
+          if (typeof put === 'string') {
+            result = put;
+          } else {
+            // Two GM screens, one NPC (F-090): apply what this screen changed to what is
+            // true now. Without a base — an undo, or an NPC just arriving — write it whole.
+            const now = npcs.get(put.npc.id);
+            const record = put.base !== undefined && now !== undefined
+              ? rebaseNpc(now, put.base, put.npc)
+              : put.npc;
+            result = npcs.set(authorOf(), record);
+          }
         } else if (kind === 'npc-remove') {
           const off = parseNpcRemove(data);
           result = typeof off === 'string' ? off : npcs.remove(authorOf(), off.npc);

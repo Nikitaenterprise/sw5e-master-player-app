@@ -261,6 +261,27 @@ try {
   gm.ws.send(JSON.stringify({ type: 'npcs-clear' }));
   ok('F-085 «Сцена скінчилась» прибирає всіх',
     await wait(gm, (g) => npcsOf(g).length === 0) && await wait(p1, (g) => npcsOf(g).length === 0));
+  // F-090: two GM pages editing one NPC, and taking a line back.
+  const gm2 = await client({ role: 'gm' });
+  await wait(gm2, (g) => g.some((m) => m.type === 'npcs'));
+  const ronSeen = { id: 'fc-ron2', name: 'Рон Другий', attitude: 'indifferent', wants: '', modifiers: [], shown: false };
+  gm.ws.send(JSON.stringify({ type: 'npc-set', npc: ronSeen }));
+  await wait(gm2, (g) => npcsOf(g).some((n) => n.id === 'fc-ron2'));
+  gm.ws.send(JSON.stringify({ type: 'npc-set', npc: { ...ronSeen, attitude: 'friendly' }, base: ronSeen }));
+  await wait(gm, (g) => npcsOf(g).find((n) => n.id === 'fc-ron2')?.gm?.attitude === 'friendly');
+  gm2.ws.send(JSON.stringify({ type: 'npc-set', npc: { ...ronSeen, modifiers: [{ id: 'fc-m', source: 'цигарка', target: 'skill:Persuasion', bonus: 1 }] }, base: ronSeen }));
+  ok('F-090 дві сторінки майстра правлять одного НПС — обидві правки лишаються',
+    await wait(gm, (g) => (npcsOf(g).find((n) => n.id === 'fc-ron2')?.gm?.modifiers ?? []).length === 1)
+      && npcsOf(gm.got).find((n) => n.id === 'fc-ron2')?.gm?.attitude === 'friendly');
+  const line = notesOf(gm.got).at(-1);
+  gm.ws.send(JSON.stringify({ type: 'npc-set', npc: line?.undo?.npc }));
+  ok('F-090 «відкотити» в рядку НПС повертає те, що там написано',
+    line?.undo?.kind === 'set'
+      && await wait(gm, (g) => (npcsOf(g).find((n) => n.id === 'fc-ron2')?.gm?.modifiers ?? []).length === 0));
+  gm.ws.send(JSON.stringify({ type: 'npc-remove', npc: 'fc-ron2' }));
+  await wait(gm, (g) => npcsOf(g).every((n) => n.id !== 'fc-ron2'));
+  gm2.ws.close();
+
   // And closing the session takes whoever is left in the scene with it.
   gm.ws.send(JSON.stringify({ type: 'npc-set', npc: {
     id: 'fc-left', name: 'Забутий НПС', attitude: 'hostile', wants: '', modifiers: [], shown: true,

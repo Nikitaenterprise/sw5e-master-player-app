@@ -676,4 +676,5 @@ a.ref-link:hover { color: var(--accent); }
 .feed .npc-notes { display: flex; flex-direction: column; gap: .2rem; margin-bottom: .5rem; font-size: .82rem; }
 .feed .npc-notes li { color: var(--text); padding: .2rem .4rem; border-left: 2px solid var(--border); }
 .feed .npc-notes small { color: var(--muted); }
+.feed .npc-notes .undo { background: none; border: none; color: var(--muted); font: inherit; font-size: .78rem; text-decoration: underline dotted; cursor: pointer; padding: 0 .2rem; }
 .npcs-in-scene { margin: .4rem 0; font-size: .9rem; }

@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, NpcNote, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, NpcNote, NpcUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -171,7 +171,7 @@ export function App(): JSX.Element {
       {gm && !editingGlossary && (
         <NpcDesk
           npcs={snapshot.npcs}
-          set={(npc) => controls.current?.setNpc(npc)}
+          set={(npc, base) => controls.current?.setNpc(npc, base)}
           remove={(id) => controls.current?.removeNpc(id)}
           clear={() => controls.current?.clearNpcs()}
         />
@@ -212,6 +212,7 @@ export function App(): JSX.Element {
           events={snapshot.events}
           fights={snapshot.fights}
           npcNotes={snapshot.npcNotes}
+          undoNpc={(undo) => controls.current?.undoNpc(undo)}
           undo={(row) =>
             // Relative to where the run ended: undo takes back THIS change, and what
             // others did since stays (F-045).
@@ -1956,6 +1957,7 @@ export function Feed({
   undo,
   fights = [],
   npcNotes = [],
+  undoNpc,
 }: {
   events: GameEvent[];
   undo: (row: FeedRow) => void;
@@ -1963,6 +1965,8 @@ export function Feed({
   fights?: FightSummary[];
   /** What changed about the scene's NPCs, newest last (F-085). */
   npcNotes?: NpcNote[];
+  /** Take one NPC line back (F-090). Absent — the lines are only shown. */
+  undoNpc?: (undo: NpcUndo) => void;
 }): JSX.Element {
   const now = Date.now();
   const rows = collapse(events).slice(0, 12);
@@ -1977,6 +1981,11 @@ export function Feed({
           {shownNotes.map((note) => (
             <li key={`${note.at}-${note.text}`}>
               {note.text} <small>· {whenText(note.at, now)}</small>
+              {undoNpc !== undefined && note.undo !== undefined && (
+                <button type="button" className="undo" onClick={() => undoNpc(note.undo as NpcUndo)}>
+                  відкотити
+                </button>
+              )}
             </li>
           ))}
         </ul>

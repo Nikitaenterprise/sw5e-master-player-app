@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type NpcNote, type NpcRecord, type SceneNpc, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type NpcNote, type NpcRecord, type NpcUndo, type SceneNpc, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -201,8 +201,13 @@ export interface Controls {
   setEnemyConditions: (enemy: string, conditions: string[]) => void;
   /** The effects on one enemy, the whole list (F-084). */
   setEnemyEffects: (enemy: string, effects: HolotableEffect[]) => void;
-  /** Add an NPC to the scene or write him over whole (F-085). */
-  setNpc: (npc: NpcRecord) => void;
+  /**
+   * Add an NPC to the scene or change him (F-085). `base` is what this screen was
+   * looking at: with it the server applies only what changed here (F-090).
+   */
+  setNpc: (npc: NpcRecord, base?: NpcRecord) => void;
+  /** Take back one line of the NPC trace (F-090). */
+  undoNpc: (undo: NpcUndo) => void;
   /** This NPC leaves the scene. */
   removeNpc: (npc: string) => void;
   /** The scene is over: everyone out. */
@@ -508,10 +513,21 @@ export function connect(
       const message: ToServer = { type: 'enemy-effects', enemy, effects };
       socket.send(JSON.stringify(message));
     },
-    setNpc: (npc) => {
+    setNpc: (npc, base) => {
       if (socket?.readyState !== 1) return;
-      const message: ToServer = { type: 'npc-set', npc };
+      const message: ToServer = { type: 'npc-set', npc, ...(base === undefined ? {} : { base }) };
       socket.send(JSON.stringify(message));
+    },
+    undoNpc: (undo) => {
+      if (socket?.readyState !== 1) return;
+      // Taking a line back is an ordinary change back to how it was — no new mechanism,
+      // exactly as undo works for a character's state (ADR 0002).
+      const back: ToServer[] = undo.kind === 'remove'
+        ? [{ type: 'npc-remove', npc: undo.npc }]
+        : undo.kind === 'set'
+          ? [{ type: 'npc-set', npc: undo.npc }]
+          : undo.npcs.map((npc) => ({ type: 'npc-set', npc }));
+      for (const message of back) socket.send(JSON.stringify(message));
     },
     removeNpc: (npc) => {
       if (socket?.readyState !== 1) return;

@@ -1813,11 +1813,25 @@ export interface NpcsMessage {
   npcs: SceneNpc[];
 }
 
-/** One line for the GM's feed: what changed about an NPC, and when (F-085). */
+/** How a line of the NPC trace is taken back (F-090). The data is already in the log. */
+export type NpcUndo =
+  /** He was changed, or he left: put that version back. */
+  | { kind: 'set'; npc: NpcRecord }
+  /** He had just arrived: send him away again. */
+  | { kind: 'remove'; npc: string }
+  /** The scene was cleared: bring everyone back as they were. */
+  | { kind: 'restore'; npcs: NpcRecord[] };
+
+/** One line for the GM's feed: what changed about an NPC, when, and how to take it back. */
 export interface NpcNote {
   at: number;
   text: string;
+  /** Absent when there is nothing to put back (an empty scene cleared). */
+  undo?: NpcUndo;
 }
+
+/** How many lines of the NPC trace travel to the GM's screen (F-090). */
+export const NPC_NOTES_KEPT = 20;
 
 /** Server → GM: the trace of NPC changes, oldest first. Rebuilt from the log. */
 export interface NpcNotesMessage {
@@ -1825,10 +1839,44 @@ export interface NpcNotesMessage {
   notes: NpcNote[];
 }
 
-/** GM → server: add an NPC to the scene, or replace him whole. */
+/**
+ * GM → server: add an NPC to the scene, or write one over. `base` is the record the
+ * screen was looking at when the GM touched it (F-090, the same idea as `base` on a
+ * character's intent in F-045): with it the server applies only what THIS screen
+ * changed, so a second GM page editing another field of the same person loses nothing.
+ * Without it the record is written over whole — which is what an undo wants.
+ */
 export interface NpcSet {
   type: 'npc-set';
   npc: NpcRecord;
+  base?: NpcRecord;
+}
+
+/**
+ * Two screens, one NPC (F-090): what this screen changed, applied to what is true now.
+ * Fields it did not touch keep the value they have now; modifiers merge by id, so one
+ * screen adding a cigarette and the other turning the merchant friendly both take.
+ */
+export function rebaseNpc(current: NpcRecord, base: NpcRecord, next: NpcRecord): NpcRecord {
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+  const field = <K extends 'name' | 'attitude' | 'wants' | 'shown'>(key: K): NpcRecord[K] =>
+    (same(base[key], next[key]) ? current[key] : next[key]);
+  const merged = new Map(current.modifiers.map((m) => [m.id, m]));
+  const wasThere = new Map(base.modifiers.map((m) => [m.id, m]));
+  const nowHere = new Map(next.modifiers.map((m) => [m.id, m]));
+  for (const [id, m] of nowHere) {
+    const before = wasThere.get(id);
+    if (before === undefined || !same(before, m)) merged.set(id, m);
+  }
+  for (const id of wasThere.keys()) if (!nowHere.has(id)) merged.delete(id);
+  return {
+    id: current.id,
+    name: field('name'),
+    attitude: field('attitude'),
+    wants: field('wants'),
+    shown: field('shown'),
+    modifiers: [...merged.values()],
+  };
 }
 
 /** GM → server: this NPC leaves the scene. */
@@ -1899,7 +1947,12 @@ export function parseNpcSet(data: unknown): NpcSet | string {
   const o = data as Record<string, unknown>;
   if (o['type'] !== 'npc-set') return 'не НПС';
   const npc = checkNpc(o['npc']);
-  return typeof npc === 'string' ? npc : { type: 'npc-set', npc };
+  if (typeof npc === 'string') return npc;
+  if (o['base'] === undefined) return { type: 'npc-set', npc };
+  const base = checkNpc(o['base']);
+  if (typeof base === 'string') return `те, що бачив екран: ${base}`;
+  if (base.id !== npc.id) return 'база — про іншого НПС';
+  return { type: 'npc-set', npc, base };
 }
 
 export function parseNpcRemove(data: unknown): NpcRemove | string {

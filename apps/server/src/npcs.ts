@@ -12,6 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   MAX_SCENE_NPCS,
+  NPC_NOTES_KEPT,
   npcNoteText,
   npcsFor,
   termKey,
@@ -19,15 +20,35 @@ import {
   type NpcEvent,
   type NpcNote,
   type NpcRecord,
+  type NpcUndo,
   type SceneNpc,
 } from '@holotable/protocol';
 import type { Log } from './log.js';
 
+/**
+ * How one line of the trace is taken back (F-090). Everything needed is already in the
+ * event, because every line carries both sides — that is what ADR 0002 buys.
+ */
+function undoOf(event: NpcEvent): NpcUndo | null {
+  if (event.type === 'npc.scene-cleared') {
+    const back = event.cleared ?? [];
+    return back.length === 0 ? null : { kind: 'restore', npcs: back };
+  }
+  if (event.was !== undefined) return { kind: 'set', npc: event.was };
+  // An NPC who had just come into the scene: taking that back means sending him away.
+  if (event.type === 'npc.set' && event.npc !== undefined) return { kind: 'remove', npc: event.npc.id };
+  return null;
+}
+
 export class SceneNpcs {
   /** In the order they came into the scene. */
   private readonly people = new Map<string, NpcRecord>();
-  /** What changed, as the pairs themselves: the words are made when they are asked for. */
-  private readonly trace: { at: number; before: NpcRecord | null; after: NpcRecord | null }[] = [];
+  /**
+   * The lines themselves, kept as the events they came from: the words are made when
+   * they are asked for (the glossary may have changed since), and the event already
+   * holds both sides, which is what an undo needs (F-090).
+   */
+  private readonly trace: NpcEvent[] = [];
 
   constructor(
     private readonly log: Log,
@@ -56,7 +77,23 @@ export class SceneNpcs {
   notes(): NpcNote[] {
     const terms = this.glossary();
     const skill = (english: string): string => terms[termKey('skill', english)] ?? english;
-    return this.trace.map((step) => ({ at: step.at, text: npcNoteText(step.before, step.after, skill) }));
+    // Only the tail travels: the feed shows a handful, and a whole evening of lines on
+    // every change would be sent again and again for nothing (F-090).
+    return this.trace.slice(-NPC_NOTES_KEPT).map((event) => {
+      const before = event.was ?? null;
+      const after = event.type === 'npc.set' ? (event.npc ?? null) : null;
+      const undo = undoOf(event);
+      return {
+        at: event.at,
+        text: npcNoteText(before, after, skill),
+        ...(undo === null ? {} : { undo }),
+      };
+    });
+  }
+
+  /** One NPC as he is now — the server needs him to merge two screens' edits (F-090). */
+  get(id: string): NpcRecord | undefined {
+    return this.people.get(id);
   }
 
   has(id: string): boolean {
@@ -101,18 +138,18 @@ export class SceneNpcs {
       case 'npc.set':
         if (event.npc !== undefined) {
           this.people.set(event.npc.id, event.npc);
-          this.trace.push({ at: event.at, before: event.was ?? null, after: event.npc });
+          this.trace.push(event);
         }
         break;
       case 'npc.removed':
         if (event.npcId !== undefined) {
           this.people.delete(event.npcId);
-          this.trace.push({ at: event.at, before: event.was ?? null, after: null });
+          this.trace.push(event);
         }
         break;
       case 'npc.scene-cleared':
         this.people.clear();
-        this.trace.push({ at: event.at, before: null, after: null });
+        this.trace.push(event);
         break;
     }
   }

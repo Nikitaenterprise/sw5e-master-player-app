@@ -141,9 +141,9 @@ describe('F-085 · НПС у сцені', () => {
     expect(mine?.name).toBe('Торговець Рон');
     expect(mine?.gm?.attitude).toBe('friendly');
     expect(mine?.gm?.modifiers).toEqual([cigarette]);
-    expect(again.notes(), 'слід кожної зміни').toEqual([
-      { at: expect.any(Number), text: 'Торговець Рон у сцені · байдужий · хоче: вивезти товар із Міролла' },
-      { at: expect.any(Number), text: 'Торговець Рон: байдужий → прихильний · гравці його бачать · + цигарка: Persuasion +1' },
+    expect(again.notes().map((n) => n.text), 'слід кожної зміни').toEqual([
+      'Торговець Рон у сцені · байдужий · хоче: вивезти товар із Міролла',
+      'Торговець Рон: байдужий → прихильний · гравці його бачать · + цигарка: Persuasion +1',
     ]);
     expect(again.remove(gm, 'ron')).not.toBeTypeOf('string');
     expect(again.remove(gm, 'ron')).toBe('такого НПС у сцені немає');

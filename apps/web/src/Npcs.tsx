@@ -198,7 +198,8 @@ export function NpcDesk({
   clear,
 }: {
   npcs: SceneNpc[];
-  set: (npc: NpcRecord) => void;
+  /** `base` is what this screen saw, so two GM pages do not overwrite each other (F-090). */
+  set: (npc: NpcRecord, base?: NpcRecord) => void;
   remove: (id: string) => void;
   clear: () => void;
 }): JSX.Element {
@@ -208,7 +209,10 @@ export function NpcDesk({
   const [problem, setProblem] = useState<string | null>(null);
   const change = (npc: SceneNpc, part: Partial<NpcRecord>): void => {
     if (npc.gm === undefined) return;
-    set({ id: npc.id, name: npc.name, ...npc.gm, ...part });
+    // What this screen is looking at goes along as the base: the server then applies
+    // only what changed here, and another GM page editing another field keeps its edit.
+    const base: NpcRecord = { id: npc.id, name: npc.name, ...npc.gm };
+    set({ ...base, ...part }, base);
   };
   return (
     <section className="npc-desk">
