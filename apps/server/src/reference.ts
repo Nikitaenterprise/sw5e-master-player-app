@@ -11,7 +11,7 @@
 // sections. Nothing is translated here beyond the labels and the document's name; the
 // rules text stays in English, as in the books.
 import { normalizeName, type Compendium, type CompendiumDoc, type ContentType } from '@holotable/compendium';
-import { anchorOf, termKey, type GlossaryRow, type RefDoc, type RefHit, type TermKind } from '@holotable/protocol';
+import { anchorOf, termKey, ATTITUDE_RULE, type GlossaryRow, type RefDoc, type RefHit, type TermKind } from '@holotable/protocol';
 
 export const TYPE_LABELS: Record<string, string> = {
   archetype: 'архетип', 'armor-property': 'властивість броні', background: 'передісторія', class: 'клас',
@@ -361,6 +361,19 @@ export function buildBriefs(compendium: Compendium, terms: GlossaryRow[], glossa
     if (text !== null) out[row.key] = text;
   }
   return out;
+}
+
+/**
+ * The book's own sentence about an NPC's attitude (F-085), from the social interaction
+ * section. Read rather than written out here, so the wording stays the book's.
+ */
+export function attitudeSentence(compendium: Compendium): string | null {
+  const body = String(compendium.get('rule', ATTITUDE_RULE.key)?.['body'] ?? '');
+  const section = sectionText(body, ATTITUDE_RULE.anchor);
+  if (section === null) return null;
+  const paragraph = section.split('\n').map((line) => line.trim())
+    .find((line) => /attitude toward you/i.test(line));
+  return paragraph === undefined ? null : paragraph;
 }
 
 /**

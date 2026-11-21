@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, NpcNote, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -15,6 +15,7 @@ import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
 import { usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
+import { NpcDesk, NpcsInScene } from './Npcs.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
 import { HandoutDesk, Handouts } from './Handouts.js';
@@ -168,6 +169,15 @@ export function App(): JSX.Element {
       )}
 
       {gm && !editingGlossary && (
+        <NpcDesk
+          npcs={snapshot.npcs}
+          set={(npc) => controls.current?.setNpc(npc)}
+          remove={(id) => controls.current?.removeNpc(id)}
+          clear={() => controls.current?.clearNpcs()}
+        />
+      )}
+
+      {gm && !editingGlossary && (
         <CountsSwitch
           characters={Object.keys(snapshot.characters).sort((a, b) => name(a).localeCompare(name(b), 'uk'))}
           counts={snapshot.counts}
@@ -201,6 +211,7 @@ export function App(): JSX.Element {
         <Feed
           events={snapshot.events}
           fights={snapshot.fights}
+          npcNotes={snapshot.npcNotes}
           undo={(row) =>
             // Relative to where the run ended: undo takes back THIS change, and what
             // others did since stays (F-045).
@@ -294,6 +305,7 @@ function PlayerSheet({
   return (
     <section>
       <Handouts handouts={snapshot.handouts} />
+      <NpcsInScene npcs={snapshot.npcs} />
       <h2>Мій стан</h2>
       {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
         <DeathSavesBlock
@@ -1943,19 +1955,32 @@ export function Feed({
   events,
   undo,
   fights = [],
+  npcNotes = [],
 }: {
   events: GameEvent[];
   undo: (row: FeedRow) => void;
   /** Ended fights, shown among the changes at the moment each ended (F-059). */
   fights?: FightSummary[];
+  /** What changed about the scene's NPCs, newest last (F-085). */
+  npcNotes?: NpcNote[];
 }): JSX.Element {
   const now = Date.now();
   const rows = collapse(events).slice(0, 12);
   const oldest = rows.at(-1)?.at ?? 0;
   const shownFights = [...fights].filter((f) => rows.length < 12 || f.endedAt >= oldest).reverse();
+  const shownNotes = [...npcNotes].slice(-6).reverse();
   return (
     <section className="feed">
       <h2>Що сталося</h2>
+      {shownNotes.length > 0 && (
+        <ul className="npc-notes">
+          {shownNotes.map((note) => (
+            <li key={`${note.at}-${note.text}`}>
+              {note.text} <small>· {whenText(note.at, now)}</small>
+            </li>
+          ))}
+        </ul>
+      )}
       {shownFights.length > 0 && (
         <ul className="fights">
           {shownFights.map((f) => (

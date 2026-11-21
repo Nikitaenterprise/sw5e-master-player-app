@@ -66,5 +66,10 @@ export function useBrief(kind: TermKind, english: string): string | undefined {
   return useContext(BriefContext)[termKey(kind, english.trim())];
 }
 
+/** Every brief at once — for the few hints that belong to no term (F-085). */
+export function useBriefs(): Record<string, string> {
+  return useContext(BriefContext);
+}
+
 /** What each exhaustion level does, from the book (F-056). Index 0 is level 1. */
 export const ExhaustionContext = createContext<string[]>([]);

@@ -24,6 +24,9 @@ import {
   parseEnemyRemove,
   parseEnemyConditions,
   parseEnemyEffects,
+  parseNpcRemove,
+  parseNpcSet,
+  ATTITUDE_BRIEF_KEY,
   parseAttackRoll,
   parseDeathSave,
   deathSaveOutcome,
@@ -62,6 +65,7 @@ import {
 import { Log } from './log.js';
 import { State } from './state.js';
 import { CombatTracker } from './combat.js';
+import { SceneNpcs } from './npcs.js';
 import { summarizeFights } from './summary.js';
 import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptHashes, MAX_MESSAGE_BYTES } from './guard.js';
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
@@ -73,7 +77,7 @@ import { commitState } from './git.js';
 import { loadGlossary, saveGlossary } from './glossary.js';
 import { loadTable, saveTable } from './table.js';
 import { buildTermCatalog, buildTermIndex, searchCatalog } from './termIndex.js';
-import { searchReference, presentDoc, resolveTerm, buildBriefs, exhaustionTable } from './reference.js';
+import { searchReference, presentDoc, resolveTerm, attitudeSentence, buildBriefs, exhaustionTable } from './reference.js';
 import { loadCompendium, CONTENT_TYPES, type ContentType } from '@holotable/compendium';
 
 const TERM_KINDS: readonly string[] = [
@@ -173,6 +177,15 @@ export async function start(
   const handouts: Handout[] = log.readAll().handouts;
   const sendHandouts = (c: { socket: WebSocket; role: string; character?: string }): void =>
     send(c.socket, { type: 'handouts', handouts: handoutsFor(handouts, c.role === 'gm' ? 'gm' : 'player', c.character) });
+  // The scene's NPCs (F-085): rebuilt from the log, like the fight.
+  const npcs = new SceneNpcs(log);
+  const sendNpcs = (c: { socket: WebSocket; role: string }): void =>
+    send(c.socket, { type: 'npcs', npcs: npcs.view(c.role === 'gm' ? 'gm' : 'player') });
+  const broadcastNpcs = (): void => {
+    for (const c of connected.values()) sendNpcs(c);
+    // The trace of NPC changes is the GM's business alone, as the feed is.
+    for (const c of connected.values()) if (c.role === 'gm') send(c.socket, { type: 'npc-notes', notes: npcs.notes() });
+  };
   // Computed once at startup, never written anywhere (ADR 0003). An engine change shows
   // up on the next restart without touching a file in state/.
   // Effects on a character (F-065) are part of its card: computed with them, and again
@@ -197,6 +210,9 @@ export async function start(
   let termIndex = buildTermIndex(compendium, sheets, SKILLS, glossary.terms, catalog);
   // A few lines from the book per term, for hover hints (F-051). Computed once.
   const briefs = buildBriefs(compendium, termIndex, glossary.terms);
+  // The book's own sentence about an NPC's attitude rides along with the term briefs (F-085).
+  const attitudeLine = attitudeSentence(compendium);
+  if (attitudeLine !== null) briefs[ATTITUDE_BRIEF_KEY] = attitudeLine;
   // What each level of exhaustion does, from the book's table (F-056).
   const exhaustion = exhaustionTable(compendium);
   // Who counts the modifiers, per character (F-064, ADR 0007). A plain file in state/,
@@ -414,6 +430,8 @@ export async function start(
         if (hello.role === 'gm') send(socket, homebrewFileMessage());
         send(socket, { type: 'state', characters: state.all(), companions: state.companions() });
         sendHandouts({ socket, role: hello.role, ...(hello.character === undefined ? {} : { character: hello.character }) });
+        send(socket, { type: 'npcs', npcs: npcs.view(hello.role === 'gm' ? 'gm' : 'player') });
+        if (hello.role === 'gm') send(socket, { type: 'npc-notes', notes: npcs.notes() });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
         send(socket, { type: 'briefs', briefs, exhaustion });
@@ -836,6 +854,31 @@ export async function start(
         log.append(handout);
         handouts.push(handout);
         for (const c of connected.values()) sendHandouts(c);
+        return;
+      }
+
+      // The scene's NPCs (F-085): the GM's alone to add, change and send away. A player
+      // gets the names of those the GM has shown, and nothing else.
+      if (kind === 'npc-set' || kind === 'npc-remove' || kind === 'npcs-clear') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'НПС сцени веде майстер' });
+          return;
+        }
+        let result: ReturnType<SceneNpcs['set']>;
+        if (kind === 'npc-set') {
+          const put = parseNpcSet(data);
+          result = typeof put === 'string' ? put : npcs.set(authorOf(), put.npc);
+        } else if (kind === 'npc-remove') {
+          const off = parseNpcRemove(data);
+          result = typeof off === 'string' ? off : npcs.remove(authorOf(), off.npc);
+        } else {
+          result = npcs.clear(authorOf());
+        }
+        if (typeof result === 'string') {
+          send(socket, { type: 'refused', reason: result });
+          return;
+        }
+        broadcastNpcs();
         return;
       }
 

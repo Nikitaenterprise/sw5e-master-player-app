@@ -75,7 +75,10 @@ export type ToServer =
   | UseItem
   | HomebrewSet
   | UseFeature
-  | HandoutSend;
+  | HandoutSend
+  | NpcSet
+  | NpcRemove
+  | NpcsClear;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -140,7 +143,9 @@ export type FromServer =
   | CompanionsMessage
   | HomebrewMessage
   | HomebrewFileMessage
-  | HandoutsMessage;
+  | HandoutsMessage
+  | NpcsMessage
+  | NpcNotesMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -926,6 +931,11 @@ export function termUrl(kind: TermKind, english: string): string {
   return `/?as=ref&term=${kind}&name=${encodeURIComponent(english.trim())}`;
 }
 
+/** A link straight into the reference at one section of a rules chapter (F-085). */
+export function ruleUrl(key: string, anchor?: string): string {
+  return `/?as=ref&doc=rule/${key}${anchor === undefined ? '' : `#${anchor}`}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Death saving throws (F-058). At 0 hit points a character is down and rolls a d20 each
 // turn. The field is sw5e.com's own `currentStats.deathSaves` (ADR 0001); being down is
@@ -1660,8 +1670,8 @@ export interface CombatEvent {
   effectsTo?: HolotableEffect[];
 }
 
-/** A line of the log: a change of character state, or something in the fight. */
-export type LogLine = GameEvent | CombatEvent | Handout;
+/** A line of the log: a change of character state, the fight, a handout, an NPC. */
+export type LogLine = GameEvent | CombatEvent | Handout | NpcEvent;
 
 /**
  * A handout (F-071): a letter, a note, a clue the GM gives to some players or to all. A
@@ -1716,6 +1726,245 @@ export function parseHandoutSend(data: unknown): HandoutSend | string {
 export function handoutsFor(list: Handout[], role: 'gm' | 'player', character?: string): Handout[] {
   if (role === 'gm') return list;
   return list.filter((h) => h.to.length === 0 || (character !== undefined && h.to.includes(character)));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scene NPCs (F-085). The merchant the party is talking to right now: his attitude,
+// what he wants, and the modifiers the table has earned in this conversation.
+//
+// Deliberately NOT a database of NPCs and not a generator: a scene's list of people,
+// which goes away when the scene does. The modifiers are shown, never applied: whether
+// a bonus for the cigarette you offered counts is the GM's call, and WHO is talking is
+// not something the app can know (ADR 0007 is the same idea for dice).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The three attitudes the books use, in the order they are written there. */
+export const NPC_ATTITUDES = ['friendly', 'indifferent', 'hostile'] as const;
+export type NpcAttitude = (typeof NPC_ATTITUDES)[number];
+
+export const ATTITUDE_TEXT: Record<NpcAttitude, string> = {
+  friendly: 'прихильний',
+  indifferent: 'байдужий',
+  hostile: 'ворожий',
+};
+
+/** Where the book says this: the social interaction section of the rules chapter. */
+export const ATTITUDE_RULE = { key: 'phb-adventuring', anchor: 'social-interaction' };
+
+/**
+ * The key the book's own sentence about attitude travels under, among the term briefs
+ * (F-051). Not a term, so it gets a key of its own that no term can collide with.
+ */
+export const ATTITUDE_BRIEF_KEY = 'rule.attitude';
+
+/** Every check a modifier may touch: any check at all, one skill, or one ability. */
+export const NPC_MODIFIER_TARGETS: string[] = [
+  'all',
+  ...SKILL_NAMES.map((k) => `skill:${k}`),
+  ...ABILITY_NAMES.map((a) => `ability:${a}`),
+];
+
+export const MAX_NPC_MODIFIERS = 10;
+export const MAX_SCENE_NPCS = 12;
+export const NPC_NAME_MAX = 60;
+export const NPC_WANTS_MAX = 160;
+
+/**
+ * A modifier on checks made in conversation with this NPC (F-085): "the cigarette you
+ * gave him: +1 Persuasion". It is the GM's note with a number, not an effect: nothing
+ * on anyone's sheet moves, because the app cannot know who is doing the talking.
+ */
+export interface NpcModifier {
+  id: string;
+  /** Where it came from, in the GM's own words: a cigarette, a bribe, a favour. */
+  source: string;
+  /** 'all', `skill:<Skill>` or `ability:<Ability>`. */
+  target: string;
+  bonus?: number;
+  mode?: 'advantage' | 'disadvantage';
+}
+
+/** One NPC of the scene as the log keeps him and the GM's screen shows him. */
+export interface NpcRecord {
+  id: string;
+  name: string;
+  attitude: NpcAttitude;
+  /** One phrase: what he wants. May be empty — not every passer-by wants something. */
+  wants: string;
+  modifiers: NpcModifier[];
+  /** Players see he is in the scene only once the GM says so. */
+  shown: boolean;
+}
+
+/**
+ * An NPC as a screen gets him. `gm` is the GM's half — attitude, what he wants, the
+ * modifiers — and a player's screen gets the object without it, exactly as an enemy's
+ * numbers travel in `enemy` and never reach a phone (F-055).
+ */
+export interface SceneNpc {
+  id: string;
+  name: string;
+  gm?: Omit<NpcRecord, 'id' | 'name'>;
+}
+
+/** Server → everyone: who is in the scene. A player gets only those the GM showed. */
+export interface NpcsMessage {
+  type: 'npcs';
+  npcs: SceneNpc[];
+}
+
+/** One line for the GM's feed: what changed about an NPC, and when (F-085). */
+export interface NpcNote {
+  at: number;
+  text: string;
+}
+
+/** Server → GM: the trace of NPC changes, oldest first. Rebuilt from the log. */
+export interface NpcNotesMessage {
+  type: 'npc-notes';
+  notes: NpcNote[];
+}
+
+/** GM → server: add an NPC to the scene, or replace him whole. */
+export interface NpcSet {
+  type: 'npc-set';
+  npc: NpcRecord;
+}
+
+/** GM → server: this NPC leaves the scene. */
+export interface NpcRemove {
+  type: 'npc-remove';
+  npc: string;
+}
+
+/** GM → server: the scene is over — everyone out. */
+export interface NpcsClear {
+  type: 'npcs-clear';
+}
+
+/** A modifier in the words the screen shows: source, what it touches, what it gives. */
+export function npcModifierText(m: NpcModifier, skill: (english: string) => string = (x) => x): string {
+  const what = m.target === 'all' ? 'будь-яка перевірка' : effectTargetText(m.target, skill);
+  const value = m.bonus !== undefined ? `${m.bonus > 0 ? '+' : ''}${m.bonus}` : m.mode === 'advantage' ? 'перевага' : 'недолік';
+  return `${m.source}: ${what} ${value}`;
+}
+
+/** What is wrong with an NPC, in words — or the NPC itself, cleaned up. */
+export function checkNpc(value: unknown): NpcRecord | string {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'НПС — обʼєкт';
+  const o = value as Record<string, unknown>;
+  const id = o['id'];
+  if (typeof id !== 'string' || id.trim() === '' || id.length > 40) return 'у НПС немає власного id';
+  const name = o['name'];
+  if (typeof name !== 'string' || name.trim() === '' || name.length > NPC_NAME_MAX) return `імʼя НПС — від 1 до ${NPC_NAME_MAX} знаків`;
+  const attitude = o['attitude'];
+  if (typeof attitude !== 'string' || !NPC_ATTITUDES.includes(attitude as NpcAttitude)) return 'ставлення — ворожий, байдужий або прихильний';
+  const wants = o['wants'] ?? '';
+  if (typeof wants !== 'string' || wants.length > NPC_WANTS_MAX) return `чого хоче — не більше ${NPC_WANTS_MAX} знаків`;
+  const shown = o['shown'];
+  if (typeof shown !== 'boolean') return 'видно гравцям — так або ні';
+  const raw = o['modifiers'] ?? [];
+  if (!Array.isArray(raw)) return 'модифікатори — список';
+  if (raw.length > MAX_NPC_MODIFIERS) return `модифікаторів не більше ${MAX_NPC_MODIFIERS}`;
+  const ids = new Set<string>();
+  const modifiers: NpcModifier[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) return 'модифікатор — обʼєкт';
+    const m = item as Record<string, unknown>;
+    if (typeof m['id'] !== 'string' || m['id'] === '' || ids.has(m['id'])) return 'у модифікатора немає власного id';
+    ids.add(m['id']);
+    if (typeof m['source'] !== 'string' || m['source'].trim() === '' || m['source'].length > 60) return 'звідки модифікатор — від 1 до 60 знаків';
+    if (typeof m['target'] !== 'string' || !NPC_MODIFIER_TARGETS.includes(m['target'])) return 'на що діє модифікатор — не зрозуміло';
+    const bonus = m['bonus'];
+    const mode = m['mode'];
+    if (bonus === undefined && mode === undefined) return 'модифікатор мусить дати число або перевагу/недолік';
+    if (bonus !== undefined && (typeof bonus !== 'number' || !Number.isInteger(bonus) || bonus === 0 || Math.abs(bonus) > 20)) {
+      return 'модифікатор — ціле число від −20 до 20, не нуль';
+    }
+    if (mode !== undefined && mode !== 'advantage' && mode !== 'disadvantage') return 'перевага чи недолік — одне з двох';
+    modifiers.push({
+      id: m['id'], source: (m['source'] as string).trim(), target: m['target'] as string,
+      ...(bonus === undefined ? {} : { bonus: bonus as number }),
+      ...(mode === undefined ? {} : { mode: mode as 'advantage' | 'disadvantage' }),
+    });
+  }
+  return {
+    id: id.trim(), name: name.trim(), attitude: attitude as NpcAttitude,
+    wants: (wants as string).trim(), modifiers, shown,
+  };
+}
+
+export function parseNpcSet(data: unknown): NpcSet | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'npc-set') return 'не НПС';
+  const npc = checkNpc(o['npc']);
+  return typeof npc === 'string' ? npc : { type: 'npc-set', npc };
+}
+
+export function parseNpcRemove(data: unknown): NpcRemove | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'npc-remove') return 'не прибирання НПС';
+  const npc = o['npc'];
+  if (typeof npc !== 'string' || npc === '') return 'не вказано НПС';
+  return { type: 'npc-remove', npc };
+}
+
+/**
+ * What each screen may see (F-085): the GM everything, a player only the NPCs the GM
+ * has shown — and of those, the name alone. Attitude, what he wants and the modifiers
+ * are what the table is there to find out.
+ */
+export function npcsFor(list: NpcRecord[], role: 'gm' | 'player'): SceneNpc[] {
+  if (role === 'gm') {
+    return list.map(({ id, name, ...gm }) => ({ id, name, gm }));
+  }
+  return list.filter((npc) => npc.shown).map(({ id, name }) => ({ id, name }));
+}
+
+/**
+ * The trace one change leaves in the GM's feed. `before` is null when the NPC has just
+ * come into the scene, `after` is null when he has left. Several changes at once make
+ * one line, because that is how the GM pressed them: one save, one line.
+ */
+export function npcNoteText(before: NpcRecord | null, after: NpcRecord | null): string {
+  if (after === null) return `${before?.name ?? 'НПС'} пішов зі сцени`;
+  if (before === null) {
+    const wants = after.wants === '' ? '' : ` · хоче: ${after.wants}`;
+    return `${after.name} у сцені · ${ATTITUDE_TEXT[after.attitude]}${wants}`;
+  }
+  const parts: string[] = [];
+  if (before.name !== after.name) parts.push(`тепер ${after.name}`);
+  if (before.attitude !== after.attitude) parts.push(`${ATTITUDE_TEXT[before.attitude]} → ${ATTITUDE_TEXT[after.attitude]}`);
+  if (before.wants !== after.wants) parts.push(after.wants === '' ? 'уже нічого не хоче' : `хоче: ${after.wants}`);
+  if (before.shown !== after.shown) parts.push(after.shown ? 'гравці його бачать' : 'прихований від гравців');
+  const had = new Set(before.modifiers.map((m) => m.id));
+  const has = new Set(after.modifiers.map((m) => m.id));
+  for (const m of after.modifiers) if (!had.has(m.id)) parts.push(`+ ${npcModifierText(m)}`);
+  for (const m of before.modifiers) if (!has.has(m.id)) parts.push(`− ${m.source}`);
+  return `${after.name}: ${parts.length === 0 ? 'без змін' : parts.join(' · ')}`;
+}
+
+/** A line of the log about the scene's NPCs (F-085). Decisions only, as everywhere. */
+export interface NpcEvent {
+  id: string;
+  at: number;
+  author: Author;
+  type: 'npc.set' | 'npc.removed' | 'npc.scene-cleared';
+  /** npc.set: the NPC as he is now. */
+  npc?: NpcRecord;
+  /** npc.set: as he was, when he was already in the scene — the pair that undoes free. */
+  was?: NpcRecord;
+  /** npc.removed: who left, and what he looked like. */
+  npcId?: string;
+  /** npc.scene-cleared: everyone who was in the scene. */
+  cleared?: NpcRecord[];
+}
+
+/** Whether this log line is about the scene's NPCs. */
+export function isNpcEvent(line: LogLine): line is NpcEvent {
+  return line.type.startsWith('npc.');
 }
 
 /** Whether this log line is a handout. */

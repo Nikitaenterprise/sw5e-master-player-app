@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type NpcNote, type NpcRecord, type SceneNpc, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -65,6 +65,10 @@ export interface Snapshot {
   homebrewCandidates: string[];
   /** Handouts this screen may read, oldest first (F-071). */
   handouts: Handout[];
+  /** NPCs of the scene this screen may see (F-085). A player gets only shown names. */
+  npcs: SceneNpc[];
+  /** The trace of NPC changes for the GM's feed, oldest first (F-085). */
+  npcNotes: NpcNote[];
 }
 
 export const EMPTY: Snapshot = {
@@ -93,6 +97,8 @@ export const EMPTY: Snapshot = {
   homebrewFile: {},
   homebrewCandidates: [],
   handouts: [],
+  npcs: [],
+  npcNotes: [],
   glossaryFound: { q: '', rows: [] },
   combat: null,
   counts: {},
@@ -195,6 +201,12 @@ export interface Controls {
   setEnemyConditions: (enemy: string, conditions: string[]) => void;
   /** The effects on one enemy, the whole list (F-084). */
   setEnemyEffects: (enemy: string, effects: HolotableEffect[]) => void;
+  /** Add an NPC to the scene or write him over whole (F-085). */
+  setNpc: (npc: NpcRecord) => void;
+  /** This NPC leaves the scene. */
+  removeNpc: (npc: string) => void;
+  /** The scene is over: everyone out. */
+  clearNpcs: () => void;
   /** An attack roll from the "your turn" screen (F-057). */
   attackRoll: (character: string, weapon: string, roll: number, said?: number) => void;
   /** "Turn over" from the phone (F-057). */
@@ -309,6 +321,12 @@ export function connect(
           break;
         case 'handouts':
           update({ handouts: m.handouts });
+          break;
+        case 'npcs':
+          update({ npcs: m.npcs });
+          break;
+        case 'npc-notes':
+          update({ npcNotes: m.notes });
           break;
         case 'homebrew-file':
           update({ homebrewFile: m.items, homebrewCandidates: m.candidates });
@@ -488,6 +506,21 @@ export function connect(
     setEnemyEffects: (enemy, effects) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'enemy-effects', enemy, effects };
+      socket.send(JSON.stringify(message));
+    },
+    setNpc: (npc) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'npc-set', npc };
+      socket.send(JSON.stringify(message));
+    },
+    removeNpc: (npc) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'npc-remove', npc };
+      socket.send(JSON.stringify(message));
+    },
+    clearNpcs: () => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'npcs-clear' };
       socket.send(JSON.stringify(message));
     },
     removeEnemy: (enemy) => {

@@ -239,6 +239,28 @@ try {
       && withSight.rollModes?.[`attack:${indexOf(withSight, 'Bowcaster')}`] === 'advantage'
       && withSight.rollModes?.[`attack:${indexOf(withSight, 'Vibrosabre')}`] === undefined
       && withSight.explain[`attack:${indexOf(withSight, 'Bowcaster')}`]?.parts.some((part) => part.label === 'ефект: Приладдя'));
+  // F-085: the scene's NPCs. The GM leads them; a player sees only a shown name.
+  gm.ws.send(JSON.stringify({ type: 'npc-set', npc: {
+    id: 'fc-ron', name: 'Торговець Рон', attitude: 'indifferent', wants: 'вивезти товар',
+    modifiers: [{ id: 'fc-cig', source: 'цигарка', target: 'skill:Persuasion', bonus: 1 }], shown: false,
+  } }));
+  const npcsOf = (g) => [...g].reverse().find((m) => m.type === 'npcs')?.npcs ?? [];
+  const notesOf = (g) => [...g].reverse().find((m) => m.type === 'npc-notes')?.notes ?? [];
+  ok('F-085 НПС у сцені: у майстра ставлення, «чого хоче» й модифікатор',
+    await wait(gm, (g) => npcsOf(g)[0]?.gm?.attitude === 'indifferent' && npcsOf(g)[0]?.gm?.modifiers?.[0]?.bonus === 1));
+  ok('F-085 поки не показаний — у гравця його немає зовсім', npcsOf(p1.got).length === 0);
+  gm.ws.send(JSON.stringify({ type: 'npc-set', npc: {
+    id: 'fc-ron', name: 'Торговець Рон', attitude: 'friendly', wants: 'вивезти товар',
+    modifiers: [{ id: 'fc-cig', source: 'цигарка', target: 'skill:Persuasion', bonus: 1 }], shown: true,
+  } }));
+  ok('F-085 показаний — у гравця лише імʼя, без ставлення й чисел',
+    await wait(p1, (g) => npcsOf(g).length === 1)
+      && JSON.stringify(npcsOf(p1.got)) === JSON.stringify([{ id: 'fc-ron', name: 'Торговець Рон' }]));
+  ok('F-085 слід у стрічці майстра називає, що саме змінилось',
+    notesOf(gm.got).some((n) => n.text.includes('байдужий → прихильний')) && notesOf(p1.got).length === 0);
+  gm.ws.send(JSON.stringify({ type: 'npcs-clear' }));
+  ok('F-085 «Сцена скінчилась» прибирає всіх',
+    await wait(gm, (g) => npcsOf(g).length === 0) && await wait(p1, (g) => npcsOf(g).length === 0));
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');

@@ -6,7 +6,7 @@
 // gives that simple a guarantee for the same price.
 import { appendFileSync, openSync, fsyncSync, closeSync, readFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isCombatEvent, isHandout, type CombatEvent, type GameEvent, type Handout, type LogLine } from '@holotable/protocol';
+import { isCombatEvent, isHandout, isNpcEvent, type CombatEvent, type GameEvent, type Handout, type LogLine, type NpcEvent } from '@holotable/protocol';
 
 /**
  * What a log file holds. State changes and combat lines live in the same file, in the
@@ -19,6 +19,8 @@ export interface LogContents {
   combat: CombatEvent[];
   /** Handouts the GM gave (F-071). */
   handouts: Handout[];
+  /** The scene's NPCs (F-085). */
+  npcs: NpcEvent[];
   corruptLines: number;
 }
 
@@ -107,23 +109,26 @@ export class Log {
     const events: GameEvent[] = [];
     const combat: CombatEvent[] = [];
     const handouts: Handout[] = [];
+    const npcs: NpcEvent[] = [];
     let corruptLines = 0;
     for (const n of Log.numbers(this.dir).filter((k) => k <= this.currentNumber)) {
       const part = Log.readFile(Log.fileFor(this.dir, n));
       events.push(...part.events);
       combat.push(...part.combat);
       handouts.push(...part.handouts);
+      npcs.push(...part.npcs);
       corruptLines += part.corruptLines;
     }
-    return { events, combat, handouts, corruptLines };
+    return { events, combat, handouts, npcs, corruptLines };
   }
 
   private static readFile(file: string): LogContents {
-    if (!existsSync(file)) return { events: [], combat: [], handouts: [], corruptLines: 0 };
+    if (!existsSync(file)) return { events: [], combat: [], handouts: [], npcs: [], corruptLines: 0 };
     const lines = readFileSync(file, 'utf8').split('\n').filter((r) => r.trim() !== '');
     const events: GameEvent[] = [];
     const combat: CombatEvent[] = [];
     const handouts: Handout[] = [];
+    const npcs: NpcEvent[] = [];
     let corrupt = 0;
     for (const line of lines) {
       let parsed: LogLine;
@@ -141,8 +146,9 @@ export class Log {
       }
       if (isCombatEvent(parsed)) combat.push(parsed);
       else if (isHandout(parsed)) handouts.push(parsed);
+      else if (isNpcEvent(parsed)) npcs.push(parsed);
       else if (parsed.type === 'state.changed') events.push(parsed);
     }
-    return { events, combat, handouts, corruptLines: corrupt };
+    return { events, combat, handouts, npcs, corruptLines: corrupt };
   }
 }
