@@ -56,6 +56,11 @@ import {
   parseHomebrewSet,
   parseUseFeature,
   parseHandoutSend,
+  parseShipDamage,
+  parseShipSet,
+  checkShipState,
+  shipDamage,
+  type ShipState,
   nextTurnRound,
   handoutsFor,
   type Handout,
@@ -73,6 +78,7 @@ import { SceneNpcs } from './npcs.js';
 import { SceneWeather, loadWeather } from './weather.js';
 import { summarizeFights } from './summary.js';
 import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptHashes, MAX_MESSAGE_BYTES } from './guard.js';
+import { loadShips, ShipStates } from './ships.js';
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 import { computeSummaries, computeSummary, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
@@ -136,6 +142,8 @@ export interface Options {
    */
   repoDir?: string;
   stateDir?: string;
+  /** Ship sheets (F-060). Default: state/ships/ inside `stateDir`. */
+  shipsDir?: string;
   /**
    * Demo mode (F-037): the four-screen demo writes into its own throwaway log and never
    * commits, so acceptance clicks do not take up real session numbers.
@@ -232,6 +240,14 @@ export async function start(
   if (glossary.problem !== null) console.log(`  Увага: ${glossary.problem}`);
   // The editor's list of terms: computed once, like the sheets (F-033).
   const compendium = loadCompendium({ root: ROOT });
+  // Ships (F-060): numbers from the engine, state from the log — visible to every screen.
+  const loadedShips = loadShips(options.shipsDir ?? join(stateDir, 'ships'), compendium);
+  for (const problem of loadedShips.problems) console.log(`  Увага: ${problem}`);
+  const ships = new ShipStates(log, loadedShips.baseline);
+  const shipsMessage = (): FromServer => ({
+    type: 'ships',
+    ships: Object.fromEntries(Object.entries(loadedShips.summaries).map(([slug, summary]) => [slug, { summary, state: ships.one(slug) ?? {} }])),
+  });
   // Every name the glossary can hold (F-052), and the editor's list built from it.
   const catalog = buildTermCatalog(compendium, sheets, SKILLS);
   // Rebuilt after every glossary edit: a word just added for a creature must be findable.
@@ -468,6 +484,7 @@ export async function start(
         if (hello.role === 'gm') send(socket, homebrewFileMessage());
         send(socket, { type: 'state', characters: state.all(), companions: state.companions() });
         sendHandouts({ socket, role: hello.role, ...(hello.character === undefined ? {} : { character: hello.character }) });
+        send(socket, shipsMessage());
         send(socket, { type: 'npcs', npcs: npcs.view(hello.role === 'gm' ? 'gm' : 'player') });
         send(socket, { type: 'weather', weather: weatherFor(hello.role) });
         if (hello.role === 'gm') send(socket, { type: 'scene-notes', notes: sceneNotes() });
@@ -887,6 +904,49 @@ export async function start(
       // one target at a time.
       // A handout (F-071): the GM writes it, the log keeps it, and each screen gets the
       // list it may read — a note for one player never reaches another's phone.
+      // The ship (F-060): the GM deals damage — shields first, then the hull — and
+      // repairs; every screen sees it at once. Players do not write ship state: what
+      // their stations do with it comes with space combat (F-063).
+      if (kind === 'ship-damage' || kind === 'ship-set') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'стан корабля міняє майстер' });
+          return;
+        }
+        const parsed = kind === 'ship-damage' ? parseShipDamage(data) : parseShipSet(data);
+        if (typeof parsed === 'string') {
+          send(socket, { type: 'refused', reason: parsed });
+          return;
+        }
+        const summary = loadedShips.summaries[parsed.ship];
+        const now = ships.one(parsed.ship);
+        if (summary === undefined || now === undefined) {
+          send(socket, { type: 'refused', reason: `немає корабля «${parsed.ship}»` });
+          return;
+        }
+        let changes: ShipState;
+        let note: string;
+        if (parsed.type === 'ship-damage') {
+          const dealt = shipDamage(now, summary, parsed.amount);
+          changes = dealt.changes;
+          note = `шкода ${parsed.amount}: щити −${dealt.shields}, корпус −${dealt.hull}`;
+        } else {
+          const problem = checkShipState(parsed.changes, summary);
+          if (problem !== null) {
+            send(socket, { type: 'refused', reason: problem });
+            return;
+          }
+          changes = parsed.changes;
+          note = 'майстер';
+        }
+        const result = ships.apply(parsed.ship, changes, authorOf(), note);
+        if (typeof result === 'string') {
+          send(socket, { type: 'refused', reason: result });
+          return;
+        }
+        broadcastAll(shipsMessage());
+        return;
+      }
+
       if (kind === 'handout-send') {
         if (who.role !== 'gm') {
           send(socket, { type: 'refused', reason: 'роздатки надсилає майстер' });

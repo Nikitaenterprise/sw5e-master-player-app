@@ -20,6 +20,7 @@ import { WeatherBar } from './Weather.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
 import { HandoutDesk, Handouts } from './Handouts.js';
+import { ShipPanel, ShipStrip } from './Ship.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, isMismatch, type FeedRow,
 } from './feed.js';
@@ -161,6 +162,16 @@ export function App(): JSX.Element {
       ) : (
         <PlayerSheet character={character} snapshot={snapshot} controls={controls} />
       )}
+
+      {gm && !editingGlossary && Object.entries(snapshot.ships).map(([slug, ship]) => (
+        <ShipPanel
+          key={slug}
+          summary={ship.summary}
+          state={ship.state}
+          damage={(amount) => controls.current?.shipDamage(slug, amount)}
+          set={(changes) => controls.current?.shipSet(slug, changes)}
+        />
+      ))}
 
       {gm && !editingGlossary && (
         <HandoutDesk
@@ -312,6 +323,9 @@ function PlayerSheet({
   return (
     <section>
       <Handouts handouts={snapshot.handouts} />
+      {Object.entries(snapshot.ships).map(([slug, ship]) => (
+        <ShipStrip key={slug} summary={ship.summary} state={ship.state} character={character} />
+      ))}
       <NpcsInScene npcs={snapshot.npcs} />
       <WeatherBar weather={snapshot.weather} />
       <h2>Мій стан</h2>

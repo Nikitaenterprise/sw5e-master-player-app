@@ -687,3 +687,30 @@ a.ref-link:hover { color: var(--accent); }
 .weather .buttons button.on { border-color: var(--text); }
 .weather code { font-size: .78rem; }
 .effects .effect.scene { border-style: dashed; }
+
+/* ── Ship (F-060) ──────────────────────────────────────────────────────── */
+.ship-panel .hint { margin-top: -.3rem; }
+.ship-pools { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; align-items: flex-start; }
+.ship-pool { display: flex; flex-direction: column; gap: .25rem; min-width: 15rem; }
+.ship-pool small, .ship-damage small, .ship-weapons small { color: var(--muted); }
+.ship-bar { display: grid; grid-template-columns: 4.5rem 1fr auto auto; gap: .45rem; align-items: center; }
+.ship-bar-label { font-size: .85rem; color: var(--muted); }
+.ship-bar-track { height: .55rem; border-radius: 1rem; background: color-mix(in srgb, var(--border) 70%, transparent); min-width: 7rem; }
+.ship-bar-track > span { display: block; height: 100%; border-radius: 1rem; background: var(--accent); }
+.ship-bar.hull .ship-bar-track > span { background: color-mix(in srgb, var(--bad) 75%, var(--accent)); }
+.ship-bar b { font-size: 1.05rem; }
+.ship-bar small { color: var(--muted); }
+.ship-steps, .ship-damage, .ship-fuel, .ship-power { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.ship-panel button, .ship-panel input {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem; padding: .15rem .5rem; font: inherit; font-size: .85rem;
+}
+.ship-panel button { cursor: pointer; }
+.ship-panel button:disabled { color: var(--muted); cursor: default; opacity: .6; }
+.ship-panel input[type="number"] { width: 5rem; }
+.ship-line { font-size: .9rem; margin: .45rem 0; }
+.ship-power-pool { display: inline-flex; gap: .2rem; align-items: center; padding: 0 .4rem; border-left: 1px solid var(--border); }
+.ship-weapons { list-style: none; padding: 0; margin: .4rem 0; font-size: .9rem; display: flex; flex-direction: column; gap: .15rem; }
+.ship-strip { border: 1px solid var(--border); border-radius: .5rem; padding: .4rem .7rem; margin: .4rem 0; background: var(--panel); }
+.ship-strip summary { cursor: pointer; }
+.ship-strip summary small { color: var(--muted); }
+.ship-strip .ship-bar { margin-top: .35rem; }

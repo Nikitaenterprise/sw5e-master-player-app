@@ -6,7 +6,7 @@
 // gives that simple a guarantee for the same price.
 import { appendFileSync, openSync, fsyncSync, closeSync, readFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isCombatEvent, isHandout, isNpcEvent, isSceneEvent, type CombatEvent, type GameEvent, type Handout, type LogLine, type NpcEvent, type SceneEvent } from '@holotable/protocol';
+import { isCombatEvent, isHandout, isNpcEvent, isSceneEvent, isShipEvent, type CombatEvent, type GameEvent, type Handout, type LogLine, type NpcEvent, type SceneEvent, type ShipEvent } from '@holotable/protocol';
 
 /**
  * What a log file holds. State changes and combat lines live in the same file, in the
@@ -23,6 +23,8 @@ export interface LogContents {
   npcs: NpcEvent[];
   /** The scene itself: the weather (F-086). */
   scene: SceneEvent[];
+  /** Changes to ships (F-060). */
+  ships: ShipEvent[];
   corruptLines: number;
 }
 
@@ -113,6 +115,7 @@ export class Log {
     const handouts: Handout[] = [];
     const npcs: NpcEvent[] = [];
     const scene: SceneEvent[] = [];
+    const ships: ShipEvent[] = [];
     let corruptLines = 0;
     for (const n of Log.numbers(this.dir).filter((k) => k <= this.currentNumber)) {
       const part = Log.readFile(Log.fileFor(this.dir, n));
@@ -121,19 +124,21 @@ export class Log {
       handouts.push(...part.handouts);
       npcs.push(...part.npcs);
       scene.push(...part.scene);
+      ships.push(...part.ships);
       corruptLines += part.corruptLines;
     }
-    return { events, combat, handouts, npcs, scene, corruptLines };
+    return { events, combat, handouts, npcs, scene, ships, corruptLines };
   }
 
   private static readFile(file: string): LogContents {
-    if (!existsSync(file)) return { events: [], combat: [], handouts: [], npcs: [], scene: [], corruptLines: 0 };
+    if (!existsSync(file)) return { events: [], combat: [], handouts: [], npcs: [], scene: [], ships: [], corruptLines: 0 };
     const lines = readFileSync(file, 'utf8').split('\n').filter((r) => r.trim() !== '');
     const events: GameEvent[] = [];
     const combat: CombatEvent[] = [];
     const handouts: Handout[] = [];
     const npcs: NpcEvent[] = [];
     const scene: SceneEvent[] = [];
+    const ships: ShipEvent[] = [];
     let corrupt = 0;
     for (const line of lines) {
       let parsed: LogLine;
@@ -153,8 +158,9 @@ export class Log {
       else if (isHandout(parsed)) handouts.push(parsed);
       else if (isNpcEvent(parsed)) npcs.push(parsed);
       else if (isSceneEvent(parsed)) scene.push(parsed);
+      else if (isShipEvent(parsed)) ships.push(parsed);
       else if (parsed.type === 'state.changed') events.push(parsed);
     }
-    return { events, combat, handouts, npcs, scene, corruptLines: corrupt };
+    return { events, combat, handouts, npcs, scene, ships, corruptLines: corrupt };
   }
 }

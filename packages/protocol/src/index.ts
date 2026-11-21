@@ -79,7 +79,9 @@ export type ToServer =
   | NpcSet
   | NpcRemove
   | NpcsClear
-  | WeatherSet;
+  | WeatherSet
+  | ShipDamage
+  | ShipSet;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -147,7 +149,8 @@ export type FromServer =
   | HandoutsMessage
   | NpcsMessage
   | SceneNotesMessage
-  | WeatherMessage;
+  | WeatherMessage
+  | ShipsMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -1673,7 +1676,164 @@ export interface CombatEvent {
 }
 
 /** A line of the log: character state, the fight, a handout, an NPC, the scene. */
-export type LogLine = GameEvent | CombatEvent | Handout | NpcEvent | SceneEvent;
+export type LogLine = GameEvent | CombatEvent | Handout | NpcEvent | SceneEvent | ShipEvent;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The ship at the table (F-060). A ship is a living thing like a character: its state
+// changes in the same log, by its own lines, and every screen sees it.
+
+/** What changes on a ship during a session. Its own field set: a ship has no hit points. */
+export const SHIP_FIELDS = ['hullPointsLost', 'shieldPointsLost', 'fuelUsed', 'powerDiceUsed', 'conditions'] as const;
+export type ShipField = (typeof SHIP_FIELDS)[number];
+
+export interface ShipPowerUsed {
+  central?: number;
+  systems?: Record<string, number>;
+}
+
+export interface ShipState {
+  hullPointsLost?: number;
+  shieldPointsLost?: number;
+  fuelUsed?: number;
+  powerDiceUsed?: ShipPowerUsed;
+  conditions?: string[];
+}
+
+/** A line of the log: a change to a ship, with from/to pairs like a character's. */
+export interface ShipEvent {
+  id: string;
+  at: number;
+  author: Author;
+  type: 'ship.changed';
+  ship: string;
+  changes: { field: ShipField; from: unknown; to: unknown }[];
+  note?: string;
+}
+
+export function isShipEvent(line: LogLine): line is ShipEvent {
+  return line.type === 'ship.changed';
+}
+
+/** The numbers of a ship, worked out by the engine from its sheet (ADR 0003). */
+export interface ShipSummary {
+  name: string;
+  slug: string;
+  size: string;
+  tier: number;
+  role: string;
+  model?: string;
+  abilities: Record<string, { score: number; modifier: number }>;
+  hull: { max: number; dice: { count: number; size: string } };
+  shields: { max: number; regeneration: number; capacity: string } | null;
+  armorClass: number;
+  damageReduction: number;
+  speed: number | null;
+  turning: number | null;
+  savingThrows: Record<string, { modifier: number; proficient: boolean }>;
+  weaponAbilityModifier: number;
+  weapons: { name: string; damage: string; damageType: string; mounting: string; turret: boolean; range: { normal: number; long: number } | null; properties: string[] }[];
+  power: { die: string; recovery: string; central: number; perSystem: number };
+  cargoTons: number | null;
+  fuelCapacity: number | null;
+  minimumCrew: number | null;
+  suites: { used: number; max: number; capacity: number | null };
+  modificationSlots: { used: number; max: number };
+  /** Who is at which station. */
+  crew: { character: string; deployment: string }[];
+  warnings: string[];
+}
+
+/** The five systems power dice can be stored in, as the book names them. */
+export const SHIP_SYSTEM_NAMES = ['communications', 'engines', 'shields', 'sensors', 'weapons'] as const;
+
+/** Server → every screen: each ship's numbers and its state now. */
+export interface ShipsMessage {
+  type: 'ships';
+  ships: Record<string, { summary: ShipSummary; state: ShipState }>;
+}
+
+/** GM → server: damage to a ship. The shields take it first, the hull what is left. */
+export interface ShipDamage {
+  type: 'ship-damage';
+  ship: string;
+  amount: number;
+}
+
+/** GM → server: set some of a ship's state — a repair, shields back, fuel, power dice. */
+export interface ShipSet {
+  type: 'ship-set';
+  ship: string;
+  changes: ShipState;
+}
+
+export function parseShipDamage(data: unknown): ShipDamage | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'ship-damage') return 'не шкода кораблю';
+  if (typeof o['ship'] !== 'string' || o['ship'] === '') return 'не вказано корабля';
+  const amount = o['amount'];
+  if (typeof amount !== 'number' || !Number.isInteger(amount) || amount < 1 || amount > 100_000) return 'шкода — ціле число від 1';
+  return { type: 'ship-damage', ship: o['ship'], amount };
+}
+
+export function parseShipSet(data: unknown): ShipSet | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'ship-set') return 'не зміна корабля';
+  if (typeof o['ship'] !== 'string' || o['ship'] === '') return 'не вказано корабля';
+  const changes = o['changes'];
+  if (typeof changes !== 'object' || changes === null || Array.isArray(changes)) return 'зміни корабля — обʼєкт';
+  const keys = Object.keys(changes);
+  if (keys.length === 0 || !keys.every((k) => (SHIP_FIELDS as readonly string[]).includes(k))) return 'такого поля в корабля немає';
+  return { type: 'ship-set', ship: o['ship'], changes: changes as ShipState };
+}
+
+/**
+ * Whether a ship's state stays inside what the ship can hold: nothing lost below zero
+ * or past the maximum, power dice only in the five systems. Null when it does.
+ */
+export function checkShipState(state: ShipState, ship: ShipSummary): string | null {
+  const whole = (v: unknown): boolean => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+  if (state.hullPointsLost !== undefined && (!whole(state.hullPointsLost) || state.hullPointsLost > ship.hull.max)) {
+    return `втрачений корпус — від 0 до ${ship.hull.max}`;
+  }
+  const shields = ship.shields?.max ?? 0;
+  if (state.shieldPointsLost !== undefined && (!whole(state.shieldPointsLost) || state.shieldPointsLost > shields)) {
+    return `втрачені щити — від 0 до ${shields}`;
+  }
+  const fuel = ship.fuelCapacity ?? 0;
+  if (state.fuelUsed !== undefined && (!whole(state.fuelUsed) || state.fuelUsed > fuel)) return `витрачене паливо — від 0 до ${fuel}`;
+  if (state.powerDiceUsed !== undefined) {
+    const p = state.powerDiceUsed;
+    if (typeof p !== 'object' || p === null || Array.isArray(p)) return 'кубики живлення — обʼєкт';
+    if (p.central !== undefined && (!whole(p.central) || p.central > ship.power.central)) return `центральних кубиків — від 0 до ${ship.power.central}`;
+    const systems = p.systems ?? {};
+    if (typeof systems !== 'object' || systems === null || Array.isArray(systems)) return 'кубики систем — обʼєкт';
+    for (const [system, used] of Object.entries(systems)) {
+      if (!(SHIP_SYSTEM_NAMES as readonly string[]).includes(system)) return `системи «${system}» немає`;
+      if (!whole(used) || used > ship.power.perSystem) return `кубиків у системі ${system} — від 0 до ${ship.power.perSystem}`;
+    }
+  }
+  if (state.conditions !== undefined) return checkConditions(state.conditions);
+  return null;
+}
+
+/**
+ * Damage as the book deals it: "Whenever a ship with shield points takes damage, the
+ * shield takes the damage instead. If this damage reduces the ship's shield points to 0,
+ * the hull takes any remaining damage." Returns the new totals lost, and how much each
+ * took — for the note in the log.
+ */
+export function shipDamage(state: ShipState, ship: ShipSummary, amount: number): { changes: ShipState; shields: number; hull: number } {
+  const shieldsLeft = Math.max(0, (ship.shields?.max ?? 0) - (state.shieldPointsLost ?? 0));
+  const toShields = Math.min(amount, shieldsLeft);
+  const hullLeft = Math.max(0, ship.hull.max - (state.hullPointsLost ?? 0));
+  const toHull = Math.min(amount - toShields, hullLeft);
+  const changes: ShipState = {};
+  if (toShields > 0) changes.shieldPointsLost = (state.shieldPointsLost ?? 0) + toShields;
+  if (toHull > 0) changes.hullPointsLost = (state.hullPointsLost ?? 0) + toHull;
+  return { changes, shields: toShields, hull: toHull };
+}
 
 /**
  * A handout (F-071): a letter, a note, a clue the GM gives to some players or to all. A

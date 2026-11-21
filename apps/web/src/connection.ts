@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type ShipState, type ShipSummary, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -65,6 +65,8 @@ export interface Snapshot {
   homebrewCandidates: string[];
   /** Handouts this screen may read, oldest first (F-071). */
   handouts: Handout[];
+  /** Ships: numbers and state, for every screen (F-060). */
+  ships: Record<string, { summary: ShipSummary; state: ShipState }>;
   /** NPCs of the scene this screen may see (F-085). A player gets only shown names. */
   npcs: SceneNpc[];
   /** The scene's trace for the GM's feed — NPCs and weather — oldest first (F-085, F-086). */
@@ -99,6 +101,7 @@ export const EMPTY: Snapshot = {
   homebrewFile: {},
   homebrewCandidates: [],
   handouts: [],
+  ships: {},
   npcs: [],
   sceneNotes: [],
   weather: null,
@@ -227,6 +230,9 @@ export interface Controls {
   useItem: (character: string, item: string, spend: boolean) => void;
   /** Send a handout to some players, or to all with an empty list. GM only (F-071). */
   sendHandout: (title: string, text: string, to: string[]) => void;
+  /** Damage to a ship — shields first; or a change to its state. GM only (F-060). */
+  shipDamage: (ship: string, amount: number) => void;
+  shipSet: (ship: string, changes: ShipState) => void;
   /** A feature's effect on its owner and the allies picked. GM only (F-069). */
   useFeature: (character: string, feature: string, allies: string[]) => void;
   /** Write one item into the homebrew file, or delete it with null. GM only (F-068). */
@@ -328,6 +334,9 @@ export function connect(
           break;
         case 'homebrew':
           update({ homebrew: m.items, homebrewProblems: m.problems });
+          break;
+        case 'ships':
+          update({ ships: m.ships });
           break;
         case 'handouts':
           update({ handouts: m.handouts });
@@ -479,6 +488,16 @@ export function connect(
     attackRoll: (whom, weapon, roll, said) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'attack-roll', character: whom, weapon, roll, ...(said === undefined ? {} : { said }) };
+      socket.send(JSON.stringify(message));
+    },
+    shipDamage: (ship, amount) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'ship-damage', ship, amount };
+      socket.send(JSON.stringify(message));
+    },
+    shipSet: (ship, changes) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'ship-set', ship, changes };
       socket.send(JSON.stringify(message));
     },
     sendHandout: (title, text, to) => {

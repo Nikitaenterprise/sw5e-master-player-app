@@ -239,6 +239,15 @@ try {
       && withSight.rollModes?.[`attack:${indexOf(withSight, 'Bowcaster')}`] === 'advantage'
       && withSight.rollModes?.[`attack:${indexOf(withSight, 'Vibrosabre')}`] === undefined
       && withSight.explain[`attack:${indexOf(withSight, 'Bowcaster')}`]?.parts.some((part) => part.label === 'ефект: Приладдя'));
+  // F-060: the ship at the table — the engine's numbers, and damage on every phone.
+  const shipOf = (g) => [...g].reverse().find((m) => m.type === 'ships')?.ships?.['mandrivna-zorya'];
+  ok('F-060 «Мандрівна Зоря» з рушія: корпус 38, щити 22, КБ 11, мінімальний екіпаж 3',
+    shipOf(gm.got)?.summary.hull.max === 38 && shipOf(gm.got)?.summary.shields?.max === 22
+      && shipOf(gm.got)?.summary.armorClass === 11 && shipOf(gm.got)?.summary.minimumCrew === 3);
+  gm.ws.send(JSON.stringify({ type: 'ship-damage', ship: 'mandrivna-zorya', amount: 25 }));
+  ok('F-060 шкода 25: щити −22, корпус −3 — і це видно на телефоні Сандри',
+    await wait(p1, (g) => shipOf(g)?.state.shieldPointsLost === 22 && shipOf(g)?.state.hullPointsLost === 3));
+
   // F-086: weather as an effect of the scene — the owner's own file, on everyone.
   const weatherOf = (g) => [...g].reverse().find((m) => m.type === 'weather')?.weather;
   const npcsOf = (g) => [...g].reverse().find((m) => m.type === 'npcs')?.npcs ?? [];
