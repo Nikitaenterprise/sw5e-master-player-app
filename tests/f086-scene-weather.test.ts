@@ -223,12 +223,74 @@ describe('F-086 · погода як ефект сцени', () => {
     const para = renderToStaticMarkup(createElement(WeatherBar, { weather: scene.view() }));
     expect(para).toContain('Perception -2');
     expect(renderToStaticMarkup(createElement(WeatherBar, { weather: null })), 'без файла — нічого').toBe('');
-    // The problems of a broken file are the GM's to see.
-    const broken = renderToStaticMarkup(createElement(WeatherBar, {
-      weather: { planet: '', now: null, always: null, choices: [], problems: ['state/scene/weather.json зламаний'] },
-    }));
-    expect(broken).toContain('зламаний');
+    // The problems of a broken file are the GM's to see — and nobody else's.
+    const trouble = { planet: '', now: null, always: null, choices: [], problems: ['state/scene/weather.json зламаний'] };
+    const brokenForGm = renderToStaticMarkup(createElement(WeatherBar, { weather: trouble, set: () => undefined }));
+    expect(brokenForGm).toContain('зламаний');
+    const brokenForPlayer = renderToStaticMarkup(createElement(WeatherBar, { weather: trouble }));
+    expect(brokenForPlayer, 'телефонові чужі поламані файли не показують').not.toContain('зламаний');
+    expect(master, 'і сказано, що файл читається при запуску').toContain('перезапусти застосунок');
   });
+
+  it('слід у стрічці: що на що змінилось, і відкат повертає попередню погоду', () => {
+    const file = checkWeatherFile(SIMPLE);
+    if (typeof file === 'string') throw new Error(file);
+    const dir = mkdtempSync(join(tmpdir(), 'holotable-f086-trace-'));
+    const scene = new SceneWeather(new Log(dir, 1), file);
+    expect(scene.notes(), 'нічого не перемикали — сліду немає').toEqual([]);
+    scene.set(gm, 'para');
+    scene.set(gm, 'stina');
+    scene.set(gm, null);
+    expect(scene.notes().map((n) => n.text)).toEqual([
+      'Погода · Міролл: без погоди → Пара',
+      'Погода · Міролл: Пара → Стіна',
+      'Погода · Міролл: Стіна → без погоди',
+    ]);
+    // Taking a line back turns the weather that line replaced back on.
+    expect(scene.notes().at(-1)?.undo).toEqual({ kind: 'weather', weather: 'stina' });
+    expect(scene.notes().at(0)?.undo).toEqual({ kind: 'weather', weather: null });
+    // The trace comes back from the log, like everything else.
+    expect(new SceneWeather(new Log(dir, 1), file).notes()).toHaveLength(3);
+    expect(new SceneWeather(new Log(dir, 2), file).notes(), 'і не переходить у наступну сесію').toEqual([]);
+    // A weather the owner renamed reads by its new name, because names are read now.
+    const renamed = checkWeatherFile({ ...SIMPLE, weathers: [{ ...SIMPLE.weathers[0], name: 'Парня' }, SIMPLE.weathers[1]] });
+    if (typeof renamed === 'string') throw new Error(renamed);
+    expect(new SceneWeather(new Log(dir, 1), renamed).notes()[0]?.text).toBe('Погода · Міролл: без погоди → Парня');
+  });
+
+  it('живий стіл: слід доходить до майстра, а закриття сесії гасить погоду', async () => {
+    const stateDir = stateWith(SIMPLE);
+    const dir = mkdtempSync(join(tmpdir(), 'holotable-f086-close-'));
+    const options = { eventsDir: dir, charactersDir: CHARACTERS, repoDir: dir, stateDir, sessionNumber: 1 };
+    server = await start(0, options);
+    const master = await screen(server.port, { role: 'gm' });
+    const sandra = await screen(server.port, { role: 'player', character: 'sandra-vong' });
+    const notes = (who: Awaited<ReturnType<typeof screen>>): string[] => {
+      const last = [...who.got].reverse().find((m) => m.type === 'scene-notes');
+      return last === undefined || last.type !== 'scene-notes' ? [] : last.notes.map((n) => n.text);
+    };
+    const plain = computeSummaries(root, CHARACTERS);
+    const perception = plain['sandra-vong']?.skills.find((k) => k.name === 'Perception')?.modifier as number;
+
+    master.send({ type: 'weather-set', weather: 'para' });
+    await until(() => notes(master).some((t) => t.includes('без погоди → Пара')));
+    expect(notes(sandra), 'стрічка — справа майстра').toEqual([]);
+    await until(() => master.sheet('sandra-vong')?.skills.find((k) => k.name === 'Perception')?.modifier === perception - 2);
+
+    // Closing the session takes the weather with it — and the numbers come back.
+    master.send({ type: 'close-session' });
+    await until(() => master.weather()?.now === null);
+    expect(notes(master).at(-1)).toBe('Погода · Міролл: Пара → без погоди');
+    await until(() => master.sheet('sandra-vong')?.skills.find((k) => k.name === 'Perception')?.modifier === perception);
+    expect(sandra.weather()?.now, 'і на телефоні погоди більше немає').toBeNull();
+
+    // The new session starts with no weather and no trace of the old one.
+    await server.close();
+    server = await start(0, { eventsDir: dir, charactersDir: CHARACTERS, repoDir: dir, stateDir });
+    const back = await screen(server.port, { role: 'gm' });
+    expect(back.weather()?.now).toBeNull();
+    expect(notes(back), 'слід закритої сесії не тягнеться').toEqual([]);
+  }, 30_000);
 
   it('ефекти сцени — у списку ефектів кожного, і зняти їх можна лише погодою', () => {
     const file = checkWeatherFile(SIMPLE);

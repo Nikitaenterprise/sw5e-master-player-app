@@ -28,6 +28,8 @@ import {
   parseNpcSet,
   parseWeatherSet,
   rebaseNpc,
+  type SceneNote,
+  type WeatherNow,
   ATTITUDE_BRIEF_KEY,
   parseAttackRoll,
   parseDeathSave,
@@ -182,12 +184,26 @@ export async function start(
     send(c.socket, { type: 'handouts', handouts: handoutsFor(handouts, c.role === 'gm' ? 'gm' : 'player', c.character) });
   // The scene's NPCs (F-085): rebuilt from the log, like the fight.
   const npcs = new SceneNpcs(log, () => glossary.terms);
+  /** The weather as one screen gets it: the file's problems are the GM's alone (F-086). */
+  const weatherFor = (role: string): WeatherNow | null => {
+    const view = weather?.view() ?? null;
+    if (view === null) return null;
+    return role === 'gm' ? view : { ...view, problems: [] };
+  };
   const sendNpcs = (c: { socket: WebSocket; role: string }): void =>
     send(c.socket, { type: 'npcs', npcs: npcs.view(c.role === 'gm' ? 'gm' : 'player') });
+  /**
+   * The scene's trace for the GM's feed: the NPC lines (F-085) and the weather's (F-086)
+   * in one list, in the order they happened. The GM's business alone, as the feed is.
+   */
+  const sceneNotes = (): SceneNote[] =>
+    [...npcs.notes(), ...(weather?.notes() ?? [])].sort((a, b) => a.at - b.at);
+  const broadcastSceneNotes = (): void => {
+    for (const c of connected.values()) if (c.role === 'gm') send(c.socket, { type: 'scene-notes', notes: sceneNotes() });
+  };
   const broadcastNpcs = (): void => {
     for (const c of connected.values()) sendNpcs(c);
-    // The trace of NPC changes is the GM's business alone, as the feed is.
-    for (const c of connected.values()) if (c.role === 'gm') send(c.socket, { type: 'npc-notes', notes: npcs.notes() });
+    broadcastSceneNotes();
   };
   // Computed once at startup, never written anywhere (ADR 0003). An engine change shows
   // up on the next restart without touching a file in state/.
@@ -453,8 +469,8 @@ export async function start(
         send(socket, { type: 'state', characters: state.all(), companions: state.companions() });
         sendHandouts({ socket, role: hello.role, ...(hello.character === undefined ? {} : { character: hello.character }) });
         send(socket, { type: 'npcs', npcs: npcs.view(hello.role === 'gm' ? 'gm' : 'player') });
-        if (weather !== null) send(socket, { type: 'weather', weather: weather.view() });
-        if (hello.role === 'gm') send(socket, { type: 'npc-notes', notes: npcs.notes() });
+        send(socket, { type: 'weather', weather: weatherFor(hello.role) });
+        if (hello.role === 'gm') send(socket, { type: 'scene-notes', notes: sceneNotes() });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
         send(socket, { type: 'briefs', briefs, exhaustion });
@@ -829,6 +845,16 @@ export async function start(
           npcs.clear({ kind: 'system', id: 'system' });
           broadcastNpcs();
         }
+        // The weather of the evening goes out with it (F-086): otherwise the next game
+        // would start with last month's rain in everybody's numbers and nothing in the
+        // new log to say why.
+        if (weather !== null && weather.on) {
+          weather.set({ kind: 'system', id: 'system' }, null);
+          for (const slug of Object.keys(sheets)) sheets[slug] = computeSummary(ROOT, charactersDir, slug, sheetEffectsOf(slug));
+          for (const c of connected.values()) send(c.socket, { type: 'weather', weather: weatherFor(c.role) });
+          broadcastAll({ type: 'sheets', sheets });
+          broadcastSceneNotes();
+        }
         const opened = log.next();
         const saving = demo
           ? Promise.resolve({ saved: false as const, reason: DEMO_NOT_SAVED })
@@ -909,8 +935,9 @@ export async function start(
           return;
         }
         for (const slug of Object.keys(sheets)) sheets[slug] = computeSummary(ROOT, charactersDir, slug, sheetEffectsOf(slug));
-        broadcastAll({ type: 'weather', weather: weather.view() });
+        for (const c of connected.values()) send(c.socket, { type: 'weather', weather: weatherFor(c.role) });
         broadcastAll({ type: 'sheets', sheets });
+        broadcastSceneNotes();
         return;
       }
 

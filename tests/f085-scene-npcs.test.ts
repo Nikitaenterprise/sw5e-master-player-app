@@ -86,8 +86,8 @@ async function screen(port: number, hello: object) {
       return last === undefined || last.type !== 'npcs' ? [] : last.npcs;
     },
     notes: (): string[] => {
-      const last = [...got].reverse().find((m) => m.type === 'npc-notes');
-      return last === undefined || last.type !== 'npc-notes' ? [] : last.notes.map((n) => n.text);
+      const last = [...got].reverse().find((m) => m.type === 'scene-notes');
+      return last === undefined || last.type !== 'scene-notes' ? [] : last.notes.map((n) => n.text);
     },
     refusals: () => got.flatMap((m) => (m.type === 'refused' ? [m.reason] : [])),
   };
@@ -241,8 +241,8 @@ describe('F-085 · НПС у сцені', () => {
     expect(sandra.npcs()[0]).toEqual({ id: 'ron', name: 'Торговець Рон' });
     // Only the NPC traffic is looked at: the book's own sentence about attitudes rides
     // along in the briefs for everyone, and that is the book, not this merchant.
-    const theirs = JSON.stringify(sandra.got.filter((m) => m.type === 'npcs' || m.type === 'npc-notes'));
-    for (const secret of ['цигарка', 'Міролла', 'indifferent', 'npc-notes', 'wants']) {
+    const theirs = JSON.stringify(sandra.got.filter((m) => m.type === 'npcs' || m.type === 'scene-notes'));
+    for (const secret of ['цигарка', 'Міролла', 'indifferent', 'scene-notes', 'wants']) {
       expect(theirs, `гравцеві прилетіло ${secret}`).not.toContain(secret);
     }
     expect(master.notes().at(-1)).toContain('+ цигарка: Persuasion +1');
@@ -323,7 +323,7 @@ describe('F-085 · НПС у сцені', () => {
     expect(desk, 'числа показані, а не додані').toContain('Числа тут лише показані, не додані');
 
     const feed = renderToStaticMarkup(createElement(Feed, {
-      events: [], undo: () => undefined, npcNotes: t.notes(),
+      events: [], undo: () => undefined, sceneNotes: t.notes(),
     }));
     expect(feed).toContain('Торговець Рон у сцені · байдужий');
 

@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type NpcNote, type NpcRecord, type NpcUndo, type SceneNpc, type WeatherNow, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -67,8 +67,8 @@ export interface Snapshot {
   handouts: Handout[];
   /** NPCs of the scene this screen may see (F-085). A player gets only shown names. */
   npcs: SceneNpc[];
-  /** The trace of NPC changes for the GM's feed, oldest first (F-085). */
-  npcNotes: NpcNote[];
+  /** The scene's trace for the GM's feed — NPCs and weather — oldest first (F-085, F-086). */
+  sceneNotes: SceneNote[];
   /** The scene's weather: what is on, what can be turned on (F-086). */
   weather: WeatherNow | null;
 }
@@ -100,7 +100,7 @@ export const EMPTY: Snapshot = {
   homebrewCandidates: [],
   handouts: [],
   npcs: [],
-  npcNotes: [],
+  sceneNotes: [],
   weather: null,
   glossaryFound: { q: '', rows: [] },
   combat: null,
@@ -209,8 +209,8 @@ export interface Controls {
    * looking at: with it the server applies only what changed here (F-090).
    */
   setNpc: (npc: NpcRecord, base?: NpcRecord) => void;
-  /** Take back one line of the NPC trace (F-090). */
-  undoNpc: (undo: NpcUndo) => void;
+  /** Take back one line of the scene's trace: an NPC (F-090) or the weather (F-086). */
+  undoScene: (undo: SceneUndo) => void;
   /** Turn a weather on, or off with null (F-086). */
   setWeather: (weather: string | null) => void;
   /** This NPC leaves the scene. */
@@ -335,8 +335,8 @@ export function connect(
         case 'npcs':
           update({ npcs: m.npcs });
           break;
-        case 'npc-notes':
-          update({ npcNotes: m.notes });
+        case 'scene-notes':
+          update({ sceneNotes: m.notes });
           break;
         case 'weather':
           update({ weather: m.weather });
@@ -526,7 +526,7 @@ export function connect(
       const message: ToServer = { type: 'npc-set', npc, ...(base === undefined ? {} : { base }) };
       socket.send(JSON.stringify(message));
     },
-    undoNpc: (undo) => {
+    undoScene: (undo) => {
       if (socket?.readyState !== 1) return;
       // Taking a line back is an ordinary change back to how it was — no new mechanism,
       // exactly as undo works for a character's state (ADR 0002).
@@ -534,7 +534,9 @@ export function connect(
         ? [{ type: 'npc-remove', npc: undo.npc }]
         : undo.kind === 'set'
           ? [{ type: 'npc-set', npc: undo.npc }]
-          : undo.npcs.map((npc) => ({ type: 'npc-set', npc }));
+          : undo.kind === 'weather'
+            ? [{ type: 'weather-set', weather: undo.weather }]
+            : undo.npcs.map((npc) => ({ type: 'npc-set', npc }));
       for (const message of back) socket.send(JSON.stringify(message));
     },
     removeNpc: (npc) => {

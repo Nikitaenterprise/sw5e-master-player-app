@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, NpcNote, NpcUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
+import type { CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SceneNote, SceneUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -217,8 +217,8 @@ export function App(): JSX.Element {
         <Feed
           events={snapshot.events}
           fights={snapshot.fights}
-          npcNotes={snapshot.npcNotes}
-          undoNpc={(undo) => controls.current?.undoNpc(undo)}
+          sceneNotes={snapshot.sceneNotes}
+          undoScene={(undo) => controls.current?.undoScene(undo)}
           undo={(row) =>
             // Relative to where the run ended: undo takes back THIS change, and what
             // others did since stays (F-045).
@@ -1976,23 +1976,23 @@ export function Feed({
   events,
   undo,
   fights = [],
-  npcNotes = [],
-  undoNpc,
+  sceneNotes = [],
+  undoScene,
 }: {
   events: GameEvent[];
   undo: (row: FeedRow) => void;
   /** Ended fights, shown among the changes at the moment each ended (F-059). */
   fights?: FightSummary[];
-  /** What changed about the scene's NPCs, newest last (F-085). */
-  npcNotes?: NpcNote[];
-  /** Take one NPC line back (F-090). Absent — the lines are only shown. */
-  undoNpc?: (undo: NpcUndo) => void;
+  /** What changed in the scene — NPCs and weather — newest last (F-085, F-086). */
+  sceneNotes?: SceneNote[];
+  /** Take one scene line back (F-090, F-086). Absent — the lines are only shown. */
+  undoScene?: (undo: SceneUndo) => void;
 }): JSX.Element {
   const now = Date.now();
   const rows = collapse(events).slice(0, 12);
   const oldest = rows.at(-1)?.at ?? 0;
   const shownFights = [...fights].filter((f) => rows.length < 12 || f.endedAt >= oldest).reverse();
-  const shownNotes = [...npcNotes].slice(-6).reverse();
+  const shownNotes = [...sceneNotes].slice(-6).reverse();
   return (
     <section className="feed">
       <h2>Що сталося</h2>
@@ -2001,8 +2001,8 @@ export function Feed({
           {shownNotes.map((note) => (
             <li key={`${note.at}-${note.text}`}>
               {note.text} <small>· {whenText(note.at, now)}</small>
-              {undoNpc !== undefined && note.undo !== undefined && (
-                <button type="button" className="undo" onClick={() => undoNpc(note.undo as NpcUndo)}>
+              {undoScene !== undefined && note.undo !== undefined && (
+                <button type="button" className="undo" onClick={() => undoScene(note.undo as SceneUndo)}>
                   відкотити
                 </button>
               )}

@@ -13,11 +13,15 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  NPC_NOTES_KEPT,
   checkWeatherFile,
   sceneEffects,
+  weatherNoteText,
   type Author,
   type HolotableEffect,
   type SceneEvent,
+  type SceneNote,
+  type WeatherDef,
   type WeatherFile,
   type WeatherNow,
 } from '@holotable/protocol';
@@ -43,6 +47,8 @@ export function loadWeather(stateDir: string): { file: WeatherFile; problems: st
 
 export class SceneWeather {
   private now: string | null = null;
+  /** Every switch of this session, as the events themselves (F-086, as in F-085). */
+  private readonly trace: SceneEvent[] = [];
 
   constructor(
     private readonly log: Log,
@@ -62,6 +68,25 @@ export class SceneWeather {
       choices: this.file.weathers,
       problems: [...this.problems],
     };
+  }
+
+  /**
+   * The weather's lines for the GM's feed: what it was, what it became, and how to put
+   * it back. The names are read now, so a weather the owner renamed reads anew.
+   */
+  notes(): SceneNote[] {
+    const named = (key: string | null | undefined): WeatherDef | null =>
+      (key === null || key === undefined ? null : this.file.weathers.find((w) => w.key === key) ?? null);
+    return this.trace.slice(-NPC_NOTES_KEPT).map((event) => ({
+      at: event.at,
+      text: weatherNoteText(this.file.planet, named(event.was), named(event.weather)),
+      undo: { kind: 'weather', weather: event.was ?? null },
+    }));
+  }
+
+  /** Whether any weather is on — the session's closing asks before turning it off. */
+  get on(): boolean {
+    return this.now !== null;
   }
 
   /** What the scene puts on everyone right now, for computing sheets. */
@@ -86,6 +111,8 @@ export class SceneWeather {
   }
 
   private replay(event: SceneEvent): void {
-    if (event.type === 'scene.weather') this.now = event.weather ?? null;
+    if (event.type !== 'scene.weather') return;
+    this.now = event.weather ?? null;
+    this.trace.push(event);
   }
 }

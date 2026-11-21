@@ -146,7 +146,7 @@ export type FromServer =
   | HomebrewFileMessage
   | HandoutsMessage
   | NpcsMessage
-  | NpcNotesMessage
+  | SceneNotesMessage
   | WeatherMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1815,30 +1815,38 @@ export interface NpcsMessage {
   npcs: SceneNpc[];
 }
 
-/** How a line of the NPC trace is taken back (F-090). The data is already in the log. */
-export type NpcUndo =
+/**
+ * How a line of the scene's trace is taken back (F-090, F-086). Everything needed is
+ * already in the log, because every line carries both sides of its change (ADR 0002).
+ */
+export type SceneUndo =
   /** He was changed, or he left: put that version back. */
   | { kind: 'set'; npc: NpcRecord }
   /** He had just arrived: send him away again. */
   | { kind: 'remove'; npc: string }
   /** The scene was cleared: bring everyone back as they were. */
-  | { kind: 'restore'; npcs: NpcRecord[] };
+  | { kind: 'restore'; npcs: NpcRecord[] }
+  /** The weather was switched: turn the previous one back on (null — none). */
+  | { kind: 'weather'; weather: string | null };
 
-/** One line for the GM's feed: what changed about an NPC, when, and how to take it back. */
-export interface NpcNote {
+/**
+ * One line for the GM's feed: what changed in the scene — an NPC (F-085) or the weather
+ * (F-086) — when, and how to take it back.
+ */
+export interface SceneNote {
   at: number;
   text: string;
   /** Absent when there is nothing to put back (an empty scene cleared). */
-  undo?: NpcUndo;
+  undo?: SceneUndo;
 }
 
-/** How many lines of the NPC trace travel to the GM's screen (F-090). */
+/** How many lines of the scene's trace travel to the GM's screen (F-090). */
 export const NPC_NOTES_KEPT = 20;
 
-/** Server → GM: the trace of NPC changes, oldest first. Rebuilt from the log. */
-export interface NpcNotesMessage {
-  type: 'npc-notes';
-  notes: NpcNote[];
+/** Server → GM: the scene's trace, oldest first. Rebuilt from the log. */
+export interface SceneNotesMessage {
+  type: 'scene-notes';
+  notes: SceneNote[];
 }
 
 /**
@@ -2073,7 +2081,8 @@ export interface WeatherNow {
 
 export interface WeatherMessage {
   type: 'weather';
-  weather: WeatherNow;
+  /** Null while the scene has no weather at all — no file, nothing to switch. */
+  weather: WeatherNow | null;
 }
 
 /** GM → server: turn this weather on, or null for none. */
@@ -2084,7 +2093,7 @@ export interface WeatherSet {
 
 export const MAX_WEATHERS = 12;
 export const WEATHER_NAME_MAX = 40;
-export const WEATHER_NOTE_MAX = 300;
+export const WEATHER_NOTE_MAX = 600;
 
 /** One weather of the file, checked — or what is wrong with it, in words. */
 export function checkWeather(raw: unknown): WeatherDef | string {
@@ -2156,10 +2165,12 @@ export function checkWeatherFile(data: unknown): WeatherFile | string {
 export function sceneEffects(weather: WeatherNow | null): HolotableEffect[] {
   if (weather === null) return [];
   const out: HolotableEffect[] = [];
-  for (const def of [weather.always, weather.now]) {
+  for (const [kind, def] of [['always', weather.always], ['now', weather.now]] as const) {
     if (def === null) continue;
+    // The planet's rule and the weather are told apart in the id: the owner's file may
+    // legally give them the same key, and two chips must still be two chips.
     def.effects.forEach((e, i) => {
-      out.push({ id: `scene-${def.key}-${i}`, source: def.name, until: 'manual', ...e });
+      out.push({ id: `scene-${kind}-${def.key}-${i}`, source: def.name, until: 'manual', ...e });
     });
   }
   return out;
@@ -2169,6 +2180,17 @@ export function sceneEffects(weather: WeatherNow | null): HolotableEffect[] {
 export function weatherText(weather: WeatherNow | null): string {
   if (weather === null || weather.now === null) return 'погоди немає';
   return weather.planet === '' ? weather.now.name : `${weather.planet}: ${weather.now.name}`;
+}
+
+/**
+ * The weather's line for the feed (F-086): what it was, what it is now. The names come
+ * from the owner's file, so a weather he renamed reads by its new name at once.
+ */
+export function weatherNoteText(planet: string, from: WeatherDef | null, to: WeatherDef | null): string {
+  const where = planet === '' ? 'Погода' : `Погода · ${planet}`;
+  const was = from === null ? 'без погоди' : from.name;
+  const now = to === null ? 'без погоди' : to.name;
+  return `${where}: ${was} → ${now}`;
 }
 
 export function parseWeatherSet(data: unknown): WeatherSet | string {

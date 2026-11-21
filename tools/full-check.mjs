@@ -241,6 +241,8 @@ try {
       && withSight.explain[`attack:${indexOf(withSight, 'Bowcaster')}`]?.parts.some((part) => part.label === 'ефект: Приладдя'));
   // F-086: weather as an effect of the scene — the owner's own file, on everyone.
   const weatherOf = (g) => [...g].reverse().find((m) => m.type === 'weather')?.weather;
+  const npcsOf = (g) => [...g].reverse().find((m) => m.type === 'npcs')?.npcs ?? [];
+  const notesOf = (g) => [...g].reverse().find((m) => m.type === 'scene-notes')?.notes ?? [];
   ok('F-086 погода Міролла з файла власника: чотири погоди й правило планети',
     await wait(gm, (g) => weatherOf(g)?.planet === 'Міролл')
       && weatherOf(gm.got)?.choices?.length === 4 && weatherOf(gm.got)?.always?.effects?.length === 5
@@ -254,6 +256,9 @@ try {
   p1.ws.send(JSON.stringify({ type: 'weather-set', weather: 'para' }));
   ok('F-086 гравець погоду не перемикає',
     await wait(p1, (g) => g.some((m) => m.type === 'refused' && m.reason === 'погоду перемикає майстер')));
+  ok('F-086 слід погоди в стрічці майстра, і гравцеві він не йде',
+    notesOf(gm.got).some((n) => n.text === 'Погода · Міролл: без погоди → Стіна')
+      && notesOf(p1.got).length === 0);
   gm.ws.send(JSON.stringify({ type: 'weather-set', weather: null }));
   await wait(gm, (g) => weatherOf(g)?.now === null);
 
@@ -262,8 +267,6 @@ try {
     id: 'fc-ron', name: 'Торговець Рон', attitude: 'indifferent', wants: 'вивезти товар',
     modifiers: [{ id: 'fc-cig', source: 'цигарка', target: 'skill:Persuasion', bonus: 1 }], shown: false,
   } }));
-  const npcsOf = (g) => [...g].reverse().find((m) => m.type === 'npcs')?.npcs ?? [];
-  const notesOf = (g) => [...g].reverse().find((m) => m.type === 'npc-notes')?.notes ?? [];
   ok('F-085 НПС у сцені: у майстра ставлення, «чого хоче» й модифікатор',
     await wait(gm, (g) => npcsOf(g)[0]?.gm?.attitude === 'indifferent' && npcsOf(g)[0]?.gm?.modifiers?.[0]?.bonus === 1));
   ok('F-085 поки не показаний — у гравця його немає зовсім', npcsOf(p1.got).length === 0);
@@ -305,12 +308,15 @@ try {
     id: 'fc-left', name: 'Забутий НПС', attitude: 'hostile', wants: '', modifiers: [], shown: true,
   } }));
   await wait(gm, (g) => npcsOf(g).length === 1);
+  gm.ws.send(JSON.stringify({ type: 'weather-set', weather: 'moloko' }));
+  await wait(gm, (g) => weatherOf(g)?.now?.key === 'moloko');
   gm.ws.send(JSON.stringify({ type: 'close-session' }));
   ok('F-085 закриття сесії забирає сцену з собою',
     await wait(gm, (g) => npcsOf(g).length === 0) && await wait(p1, (g) => npcsOf(g).length === 0));
   const closed = await wait(gm, (g) => g.some((m) => m.type === 'session-closed'));
   const c = gm.got.find((m) => m.type === 'session-closed');
   ok('F-024/F-037 закриття сесії в демо — без коміту', closed && c.opened === 2 && c.save.saved === false && c.save.reason.includes('демо'));
+  ok('F-086 закриття сесії гасить погоду', weatherOf(gm.got)?.now === null);
   for (const k of [gm, p1, p2]) k.ws.close();
 } catch (e) { results.push('FAIL виняток: ' + e.message); }
 child.kill();

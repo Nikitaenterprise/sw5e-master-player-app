@@ -20,7 +20,7 @@ import {
   type Author,
   type FromServer,
   type NpcRecord,
-  type NpcUndo,
+  type SceneUndo,
   type SceneNpc,
 } from '../packages/protocol/src/index.js';
 import { computeSummaries } from '../apps/server/src/sheets.js';
@@ -70,8 +70,8 @@ async function screen(port: number) {
       return last === undefined || last.type !== 'npcs' ? undefined : last.npcs[0];
     },
     notes: () => {
-      const last = [...got].reverse().find((m) => m.type === 'npc-notes');
-      return last === undefined || last.type !== 'npc-notes' ? [] : last.notes;
+      const last = [...got].reverse().find((m) => m.type === 'scene-notes');
+      return last === undefined || last.type !== 'scene-notes' ? [] : last.notes;
     },
   };
 }
@@ -118,7 +118,7 @@ describe('F-090 · НПС: зведення правок, відкат, хвіс
     expect(t.notes().at(-1)?.undo).toEqual({ kind: 'set', npc: ron({ attitude: 'friendly' }) });
     t.set(gm, ron({ id: 'guard', name: 'Вартовий', shown: true }));
     t.clear(gm);
-    const back = t.notes().at(-1)?.undo as NpcUndo & { kind: 'restore' };
+    const back = t.notes().at(-1)?.undo as SceneUndo & { kind: 'restore' };
     expect(back.kind).toBe('restore');
     expect(back.npcs.map((n) => n.name), 'сцена повертається такою, якою була').toEqual(['Вартовий']);
   });
@@ -152,7 +152,7 @@ describe('F-090 · НПС: зведення правок, відкат, хвіс
     // And the trace's undo really puts it back.
     const line = first.notes().at(-1);
     expect(line?.undo?.kind).toBe('set');
-    const undo = line?.undo as NpcUndo & { kind: 'set' };
+    const undo = line?.undo as SceneUndo & { kind: 'set' };
     first.send({ type: 'npc-set', npc: undo.npc });
     await until(() => (first.npc()?.gm?.modifiers ?? []).length === 0);
     expect(first.npc()?.gm?.attitude, 'відкат повернув саме той стан, що був у рядку').toBe('friendly');
@@ -170,7 +170,7 @@ describe('F-090 · НПС: зведення правок, відкат, хвіс
     });
     master.send({ type: 'npcs-clear' });
     await until(() => master.npc() === undefined);
-    const undo = master.notes().at(-1)?.undo as NpcUndo & { kind: 'restore' };
+    const undo = master.notes().at(-1)?.undo as SceneUndo & { kind: 'restore' };
     expect(undo.kind).toBe('restore');
     for (const npc of undo.npcs) master.send({ type: 'npc-set', npc });
     await until(() => {
@@ -188,12 +188,12 @@ describe('F-090 · НПС: зведення правок, відкат, хвіс
     const t = scene();
     t.set(gm, ron());
     const withButton = renderToStaticMarkup(createElement(Feed, {
-      events: [], undo: () => undefined, npcNotes: t.notes(), undoNpc: () => undefined,
+      events: [], undo: () => undefined, sceneNotes: t.notes(), undoScene: () => undefined,
     }));
     expect(withButton).toContain('Торговець Рон у сцені');
     expect(withButton).toContain('відкотити');
     const readOnly = renderToStaticMarkup(createElement(Feed, {
-      events: [], undo: () => undefined, npcNotes: t.notes(),
+      events: [], undo: () => undefined, sceneNotes: t.notes(),
     }));
     expect(readOnly, 'без обробника кнопки немає').not.toContain('відкотити');
     // A cleared empty scene leaves a line with nothing to put back.

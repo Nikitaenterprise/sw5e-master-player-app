@@ -46,7 +46,9 @@ export function WeatherBar({
   return (
     <section className="weather">
       <h2>Погода{planet === '' ? '' : ` · ${planet}`}</h2>
-      {problems.map((problem) => (
+      {/* What is wrong with the owner's file is the owner's business: a player's phone
+          has nothing to do with it (the same line as the GM's own panels keep). */}
+      {set !== undefined && problems.map((problem) => (
         <p key={problem} className="refusal">{problem}</p>
       ))}
       {always !== null && <Line def={always} kind="always" />}
@@ -72,7 +74,8 @@ export function WeatherBar({
       {set !== undefined && (
         <p className="hint">
           Погоди й те, що вони дають, — у файлі <code>state/scene/weather.json</code>: правиш руками,
-          застосунок лише перемикає й рахує вписане.
+          застосунок лише перемикає й рахує вписане. Файл читається при запуску, тому після
+          правки перезапусти застосунок (<code>ЗАПУСТИТИ.bat</code>).
         </p>
       )}
     </section>

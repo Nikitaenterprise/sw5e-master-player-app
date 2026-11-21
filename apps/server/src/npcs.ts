@@ -18,9 +18,9 @@ import {
   termKey,
   type Author,
   type NpcEvent,
-  type NpcNote,
+  type SceneNote,
   type NpcRecord,
-  type NpcUndo,
+  type SceneUndo,
   type SceneNpc,
 } from '@holotable/protocol';
 import type { Log } from './log.js';
@@ -29,7 +29,7 @@ import type { Log } from './log.js';
  * How one line of the trace is taken back (F-090). Everything needed is already in the
  * event, because every line carries both sides — that is what ADR 0002 buys.
  */
-function undoOf(event: NpcEvent): NpcUndo | null {
+function undoOf(event: NpcEvent): SceneUndo | null {
   if (event.type === 'npc.scene-cleared') {
     const back = event.cleared ?? [];
     return back.length === 0 ? null : { kind: 'restore', npcs: back };
@@ -74,7 +74,7 @@ export class SceneNpcs {
    * What the GM's feed shows about NPCs, oldest first. Rebuilt from the log, and put
    * into words here rather than when the line was written, so the glossary applies.
    */
-  notes(): NpcNote[] {
+  notes(): SceneNote[] {
     const terms = this.glossary();
     const skill = (english: string): string => terms[termKey('skill', english)] ?? english;
     // Only the tail travels: the feed shows a handful, and a whole evening of lines on
