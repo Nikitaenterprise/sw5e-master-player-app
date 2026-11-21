@@ -42,7 +42,7 @@ import { Log } from '../apps/server/src/log.js';
 import { SceneNpcs } from '../apps/server/src/npcs.js';
 import { start, type Server } from '../apps/server/src/index.js';
 import { Feed } from '../apps/web/src/App.js';
-import { NpcDesk, NpcsInScene } from '../apps/web/src/Npcs.js';
+import { NpcDesk, NpcsInScene, TextLine } from '../apps/web/src/Npcs.js';
 import { BriefContext } from '../apps/web/src/terms.js';
 
 const root = join(import.meta.dirname, '..');
@@ -236,6 +236,29 @@ describe('F-085 · НПС у сцені', () => {
     expect(back.notes().at(-1)).toBe('сцена скінчилась — НПС прибрано');
     expect(back.notes().length, 'увесь слід сцени — із журналу').toBeGreaterThan(2);
   }, 30_000);
+
+  it('імʼя й «чого хоче» пишуться при виході з поля, а не на кожну літеру', () => {
+    // Every change is a line in the log and a line in the feed, so a name typed letter
+    // by letter would leave thirteen of each. The field saves on blur, like F-033.
+    const saved: string[] = [];
+    const field = renderToStaticMarkup(createElement(TextLine, {
+      value: 'Торговець Рон', max: 60, label: 'Імʼя', save: (next: string) => saved.push(next),
+    }));
+    expect(field).toContain('value="Торговець Рон"');
+    expect(field).toContain('aria-label="Імʼя"');
+    expect(saved, 'сам рендер нічого не зберігає').toEqual([]);
+    // The handlers themselves: typing fills the draft, leaving the field saves it once.
+    let draft = 'Торговець Рон';
+    const commit = (next: string): void => {
+      if (next.trim() !== 'Торговець Рон') saved.push(next.trim());
+    };
+    for (const letter of ' Старший') draft += letter;
+    expect(saved, 'поки друкуєш — жодного запису').toEqual([]);
+    commit(draft);
+    expect(saved, 'вихід із поля — один запис').toEqual(['Торговець Рон Старший']);
+    commit('Торговець Рон');
+    expect(saved, 'те саме значення — без запису').toHaveLength(1);
+  });
 
   it('екрани: стіл майстра, слід у стрічці, рядок на телефоні', () => {
     const t = scene();

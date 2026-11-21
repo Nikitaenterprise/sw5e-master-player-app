@@ -26,6 +26,58 @@ import { useBriefs, useTerm } from './terms.js';
 
 const newId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+/**
+ * A line of text that is written when the GM LEAVES the field, not on every keystroke
+ * (the same way the glossary editor works, F-033). It matters here: every change is a
+ * line in the log and a line in the feed, and a name typed letter by letter would leave
+ * thirteen of each. Enter saves too; Escape puts the old value back.
+ */
+export function TextLine({
+  value,
+  save,
+  placeholder,
+  label,
+  className,
+  max,
+}: {
+  value: string;
+  save: (next: string) => void;
+  placeholder?: string;
+  label: string;
+  className?: string;
+  max: number;
+}): JSX.Element {
+  const [draft, setDraft] = useState(value);
+  const [editing, setEditing] = useState(false);
+  // While nobody is typing here, the field follows what the server says.
+  const shown = editing ? draft : value;
+  const commit = (next: string): void => {
+    setEditing(false);
+    if (next.trim() !== value.trim()) save(next.trim());
+  };
+  return (
+    <input
+      value={shown}
+      maxLength={max}
+      {...(className === undefined ? {} : { className })}
+      {...(placeholder === undefined ? {} : { placeholder })}
+      aria-label={label}
+      onChange={(e) => {
+        setEditing(true);
+        setDraft(e.target.value);
+      }}
+      onBlur={() => commit(shown)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit(shown);
+        if (e.key === 'Escape') {
+          setDraft(value);
+          setEditing(false);
+        }
+      }}
+    />
+  );
+}
+
 /** A target in the words the screen shows: any check at all, a skill, an ability. */
 export function targetText(target: string, skill: (english: string) => string): string {
   return target === 'all' ? 'будь-яка перевірка' : effectTargetText(target, skill);
@@ -165,11 +217,11 @@ export function NpcDesk({
         {npcs.map((npc) => (
           <li key={npc.id}>
             <span className="npc-head">
-              <input
+              <TextLine
                 value={npc.name}
-                maxLength={NPC_NAME_MAX}
-                onChange={(e) => change(npc, { name: e.target.value })}
-                aria-label={`Імʼя: ${npc.name}`}
+                max={NPC_NAME_MAX}
+                save={(name) => (name === '' ? undefined : change(npc, { name }))}
+                label={`Імʼя: ${npc.name}`}
               />
               {npc.gm !== undefined && <Attitude value={npc.gm.attitude} set={(a) => change(npc, { attitude: a })} />}
               <label className="npc-shown">
@@ -189,13 +241,13 @@ export function NpcDesk({
                 ✕
               </button>
             </span>
-            <input
+            <TextLine
               className="npc-wants"
               value={npc.gm?.wants ?? ''}
-              maxLength={NPC_WANTS_MAX}
-              onChange={(e) => change(npc, { wants: e.target.value })}
+              max={NPC_WANTS_MAX}
+              save={(wants) => change(npc, { wants })}
               placeholder="чого хоче: щоб партія вивезла його товар із Міролла"
-              aria-label={`Чого хоче ${npc.name}`}
+              label={`Чого хоче ${npc.name}`}
             />
             {npc.gm !== undefined && (
               <Modifiers list={npc.gm.modifiers} set={(modifiers) => change(npc, { modifiers })} />
