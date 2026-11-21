@@ -27,6 +27,7 @@ import {
   parseNpcRemove,
   parseNpcSet,
   parseWeatherSet,
+  parseWeatherRoll,
   rebaseNpc,
   type SceneNote,
   type WeatherNow,
@@ -223,6 +224,13 @@ export async function start(
    */
   const sceneNotes = (): SceneNote[] =>
     [...npcs.notes(), ...(weather?.notes() ?? [])].sort((a, b) => a.at - b.at);
+  /** The sky moved: every sheet is computed again, and every screen hears about it. */
+  const weatherChanged = (): void => {
+    for (const slug of Object.keys(sheets)) sheets[slug] = computeSummary(ROOT, charactersDir, slug, sheetEffectsOf(slug));
+    for (const c of connected.values()) send(c.socket, { type: 'weather', weather: weatherFor(c.role) });
+    broadcastAll({ type: 'sheets', sheets });
+    broadcastSceneNotes();
+  };
   const broadcastSceneNotes = (): void => {
     for (const c of connected.values()) if (c.role === 'gm') send(c.socket, { type: 'scene-notes', notes: sceneNotes() });
   };
@@ -652,6 +660,8 @@ export async function start(
             if (typeof changed !== 'string') publish(changed);
           }
           result = combat.end(authorOf());
+          // A queued switch nobody will see is dropped out loud (F-072).
+          if (typeof result !== 'string' && weather?.clearQueue(authorOf(), 'кінець бою') != null) weatherChanged();
           if (typeof result !== 'string') {
             const fights = summarizeFights(log.read().events, log.read().combat, sheets, compendium);
             const last = fights.at(-1);
@@ -677,6 +687,9 @@ export async function start(
             }
             // The same for the enemies (F-084): their effects run on the same clock.
             combat.expireEffects({ kind: 'system', id: 'system' }, round, view?.turn ?? null);
+            // And the weather the dice queued for this round turns now (F-072): the GM
+            // rolled it a round ago and should not have to remember it mid-fight.
+            if (weather?.roundStarted({ kind: 'system', id: 'system' }, round) != null) weatherChanged();
           }
         }
         if (typeof result === 'string') {
@@ -961,12 +974,12 @@ export async function start(
         // The weather of the evening goes out with it (F-086): otherwise the next game
         // would start with last month's rain in everybody's numbers and nothing in the
         // new log to say why.
-        if (weather !== null && weather.on) {
-          weather.set({ kind: 'system', id: 'system' }, null);
-          for (const slug of Object.keys(sheets)) sheets[slug] = computeSummary(ROOT, charactersDir, slug, sheetEffectsOf(slug));
-          for (const c of connected.values()) send(c.socket, { type: 'weather', weather: weatherFor(c.role) });
-          broadcastAll({ type: 'sheets', sheets });
-          broadcastSceneNotes();
+        if (weather !== null) {
+          // A queued switch goes out with the evening too (F-072), and before the sky
+          // itself, so the new log reads in the order things happened.
+          const dropped = weather.clearQueue({ kind: 'system', id: 'system' }, 'кінець сесії') !== null;
+          if (weather.on) weather.set({ kind: 'system', id: 'system' }, null);
+          if (dropped || weather.on === false) weatherChanged();
         }
         const opened = log.next();
         const saving = demo
@@ -1158,10 +1171,33 @@ export async function start(
           send(socket, { type: 'refused', reason: turned });
           return;
         }
-        for (const slug of Object.keys(sheets)) sheets[slug] = computeSummary(ROOT, charactersDir, slug, sheetEffectsOf(slug));
-        for (const c of connected.values()) send(c.socket, { type: 'weather', weather: weatherFor(c.role) });
-        broadcastAll({ type: 'sheets', sheets });
-        broadcastSceneNotes();
+        weatherChanged();
+        return;
+      }
+
+      // The weather's timer (F-072): the dice are the owner's home rule, and the GM
+      // rolls them at the table — the app only applies what the number means and keeps
+      // the line in the log, so the table can see why the sky turned.
+      if (kind === 'weather-roll') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'за погоду кидає майстер' });
+          return;
+        }
+        const rolled = parseWeatherRoll(data);
+        if (typeof rolled === 'string') {
+          send(socket, { type: 'refused', reason: rolled });
+          return;
+        }
+        if (weather === null) {
+          send(socket, { type: 'refused', reason: 'погода ще не готова' });
+          return;
+        }
+        const done = weather.roll(authorOf(), rolled.why, rolled.value, combat.view()?.round ?? null);
+        if (typeof done === 'string') {
+          send(socket, { type: 'refused', reason: done });
+          return;
+        }
+        weatherChanged();
         return;
       }
 

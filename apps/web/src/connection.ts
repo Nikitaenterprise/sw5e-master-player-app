@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type ShipDamageOptions, type ShipState, type ShipSummary, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type RoleCard, type ShipActionCard, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type ShipDamageOptions, type ShipState, type ShipSummary, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type WeatherWhy, type RoleCard, type ShipActionCard, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -245,6 +245,8 @@ export interface Controls {
   /** Damage to a ship — shields first; or a change to its state. GM only (F-060). */
   shipDamage: (ship: string, amount: number, options?: ShipDamageOptions) => void;
   shipSet: (ship: string, changes: ShipState) => void;
+  /** A die rolled at the table for the weather's timer. GM only (F-072). */
+  rollWeather: (why: WeatherWhy, value: number) => void;
   /** Seat someone at a station, or free it with null. GM only (F-061). */
   crewSet: (ship: string, deployment: string, character: string | null) => void;
   /** Space combat (F-063): the ship's turn starts; a destruction save; a power die moved. */
@@ -540,6 +542,11 @@ export function connect(
     shipSet: (ship, changes) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'ship-set', ship, changes };
+      socket.send(JSON.stringify(message));
+    },
+    rollWeather: (why, value) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'weather-roll', why, value };
       socket.send(JSON.stringify(message));
     },
     crewSet: (ship, deployment, character) => {

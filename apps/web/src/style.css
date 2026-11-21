@@ -754,6 +754,14 @@ a.ref-link:hover { color: var(--accent); }
 .s-foot { margin-top: .6rem; border-top: 1px solid var(--border); padding-top: .3rem; }
 .s-foot p { margin: .1rem 0; font-size: .82rem; }
 
+/* The weather's timer (F-072). */
+.weather-timer { margin: .5rem 0 0; border-top: 1px solid var(--border); padding-top: .4rem; }
+.weather-timer h3 { margin: 0 0 .2rem; font-size: .95rem; }
+.weather-timer .add { display: flex; align-items: flex-end; gap: .4rem; margin: .25rem 0; }
+.weather-timer .add label { display: flex; flex-direction: column; font-size: .8rem; color: var(--muted); gap: .1rem; }
+.weather-timer .add input { width: 4rem; }
+.weather-queued { margin: .3rem 0 0; color: var(--accent); font-size: .88rem; }
+
 /* The seating plan and the player's own card (F-061). */
 .ship-stations { margin: .6rem 0; display: flex; flex-direction: column; gap: .25rem; }
 .ship-stations h3 { margin: 0 0 .1rem; font-size: .95rem; }

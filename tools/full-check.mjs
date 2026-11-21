@@ -357,6 +357,48 @@ try {
   // Put her back, so the rest of the run sees the ship as its own sheet describes it.
   gm.ws.send(JSON.stringify({ type: 'crew-set', ship: 'mandrivna-zorya', deployment: 'Operator', character: 'sandra-vong' }));
   await wait(p1, (g) => g.some((m) => m.type === 'role-card' && m.card?.deployment === 'Operator'));
+  // F-072: the weather's timer — the GM's dice, and a queued switch that comes by itself.
+  {
+    const weatherNow = () => lastOf(gm, 'weather')?.weather;
+    gm.ws.send(JSON.stringify({ type: 'weather-roll', why: 'move', value: 2 }));
+    await wait(gm, () => weatherNow()?.now?.key === 'stina');
+    const moved = weatherNow()?.now?.name;
+    const trace = lastOf(gm, 'scene-notes')?.notes.at(-1)?.text ?? '';
+    gm.ws.send(JSON.stringify({ type: 'weather-roll', why: 'check', value: 5 }));
+    await wait(gm, () => (lastOf(gm, 'scene-notes')?.notes.at(-1)?.text ?? '').includes('d6=5'));
+    const noChange = lastOf(gm, 'scene-notes')?.notes.at(-1)?.text ?? '';
+    ok('F-072 таймер погоди: d4 майстра ставить погоду, d6 без зміни лишає рядок',
+      moved === 'Стіна' && trace.includes('(d4=2)') && noChange.includes('без зміни')
+        && weatherNow()?.now?.key === 'stina');
+    p1.ws.send(JSON.stringify({ type: 'weather-roll', why: 'move', value: 1 }));
+    ok('F-072 гравець за погоду не кидає',
+      await wait(p1, (g) => g.some((m) => m.type === 'refused' && m.reason === 'за погоду кидає майстер')));
+    // In a fight the switch waits for its round and then happens on its own.
+    gm.ws.send(JSON.stringify({ type: 'combat-start' }));
+    await wait(gm, () => lastOf(gm, 'combat')?.combat !== null);
+    for (const [i, slug] of ['alister', 'nigra-4', 'anam-melekh', 'krinzh-dor', 'sandra-vong'].entries()) {
+      gm.ws.send(JSON.stringify({ type: 'combat-roll', character: slug, roll: 10 + i }));
+    }
+    await wait(gm, () => (lastOf(gm, 'combat')?.combat?.order ?? []).every((o) => o.total !== null && o.total !== undefined));
+    gm.ws.send(JSON.stringify({ type: 'weather-roll', why: 'check', value: 1 }));
+    gm.ws.send(JSON.stringify({ type: 'weather-roll', why: 'queue', value: 3 }));
+    await wait(gm, () => weatherNow()?.queued != null);
+    const queued = weatherNow()?.queued;
+    for (let i = 0; i < 7; i += 1) {
+      gm.ws.send(JSON.stringify({ type: 'combat-turn', direction: 'next' }));
+      await sleep(60);
+      if ((lastOf(gm, 'combat')?.combat?.round ?? 1) >= 2) break;
+    }
+    await wait(gm, () => weatherNow()?.now?.key === 'moloko');
+    ok('F-072 черга погоди стає сама, коли починається її раунд',
+      queued?.weather.key === 'moloko' && queued.round === 2
+        && weatherNow()?.now?.key === 'moloko' && weatherNow()?.queued == null);
+    gm.ws.send(JSON.stringify({ type: 'combat-end', clear: [] }));
+    await wait(gm, () => lastOf(gm, 'combat')?.combat === null);
+    gm.ws.send(JSON.stringify({ type: 'weather-set', weather: null }));
+    await wait(gm, () => weatherNow()?.now === null);
+  }
+
   // F-090: two GM pages editing one NPC, and taking a line back.
   const gm2 = await client({ role: 'gm' });
   await wait(gm2, (g) => g.some((m) => m.type === 'npcs'));

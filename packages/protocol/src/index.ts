@@ -80,6 +80,7 @@ export type ToServer =
   | NpcRemove
   | NpcsClear
   | WeatherSet
+  | WeatherRoll
   | ShipDamage
   | ShipSet
   | ShipTurn
@@ -2692,6 +2693,12 @@ export interface WeatherFile {
   planet: string;
   always: WeatherDef | null;
   weathers: WeatherDef[];
+  /**
+   * When the weather switches, in the owner's own words (F-072). The app shows this on
+   * the GM's screen and never interprets it: the dice are the owner's home rule, and a
+   * rule written in a file is read by the person at the table, not parsed by us.
+   */
+  switching: { note: string } | null;
 }
 
 /** What every screen gets: what is on now, what can be turned on, what is wrong. */
@@ -2703,6 +2710,10 @@ export interface WeatherNow {
   choices: WeatherDef[];
   /** What is wrong with the owner's file, in words. Empty when it is fine. */
   problems: string[];
+  /** When it switches, in the owner's words — the GM reads it, the app does not (F-072). */
+  switching?: { note: string } | null;
+  /** A switch the dice have already decided, waiting for its round (F-072). */
+  queued?: { weather: WeatherDef; round: number } | null;
 }
 
 export interface WeatherMessage {
@@ -2781,7 +2792,17 @@ export function checkWeatherFile(data: unknown): WeatherFile | string {
     if (typeof one === 'string') return `постійне правило планети: ${one}`;
     always = one;
   }
-  return { planet: (planet as string).trim(), always, weathers };
+  let switching: { note: string } | null = null;
+  if (o['switching'] !== undefined && o['switching'] !== null) {
+    const raw = o['switching'];
+    if (typeof raw !== 'object' || Array.isArray(raw)) return 'правило перемикання — обʼєкт із «note»';
+    const note = (raw as Record<string, unknown>)['note'] ?? '';
+    if (typeof note !== 'string' || note.length > WEATHER_NOTE_MAX) {
+      return `правило перемикання — не більше ${WEATHER_NOTE_MAX} знаків`;
+    }
+    switching = { note };
+  }
+  return { planet: (planet as string).trim(), always, weathers, switching };
 }
 
 /**
@@ -2834,10 +2855,65 @@ export interface SceneEvent {
   id: string;
   at: number;
   author: Author;
-  type: 'scene.weather';
+  /**
+   * `scene.weather` — a weather is on now; `scene.weather-queued` — the dice decided a
+   * switch that happens at the start of `round`; `scene.weather-roll` — a die the GM
+   * rolled that changed nothing, kept so the feed can say why nothing changed (F-072).
+   */
+  type: 'scene.weather' | 'scene.weather-queued' | 'scene.weather-roll';
   /** The weather turned on, null when it was turned off, and the one before it. */
   weather?: string | null;
   was?: string | null;
+  /** The die the GM rolled at the table, when a roll is what brought this about. */
+  roll?: { die: number; value: number };
+  /** Which rule rolled it: a move between locations, or initiative 20 in a fight. */
+  why?: WeatherWhy;
+  /** The round a queued switch waits for, or the round a roll happened in. */
+  round?: number;
+  /** What came of it, in words, when the line needs words of its own. */
+  note?: string;
+}
+
+/** Why the weather was rolled for (F-072). */
+export type WeatherWhy = 'move' | 'check' | 'queue';
+
+/** GM → server: a die rolled at the table for the weather. The app never rolls (ADR 0007). */
+export interface WeatherRoll {
+  type: 'weather-roll';
+  why: WeatherWhy;
+  value: number;
+}
+
+/** How many sides each of the owner's weather rules uses. */
+export const WEATHER_DICE: Record<WeatherWhy, number> = { move: 4, check: 6, queue: 4 };
+
+export function parseWeatherRoll(data: unknown): WeatherRoll | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'weather-roll') return 'не кидок погоди';
+  const why = o['why'];
+  if (why !== 'move' && why !== 'check' && why !== 'queue') return 'незрозуміло, за яким правилом кидок';
+  const die = WEATHER_DICE[why];
+  const value = o['value'];
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > die) {
+    return `кидок d${die} — ціле число від 1 до ${die}`;
+  }
+  return { type: 'weather-roll', why, value };
+}
+
+/** The weather a d4 picks: the file's own order, as the owner wrote it. */
+export function weatherByRoll(file: WeatherFile, value: number): WeatherDef | null {
+  return file.weathers[value - 1] ?? null;
+}
+
+/** Whether the d6 at initiative 20 means a switch is coming: 1–2, by the owner's rule. */
+export const weatherChanges = (d6: number): boolean => d6 <= 2;
+
+/** The feed's line for a roll that changed nothing — so the table sees why. */
+export function weatherRollText(planet: string, why: WeatherWhy, value: number, outcome: string): string {
+  const where = planet === '' ? 'Погода' : `Погода · ${planet}`;
+  const rule = why === 'move' ? 'перехід між локаціями' : why === 'check' ? 'ініціатива 20' : 'яка саме';
+  return `${where}: ${rule}, d${WEATHER_DICE[why]}=${value} — ${outcome}`;
 }
 
 /** Whether this log line is about the scene itself. */

@@ -111,7 +111,7 @@ describe('F-086 · погода як ефект сцени', () => {
     const wrong = loadWeather(stateWith({ weathers: 'нема' }));
     expect(wrong.problems[0]).toContain('немає списку «weathers»');
     // No file at all is not a problem: the owner simply has no weather yet.
-    expect(loadWeather(mkdtempSync(join(tmpdir(), 'holotable-f086-empty-')))).toEqual({ file: { planet: '', always: null, weathers: [] }, problems: [] });
+    expect(loadWeather(mkdtempSync(join(tmpdir(), 'holotable-f086-empty-')))).toEqual({ file: { planet: '', always: null, weathers: [], switching: null }, problems: [] });
   });
 
   it('справжній файл Міролла читається, і «Подих Бань» дає те, що в ньому написано', () => {

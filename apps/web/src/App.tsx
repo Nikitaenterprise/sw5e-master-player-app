@@ -196,7 +196,12 @@ export function App(): JSX.Element {
       )}
 
       {gm && !editingGlossary && (
-        <WeatherBar weather={snapshot.weather} set={(key) => controls.current?.setWeather(key)} />
+        <WeatherBar
+          weather={snapshot.weather}
+          set={(key) => controls.current?.setWeather(key)}
+          roll={(why, value) => controls.current?.rollWeather(why, value)}
+          inFight={snapshot.combat !== null}
+        />
       )}
 
       {gm && !editingGlossary && (
