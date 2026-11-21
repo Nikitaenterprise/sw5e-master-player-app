@@ -35,7 +35,7 @@ try {
       && Object.keys(printData.deployments ?? {}).length === 5
       && printData.deployments['alister'][0].deployment === 'Gunner'
       && printData.deployments['alister'][0].rank === 1
-      && (printData.shipProblems ?? []).length === 0);
+      && Array.isArray(printData.shipProblems) && printData.shipProblems.length === 0);
   // F-032: the six station cards, with the book's own text and checks.
   const roleNames = (printData.roles ?? []).map((c) => c.deployment);
   const gunnerCard = (printData.roles ?? []).find((c) => c.deployment === 'Gunner');

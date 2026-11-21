@@ -92,7 +92,7 @@ import { SceneWeather, loadWeather } from './weather.js';
 import { summarizeFights } from './summary.js';
 import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptHashes, MAX_MESSAGE_BYTES } from './guard.js';
 import { loadShips, ShipStates, systemDamageTable } from './ships.js';
-import { loadDeployments } from './deployments.js';
+import { crewProblems, loadDeployments } from './deployments.js';
 import { roleCards, shipActionCards } from './roles.js';
 import { CrewStations } from './crew.js';
 import { loadScenario, withScenarioGrants, withScenarioItems } from './scenario.js';
@@ -265,7 +265,7 @@ export async function start(
   const systemDamageLevels = systemDamageTable(compendium);
   // Crew deployment sheets (F-076, read here for F-031): who is at which station, with
   // what they took there. The owner's files; a broken one is named, not fatal.
-  const loadedDeployments = loadDeployments(join(dirname(charactersDir), 'deployments'));
+  const loadedDeployments = loadDeployments(join(dirname(charactersDir), 'deployments'), Object.keys(sheets));
   for (const problem of loadedDeployments.problems) console.log(`  Увага: ${problem}`);
   // Who sits at which station (F-061): the sheet says where they started, the log says
   // where the GM has moved them since. Every screen reads the stations from here, so a
@@ -446,7 +446,12 @@ export async function start(
         ships: Object.fromEntries(Object.entries(shipSummaries())
           .map(([slug, summary]) => [slug, { summary, state: ships.one(slug) ?? {} }])),
         deployments: loadedDeployments.byCharacter,
-        shipProblems: [...loadedShips.problems, ...loadedDeployments.problems],
+        shipProblems: [
+          ...loadedShips.problems,
+          ...loadedDeployments.problems,
+          ...Object.values(shipSummaries()).flatMap((summary) =>
+            crewProblems(summary.crew, loadedDeployments.byCharacter, partyNames())),
+        ],
         // The station cards (F-032): the book's text for every station, with what the
         // player at it actually chose. Built on the spot from the archive.
         roles: allRoleCards(),

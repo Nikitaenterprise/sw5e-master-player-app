@@ -17,6 +17,7 @@ import {
   type PrintData,
   type ShipState,
   type ShipSummary,
+  type SheetSummary,
   type TermKind,
   type TermMode,
 } from '@holotable/protocol';
@@ -54,6 +55,7 @@ export function ShipSheet({
   summary,
   state,
   deployments,
+  sheets = {},
   party,
   glossary,
   mode,
@@ -63,6 +65,8 @@ export function ShipSheet({
 }: {
   summary: ShipSummary;
   state: ShipState;
+  /** The party's computed sheets: a station's roll adds the bonus of whoever mans it. */
+  sheets?: Record<string, SheetSummary>;
   /** Deployment sheets by character slug: who is at which station, and what they took. */
   deployments: Record<string, DeploymentSummary[]>;
   party: Record<string, CharacterState>;
@@ -80,6 +84,20 @@ export function ShipSheet({
     shields: Math.max(0, max.shields - (state.shieldPointsLost ?? 0)),
     fuel: (summary.fuelCapacity ?? 0) - (state.fuelUsed ?? 0),
   };
+  // The attack number of a ship weapon is the ship's Wisdom plus the proficiency bonus
+  // of the gunner at the station (SotG; docs/ЗВІРКА-КОРАБЛЯ.md says the paper sheet got
+  // this wrong by writing the ship's half alone). With the station free there is no full
+  // number to write, and the sheet says so instead of printing half of one.
+  const gunnerSeat = summary.crew.find((c) => c.deployment === 'Gunner');
+  const gunnerBonus = gunnerSeat === undefined ? null : sheets[gunnerSeat.character]?.proficiencyBonus ?? null;
+  const gun = {
+    who: gunnerSeat === undefined ? null : sheets[gunnerSeat.character]?.name ?? gunnerSeat.character,
+    bonus: gunnerBonus,
+    total: gunnerBonus === null ? null : summary.weaponAbilityModifier + gunnerBonus,
+  };
+  // System damage of 4 or more halves the maxima (the book's table). The sheet shows
+  // what the ship IS, so a halved number must say why it is halved.
+  const halved = max.hull < summary.hull.max;
   const head = [summary.model, summary.size, `тір ${summary.tier}`, summary.role]
     .filter((part) => part !== undefined && part !== '')
     .join(' · ');
@@ -94,8 +112,16 @@ export function ShipSheet({
       <div className="s-grid">
         <section className="s-block">
           <h2>Корпус і щити</h2>
+          {halved && (
+            <p className="s-line s-alarm">
+              Пошкодження систем {state.systemDamage ?? 0}: максимуми корпусу, щитів і регенерації тут
+              <b> різані навпіл</b>, як велить книга. Паспортні числа корабля — удвічі більші.
+            </p>
+          )}
           <Line label="Корпус">
-            <b>{max.hull}</b> ({summary.hull.dice.count}{summary.hull.dice.size}) · зараз {left.hull}
+            <b>{max.hull}</b> ({summary.hull.dice.count}{summary.hull.dice.size}
+            {halved ? ', повний корпус' : ''}
+            {halved ? ` ${summary.hull.max}` : ''}) · зараз {left.hull}
           </Line>
           {summary.shields === null ? (
             <Line label="Щити">немає</Line>
@@ -139,11 +165,13 @@ export function ShipSheet({
               </tr>
             </tbody>
           </table>
-          {ABILITIES.some((a) => summary.savingThrows[a.key]?.proficient === true) ? (
-            <p className="s-legend">● — володіння сейвом від тіра корабля</p>
-          ) : (
-            <p className="s-legend">Володінь сейвами немає: їх дає тір корабля, а він нульовий.</p>
-          )}
+          <p className="s-legend">
+            Це <b>частка корабля</b>. Сейв кидає той, хто за станцією, і додає до цього числа свій бонус
+            майстерності — за книгою корабельний сейв складається з обох.
+            {ABILITIES.some((a) => summary.savingThrows[a.key]?.proficient === true)
+              ? ' ● — володіння сейвом, як вписано в лист корабля.'
+              : ' Володінь сейвами в листі корабля не вписано.'}
+          </p>
         </section>
 
         <section className="s-block">
@@ -167,15 +195,15 @@ export function ShipSheet({
           ) : (
             <table className="s-weapons">
               <thead>
-                <tr><th>Зброя</th><th>Влучання</th><th>Шкода</th><th>Установка</th><th>Дистанція</th><th>Властивості</th></tr>
+                <tr><th>Зброя</th><th>Влучання</th><th>Шкода</th><th>Кріплення</th><th>Дистанція</th><th>Властивості</th></tr>
               </thead>
               <tbody>
-                {summary.weapons.map((w) => (
-                  <tr key={`${w.name}-${w.mounting}`}>
+                {summary.weapons.map((w, i) => (
+                  <tr key={`${w.name}-${i}`}>
                     <td>{w.name}</td>
-                    <td>{signed(summary.weaponAbilityModifier)}</td>
+                    <td>{gun.total === null ? `${signed(summary.weaponAbilityModifier)} + ?` : signed(gun.total)}</td>
                     <td>{w.damage} {term('damage', w.damageType)}</td>
-                    <td>{w.mounting}{w.turret ? ' · турель' : ''}</td>
+                    <td>{w.turret ? 'турельна' : 'нерухома'} · {w.mounting}</td>
                     <td>{w.range === null ? '—' : `${w.range.normal}/${w.range.long}`}</td>
                     <td className="s-props">{w.properties.join(', ')}</td>
                   </tr>
@@ -184,8 +212,18 @@ export function ShipSheet({
             </table>
           )}
           <p className="s-legend">
-            Влучання — від екіпажу на станції, а не від корабля: це те саме число, яким кидає навідник.
-            Корабельні назви тут англійською, як у книзі: глосарій їх поки не знає (F-091).
+            {gun.total === null ? (
+              <>
+                Влучання: Мудрість корабля {signed(summary.weaponAbilityModifier)} <b>плюс бонус майстерності
+                того, хто стане до гармати</b>. Поки станція Gunner вільна, повного числа немає — тому тут «+ ?».
+              </>
+            ) : (
+              <>
+                Влучання {signed(gun.total)} = Мудрість корабля {signed(summary.weaponAbilityModifier)} + бонус
+                майстерності навідника ({gun.who} {signed(gun.bonus as number)}). Стане інший — число інше.
+              </>
+            )}
+            {' '}Корабельні назви тут англійською, як у книзі: глосарій їх поки не знає (F-091).
           </p>
         </section>
 
@@ -212,14 +250,19 @@ export function ShipSheet({
           ) : (
             <ul className="s-crew">
               {summary.crew.map((c) => {
-                const own = (deployments[c.character] ?? []).find((d) => d.deployment === c.deployment)
-                  ?? (deployments[c.character] ?? [])[0];
+                const sheetsOf = deployments[c.character] ?? [];
+                const own = sheetsOf.find((d) => d.deployment === c.deployment);
+                // A sheet about another station is not this station's sheet: taking the
+                // first one at hand would print someone else's rank under this station.
+                const elsewhere = own === undefined ? sheetsOf.map((d) => d.deployment) : [];
                 const tired = typeof party[c.character]?.exhaustion === 'number' ? (party[c.character]?.exhaustion as number) : 0;
                 return (
                   <li key={c.character}>
                     <b>{name(c.character)}</b> — {c.deployment}
                     {own === undefined ? (
-                      <small> · листа посади немає</small>
+                      elsewhere.length === 0
+                        ? <small> · листа посади немає</small>
+                        : <small className="s-alarm"> · листа посади на цю станцію немає (у листі: {elsewhere.join(', ')})</small>
                     ) : (
                       <>
                         <small> · ранг {own.rank}{own.specialty ? ' · спеціальність' : ''}</small>
@@ -273,6 +316,41 @@ export function ShipSheet({
   );
 }
 
+/**
+ * What the page hands to each sheet, taken out of one server answer. A pure function on
+ * purpose: the wiring from `/sheets.json` to the sheet is the half a render test cannot
+ * see, and the independent review of F-031 found exactly that half untested — a page
+ * that passed no deployments and no problems went green. Now it cannot.
+ */
+export interface ShipSheetProps {
+  slug: string;
+  summary: ShipSummary;
+  state: ShipState;
+  sheets: Record<string, SheetSummary>;
+  deployments: Record<string, DeploymentSummary[]>;
+  party: Record<string, CharacterState>;
+  glossary: Record<string, string>;
+  session: number;
+  problems: string[];
+}
+
+export function shipSheetsFrom(data: PrintData, only: string | null = null): ShipSheetProps[] {
+  const ships = data.ships ?? {};
+  return Object.keys(ships)
+    .filter((slug) => only === null || slug === only)
+    .map((slug) => ({
+      slug,
+      summary: (ships[slug] as { summary: ShipSummary }).summary,
+      state: (ships[slug] as { state: ShipState }).state,
+      sheets: data.sheets,
+      deployments: data.deployments ?? {},
+      party: data.characters,
+      glossary: data.glossary,
+      session: data.session,
+      problems: data.shipProblems ?? [],
+    }));
+}
+
 /** The page: every ship the owner's folder holds, newest state, ready for paper. */
 export function ShipSheetPage(): JSX.Element {
   const [data, setData] = useState<PrintData | null>(null);
@@ -288,9 +366,8 @@ export function ShipSheetPage(): JSX.Element {
 
   if (error !== null) return <p className="print-message">Не вдалося взяти лист корабля в сервера: {error}</p>;
   if (data === null) return <p className="print-message">Беру лист корабля в сервера…</p>;
-  const ships = data.ships ?? {};
   const cards = data.roles ?? [];
-  const slugs = Object.keys(ships).filter((s) => only === null || s === only);
+  const slugs = shipSheetsFrom(data, only);
   if (slugs.length === 0) {
     return <p className="print-message">У `state/ships/` немає жодного листа корабля — покласти його туди може лише власник.</p>;
   }
@@ -304,18 +381,19 @@ export function ShipSheetPage(): JSX.Element {
           У вікні друку — «Зберегти як PDF».
         </span>
       </div>
-      {slugs.map((slug) => (
+      {slugs.map((one) => (
         <ShipSheet
-          key={slug}
-          summary={(ships[slug] as { summary: ShipSummary }).summary}
-          state={(ships[slug] as { state: ShipState }).state}
-          deployments={data.deployments ?? {}}
-          party={data.characters}
-          glossary={data.glossary}
+          key={one.slug}
+          summary={one.summary}
+          state={one.state}
+          sheets={one.sheets}
+          deployments={one.deployments}
+          party={one.party}
+          glossary={one.glossary}
           mode={readMode()}
-          session={data.session}
+          session={one.session}
           printedAt={new Date()}
-          problems={data.shipProblems ?? []}
+          problems={one.problems}
         />
       ))}
       {cards.length > 0 && <RoleCards cards={cards} actions={data.shipActions ?? []} />}

@@ -780,13 +780,23 @@ a.ref-link:hover { color: var(--accent); }
 .role-parts { color: var(--muted); font-size: .78rem; display: flex; flex-wrap: wrap; gap: .4rem; }
 .role-foot { margin-top: .8rem; border-top: 1px solid var(--border); padding-top: .3rem; color: var(--muted); font-size: .78rem; }
 
+/* The app's screen styles for lists and headings must not leak onto paper: the same
+   leak F-030 caught once on the character sheet, found again here by the F-031 review.
+   Without this a crew member printed as a dark panel with its lines side by side. */
+.s-sheet ul, .role-card ul { display: block; gap: 0; }
+.s-sheet li, .role-card li { display: block; background: none; border: none; border-radius: 0; padding: 0; color: inherit; }
+.s-sheet h1, .s-sheet h2, .s-sheet b, .role-card h2, .role-card h3, .role-card h4, .role-card b { color: inherit; }
+
 @media print {
-  .s-root .print-toolbar { display: none; }
-  .role-card { max-width: none; margin: 0; padding: 0; border: none; background: #fff; color: #000; page-break-before: always; }
+  /* A real A4 box with margins: `@page` has none, so each sheet keeps its own. 296mm,
+     not 297, so rounding never adds a blank page. */
+  .s-sheet, .role-card { width: 210mm; min-height: 296mm; padding: 9mm 10mm; box-sizing: border-box; }
+  .role-card { max-width: none; margin: 0; border: none; background: #fff; color: #000; page-break-before: always; }
   .role-meta, .role-who, .role-parts, .role-foot { color: #444; }
   .role-card h3 { border-color: #999; }
-  .s-sheet { max-width: none; margin: 0; padding: 0; border: none; background: #fff; color: #000; page-break-after: always; }
+  .s-sheet { max-width: none; margin: 0; border: none; background: #fff; color: #000; page-break-after: always; }
   .s-sheet:last-child { page-break-after: auto; }
   .s-abilities th, .s-abilities td, .s-weapons th, .s-weapons td { border-color: #999; }
   .s-sub, .s-legend, .s-crew small, .s-crew-line, .s-warnings ul { color: #444; }
+  .s-sheet h1, .s-sheet h2, .role-card h2, .role-card h3 { color: #111; }
 }

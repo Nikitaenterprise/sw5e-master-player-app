@@ -152,3 +152,17 @@ describe('F-032 · шість карток станцій', () => {
     }
   }, 20000);
 });
+
+// Added after the independent review of F-031: the same CSS leak it found on the ship's
+// sheet was open on the cards too — the app's screen styles for lists and headings would
+// have printed dark panels and grey headings on paper.
+describe('F-032 · картки на папері', () => {
+  it('екранні стилі списків і заголовків не течуть на аркуш картки', () => {
+    const css = readFileSync(join(root, 'apps', 'web', 'src', 'style.css'), 'utf8');
+    expect(css, 'панелі рядків скинуті для картки').toMatch(/\.s-sheet li, \.role-card li \{[^}]*background: none/);
+    expect(css, 'і горизонтальна розкладка рядків теж').toMatch(/\.s-sheet li, \.role-card li \{[^}]*display: block/);
+    const print = css.slice(css.lastIndexOf('@media print'));
+    expect(print, 'картка має поля аркуша, бо @page їх не має').toMatch(/\.s-sheet, \.role-card \{[^}]*padding: 9mm 10mm/);
+    expect(print, 'і заголовки на папері темні').toMatch(/\.role-card h2, \.role-card h3 \{ color: #111/);
+  });
+});
