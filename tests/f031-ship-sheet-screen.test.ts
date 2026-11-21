@@ -175,7 +175,7 @@ describe('F-031 · лист корабля на екрані', () => {
   });
 
   it('сторінка справді віддає аркушу те, що приїхало від сервера', async () => {
-    server = await start(0, { charactersDir: CHARACTERS, stateDir: join(root, 'state') });
+    server = await start(0, { charactersDir: CHARACTERS, stateDir: join(root, 'state'), eventsDir: mkdtempSync(join(tmpdir(), 'holotable-f031-log-')) });
     const data = await (await fetch(`http://127.0.0.1:${server.port}/sheets.json`)).json() as PrintData;
     // The wiring the review found untested: the page builds its props with this function.
     expect(Array.isArray(data.shipProblems), 'сервер каже про проблеми файлів масивом, а не мовчанням').toBe(true);
@@ -280,7 +280,7 @@ describe('F-031 · лист корабля на екрані', () => {
   });
 
   it('живий сервер віддає корабель і листи посад одним запитом, як для паперу', async () => {
-    server = await start(0, { charactersDir: CHARACTERS, stateDir: join(root, 'state') });
+    server = await start(0, { charactersDir: CHARACTERS, stateDir: join(root, 'state'), eventsDir: mkdtempSync(join(tmpdir(), 'holotable-f031-log-')) });
     const data = await (await fetch(`http://127.0.0.1:${server.port}/sheets.json`)).json() as PrintData;
     expect(Object.keys(data.ships ?? {}), 'кораблі в тому самому запиті').toContain('mandrivna-zorya');
     expect(data.ships?.['mandrivna-zorya']?.summary.name).toBe('Мандрівна Зоря');

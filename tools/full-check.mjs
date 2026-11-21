@@ -53,6 +53,11 @@ try {
       && ((printData.roles ?? []).find((c) => c.deployment === 'Technician')?.rankFeatures.length ?? 0) > 0);
   const shipPage = await (await fetch(`http://localhost:${port}/?as=ship`)).text();
   ok('F-031 сторінка листа корабля роздається', /<script[^>]+assets\/index-/.test(shipPage));
+  // F-062: the GM's print links, and the addresses each of them opens.
+  const printPages = await Promise.all(['', '&what=sheet', '&what=cards', '&card=Gunner', '&card=Кухар']
+    .map((tail) => fetch(`http://localhost:${port}/?as=ship${tail}`).then((r) => r.status)));
+  ok('F-062 кожна адреса друку відповідає сторінкою, а не помилкою',
+    printPages.every((status) => status === 200));
   const refHits = await (await fetch(`http://localhost:${port}/api/search?q=${encodeURIComponent('Витонченість')}`)).json();
   const refDoc = await (await fetch(`http://localhost:${port}/api/doc/power/force-push-pull`)).json();
   ok('F-049 довідник: «Витонченість» → Finesse, сторінка сили з текстом книги',

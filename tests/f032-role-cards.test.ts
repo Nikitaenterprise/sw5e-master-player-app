@@ -3,7 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadCompendium } from '@holotable/compendium';
 import type { PrintData, RoleCard } from '@holotable/protocol';
@@ -136,6 +137,7 @@ describe('F-032 · шість карток станцій', () => {
     const server = await start(0, {
       charactersDir: join(root, 'state', 'characters', 'source-exports'),
       stateDir: join(root, 'state'),
+      eventsDir: mkdtempSync(join(tmpdir(), 'holotable-f032-log-')),
     });
     try {
       const data = await (await fetch(`http://127.0.0.1:${server.port}/sheets.json`)).json() as PrintData;

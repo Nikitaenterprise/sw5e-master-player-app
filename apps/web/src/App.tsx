@@ -22,6 +22,7 @@ import { ItemsEditor } from './ItemsEditor.js';
 import { HandoutDesk, Handouts } from './Handouts.js';
 import { ShipPanel, ShipStrip } from './Ship.js';
 import { MyStation } from './RoleCards.js';
+import { ShipPrintLinks } from './ShipSheet.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, isMismatch, type FeedRow,
 } from './feed.js';
@@ -226,6 +227,7 @@ export function App(): JSX.Element {
               <small>пʼять аркушів A4 українською; якщо ноутбук вимкнеться — гра йде на папері</small>
             </a>
           </div>
+          {Object.keys(snapshot.ships).length > 0 && <ShipPrintLinks />}
         </section>
       )}
 

@@ -10,6 +10,7 @@
 // the GM's screen that opens it.
 import { useEffect, useState, type JSX, type ReactNode } from 'react';
 import {
+  DEPLOYMENTS,
   showTerm,
   shipMaxima,
   type CharacterState,
@@ -18,6 +19,7 @@ import {
   type ShipState,
   type ShipSummary,
   type SheetSummary,
+  type RoleCard,
   type TermKind,
   type TermMode,
 } from '@holotable/protocol';
@@ -351,12 +353,110 @@ export function shipSheetsFrom(data: PrintData, only: string | null = null): Shi
     }));
 }
 
+/**
+ * The GM's buttons for the printer (F-062). Opening a page rather than printing from
+ * here on purpose: the GM sees on paper's own page what is about to come out, and the
+ * browser's print dialog is one click away. Each link is an address `printPlan` knows.
+ */
+export function ShipPrintLinks({ stations = [...DEPLOYMENTS] }: { stations?: string[] } = {}): JSX.Element {
+  return (
+    <div className="buttons">
+      <a className="button-like" href="/?as=ship" target="_blank" rel="noreferrer">
+        Роздрукувати корабель
+        <small>лист корабля й шість карток станцій, по одній на аркуш</small>
+      </a>
+      <a className="button-like" href="/?as=ship&what=sheet" target="_blank" rel="noreferrer">
+        Лише лист корабля
+        <small>один аркуш A4 із числами рушія</small>
+      </a>
+      <a className="button-like" href="/?as=ship&what=cards" target="_blank" rel="noreferrer">
+        Лише картки станцій
+        <small>шість аркушів — роздати тим, хто сів на станції</small>
+      </a>
+      {stations.length > 0 && (
+        <p className="hint">
+          Одна картка:{' '}
+          {stations.map((station, i) => (
+            <span key={station}>
+              {i > 0 && ' · '}
+              <a href={`/?as=ship&card=${encodeURIComponent(station)}`} target="_blank" rel="noreferrer">{station}</a>
+            </span>
+          ))}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What to print, worked out from the address (F-062). The GM's screen has a button for
+ * each case, so the page itself never has to guess:
+ *   `?as=ship`                  — the ship's sheet and all six station cards,
+ *   `?as=ship&what=sheet`       — the sheet alone,
+ *   `?as=ship&what=cards`       — the six cards alone,
+ *   `?as=ship&card=Pilot`       — one card, for the player who took that station,
+ *   `?ship=<slug>`              — one ship, when the party has more than one.
+ * A station nobody has heard of is said out loud rather than printing nothing: an empty
+ * page in the print dialog looks like a broken app, and it is not.
+ */
+export interface PrintPlan {
+  sheets: ShipSheetProps[];
+  cards: RoleCard[];
+  /** What the toolbar says is about to come out of the printer. */
+  text: string;
+  /** What is wrong with the address itself, in words. */
+  problem: string | null;
+}
+
+export function printPlan(data: PrintData, search: string): PrintPlan {
+  const params = new URLSearchParams(search);
+  const only = params.get('ship');
+  const what = params.get('what');
+  const card = params.get('card');
+  const everySheet = shipSheetsFrom(data, only);
+  const everyCard = data.roles ?? [];
+
+  if (card !== null) {
+    const wanted = everyCard.filter((c) => c.deployment.toLowerCase() === card.trim().toLowerCase());
+    if (wanted.length === 0) {
+      return {
+        sheets: [], cards: [], text: '',
+        problem: `станції «${card}» немає: є ${everyCard.map((c) => c.deployment).join(', ') || 'жодної'}`,
+      };
+    }
+    const who = wanted[0]?.name;
+    return {
+      sheets: [], cards: wanted,
+      text: `Один аркуш A4: картка станції ${wanted[0]?.deployment}${who === undefined ? '' : ` (${who})`}.`,
+      problem: null,
+    };
+  }
+  if (what === 'cards') {
+    return {
+      sheets: [], cards: everyCard,
+      text: `${everyCard.length} карток станцій — по одній на аркуш A4.`,
+      problem: null,
+    };
+  }
+  if (what === 'sheet') {
+    return {
+      sheets: everySheet, cards: [],
+      text: `${everySheet.length === 1 ? 'Один аркуш' : `${everySheet.length} аркушів`} A4: лист корабля з числами рушія.`,
+      problem: null,
+    };
+  }
+  return {
+    sheets: everySheet, cards: everyCard,
+    text: `${everySheet.length === 1 ? 'Один аркуш' : `${everySheet.length} аркушів`} A4: лист корабля з числами рушія`
+      + (everyCard.length > 0 ? `, далі ${everyCard.length} карток станцій — по одній на аркуш.` : '.'),
+    problem: null,
+  };
+}
+
 /** The page: every ship the owner's folder holds, newest state, ready for paper. */
 export function ShipSheetPage(): JSX.Element {
   const [data, setData] = useState<PrintData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const only = new URLSearchParams(location.search).get('ship');
-
   useEffect(() => {
     fetch('/sheets.json')
       .then((r) => (r.ok ? (r.json() as Promise<PrintData>) : Promise.reject(new Error(`сервер відповів ${r.status}`))))
@@ -366,22 +466,18 @@ export function ShipSheetPage(): JSX.Element {
 
   if (error !== null) return <p className="print-message">Не вдалося взяти лист корабля в сервера: {error}</p>;
   if (data === null) return <p className="print-message">Беру лист корабля в сервера…</p>;
-  const cards = data.roles ?? [];
-  const slugs = shipSheetsFrom(data, only);
-  if (slugs.length === 0) {
+  const plan = printPlan(data, location.search);
+  if (plan.problem !== null) return <p className="print-message">{plan.problem}</p>;
+  if (plan.sheets.length === 0 && plan.cards.length === 0) {
     return <p className="print-message">У `state/ships/` немає жодного листа корабля — покласти його туди може лише власник.</p>;
   }
   return (
     <div className="print-root s-root">
       <div className="print-toolbar">
         <button type="button" onClick={() => window.print()}>Друкувати</button>
-        <span>
-          {slugs.length === 1 ? 'Один аркуш' : `${slugs.length} аркушів`} A4: лист корабля з числами рушія
-          {cards.length > 0 && `, далі ${cards.length} карток станцій — по одній на аркуш`}.
-          У вікні друку — «Зберегти як PDF».
-        </span>
+        <span>{plan.text} У вікні друку — «Зберегти як PDF».</span>
       </div>
-      {slugs.map((one) => (
+      {plan.sheets.map((one) => (
         <ShipSheet
           key={one.slug}
           summary={one.summary}
@@ -396,7 +492,7 @@ export function ShipSheetPage(): JSX.Element {
           problems={one.problems}
         />
       ))}
-      {cards.length > 0 && <RoleCards cards={cards} actions={data.shipActions ?? []} />}
+      {plan.cards.length > 0 && <RoleCards cards={plan.cards} actions={data.shipActions ?? []} />}
     </div>
   );
 }
