@@ -678,3 +678,12 @@ a.ref-link:hover { color: var(--accent); }
 .feed .npc-notes small { color: var(--muted); }
 .feed .npc-notes .undo { background: none; border: none; color: var(--muted); font: inherit; font-size: .78rem; text-decoration: underline dotted; cursor: pointer; padding: 0 .2rem; }
 .npcs-in-scene { margin: .4rem 0; font-size: .9rem; }
+
+/* Weather as an effect of the scene (F-086). */
+.weather .weather-line { margin: .2rem 0; font-size: .85rem; }
+.weather .weather-line small { color: var(--muted); }
+.weather .weather-line.now b { color: var(--text); }
+.weather .no-effects { font-style: italic; }
+.weather .buttons button.on { border-color: var(--text); }
+.weather code { font-size: .78rem; }
+.effects .effect.scene { border-style: dashed; }

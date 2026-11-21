@@ -78,7 +78,8 @@ export type ToServer =
   | HandoutSend
   | NpcSet
   | NpcRemove
-  | NpcsClear;
+  | NpcsClear
+  | WeatherSet;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -145,7 +146,8 @@ export type FromServer =
   | HomebrewFileMessage
   | HandoutsMessage
   | NpcsMessage
-  | NpcNotesMessage;
+  | NpcNotesMessage
+  | WeatherMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -1670,8 +1672,8 @@ export interface CombatEvent {
   effectsTo?: HolotableEffect[];
 }
 
-/** A line of the log: a change of character state, the fight, a handout, an NPC. */
-export type LogLine = GameEvent | CombatEvent | Handout | NpcEvent;
+/** A line of the log: character state, the fight, a handout, an NPC, the scene. */
+export type LogLine = GameEvent | CombatEvent | Handout | NpcEvent | SceneEvent;
 
 /**
  * A handout (F-071): a letter, a note, a clue the GM gives to some players or to all. A
@@ -2023,6 +2025,176 @@ export interface NpcEvent {
   npcId?: string;
   /** npc.scene-cleared: everyone who was in the scene. */
   cleared?: NpcRecord[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Weather as an effect of the scene (F-086). Everything else the app puts on people is
+// personal: a stimulant on one character, a sight on one weapon. Weather is on everyone
+// at once, and it is the GM who turns it.
+//
+// The weathers themselves are the owner's home rules, so they live in a plain file he
+// edits by hand — state/scene/weather.json — exactly like the glossary and the homebrew
+// items. The app only switches between what the file says and counts what it can count.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** What one weather does to a roll. No duration: it lasts while that weather is on. */
+export interface SceneEffectSpec {
+  target: string;
+  bonus?: number;
+  mode?: 'advantage' | 'disadvantage';
+}
+
+/** One weather, or the planet's standing rule, as the owner's file states it. */
+export interface WeatherDef {
+  key: string;
+  name: string;
+  /** The owner's own line about it — shown on every screen, counted by nobody. */
+  note: string;
+  effects: SceneEffectSpec[];
+}
+
+/** The file: the planet, its standing rule, and the weathers to switch between. */
+export interface WeatherFile {
+  planet: string;
+  always: WeatherDef | null;
+  weathers: WeatherDef[];
+}
+
+/** What every screen gets: what is on now, what can be turned on, what is wrong. */
+export interface WeatherNow {
+  planet: string;
+  /** Null — no weather is on. */
+  now: WeatherDef | null;
+  always: WeatherDef | null;
+  choices: WeatherDef[];
+  /** What is wrong with the owner's file, in words. Empty when it is fine. */
+  problems: string[];
+}
+
+export interface WeatherMessage {
+  type: 'weather';
+  weather: WeatherNow;
+}
+
+/** GM → server: turn this weather on, or null for none. */
+export interface WeatherSet {
+  type: 'weather-set';
+  weather: string | null;
+}
+
+export const MAX_WEATHERS = 12;
+export const WEATHER_NAME_MAX = 40;
+export const WEATHER_NOTE_MAX = 300;
+
+/** One weather of the file, checked — or what is wrong with it, in words. */
+export function checkWeather(raw: unknown): WeatherDef | string {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'погода — обʼєкт';
+  const o = raw as Record<string, unknown>;
+  const key = o['key'];
+  if (typeof key !== 'string' || !/^[a-z0-9-]{1,40}$/.test(key)) return 'ключ погоди — латиниця, цифри й дефіси, до 40 знаків';
+  const name = o['name'];
+  if (typeof name !== 'string' || name.trim() === '' || name.length > WEATHER_NAME_MAX) return `назва погоди — від 1 до ${WEATHER_NAME_MAX} знаків`;
+  const note = o['note'] ?? '';
+  if (typeof note !== 'string' || note.length > WEATHER_NOTE_MAX) return `опис погоди — не більше ${WEATHER_NOTE_MAX} знаків`;
+  const raws = o['effects'] ?? [];
+  if (!Array.isArray(raws)) return 'ефекти погоди — список';
+  if (raws.length > MAX_EFFECTS) return `ефектів у погоди не більше ${MAX_EFFECTS}`;
+  const effects: SceneEffectSpec[] = [];
+  for (const item of raws) {
+    if (typeof item !== 'object' || item === null) return 'ефект погоди — обʼєкт';
+    const e = item as Record<string, unknown>;
+    // Scene effects use the same targets as personal ones, minus a named weapon: the
+    // weather does not know whose rifle is whose.
+    if (typeof e['target'] !== 'string' || !EFFECT_TARGETS.includes(e['target'])) return 'на що діє погода — не зрозуміло';
+    const bonus = e['bonus'];
+    const mode = e['mode'];
+    if (bonus === undefined && mode === undefined) return 'ефект погоди мусить дати число або перевагу/недолік';
+    if (bonus !== undefined && (typeof bonus !== 'number' || !Number.isInteger(bonus) || bonus === 0 || Math.abs(bonus) > 20)) {
+      return 'ефект погоди — ціле число від −20 до 20, не нуль';
+    }
+    if (mode !== undefined && mode !== 'advantage' && mode !== 'disadvantage') return 'перевага чи недолік — одне з двох';
+    effects.push({
+      target: e['target'],
+      ...(bonus === undefined ? {} : { bonus: bonus as number }),
+      ...(mode === undefined ? {} : { mode: mode as 'advantage' | 'disadvantage' }),
+    });
+  }
+  return { key, name: name.trim(), note: (note as string).trim(), effects };
+}
+
+/** The whole file, checked. A broken file must never stop a session — it just gives nothing. */
+export function checkWeatherFile(data: unknown): WeatherFile | string {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return 'файл погоди — обʼєкт';
+  const o = data as Record<string, unknown>;
+  const planet = o['planet'] ?? '';
+  if (typeof planet !== 'string' || planet.length > WEATHER_NAME_MAX) return `планета — не більше ${WEATHER_NAME_MAX} знаків`;
+  const list = o['weathers'] ?? [];
+  if (!Array.isArray(list)) return 'у файлі погоди немає списку «weathers»';
+  if (list.length > MAX_WEATHERS) return `погод не більше ${MAX_WEATHERS}`;
+  const weathers: WeatherDef[] = [];
+  const keys = new Set<string>();
+  for (const raw of list) {
+    const one = checkWeather(raw);
+    if (typeof one === 'string') return one;
+    if (keys.has(one.key)) return `дві погоди з ключем «${one.key}»`;
+    keys.add(one.key);
+    weathers.push(one);
+  }
+  let always: WeatherDef | null = null;
+  if (o['always'] !== undefined && o['always'] !== null) {
+    const one = checkWeather(o['always']);
+    if (typeof one === 'string') return `постійне правило планети: ${one}`;
+    always = one;
+  }
+  return { planet: (planet as string).trim(), always, weathers };
+}
+
+/**
+ * The effects a scene puts on everyone right now (F-086): the planet's standing rule
+ * and the weather that is on. Computed, never stored — like every other number (ADR 0003).
+ */
+export function sceneEffects(weather: WeatherNow | null): HolotableEffect[] {
+  if (weather === null) return [];
+  const out: HolotableEffect[] = [];
+  for (const def of [weather.always, weather.now]) {
+    if (def === null) continue;
+    def.effects.forEach((e, i) => {
+      out.push({ id: `scene-${def.key}-${i}`, source: def.name, until: 'manual', ...e });
+    });
+  }
+  return out;
+}
+
+/** The weather in one line, for a screen that only shows it. */
+export function weatherText(weather: WeatherNow | null): string {
+  if (weather === null || weather.now === null) return 'погоди немає';
+  return weather.planet === '' ? weather.now.name : `${weather.planet}: ${weather.now.name}`;
+}
+
+export function parseWeatherSet(data: unknown): WeatherSet | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'weather-set') return 'не погода';
+  const weather = o['weather'];
+  if (weather === null) return { type: 'weather-set', weather: null };
+  if (typeof weather !== 'string' || weather === '' || weather.length > 40) return 'не вказано погоду';
+  return { type: 'weather-set', weather };
+}
+
+/** A line of the log about the scene itself (F-086). */
+export interface SceneEvent {
+  id: string;
+  at: number;
+  author: Author;
+  type: 'scene.weather';
+  /** The weather turned on, null when it was turned off, and the one before it. */
+  weather?: string | null;
+  was?: string | null;
+}
+
+/** Whether this log line is about the scene itself. */
+export function isSceneEvent(line: LogLine): line is SceneEvent {
+  return line.type.startsWith('scene.');
 }
 
 /** Whether this log line is about the scene's NPCs. */

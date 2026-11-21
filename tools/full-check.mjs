@@ -239,6 +239,24 @@ try {
       && withSight.rollModes?.[`attack:${indexOf(withSight, 'Bowcaster')}`] === 'advantage'
       && withSight.rollModes?.[`attack:${indexOf(withSight, 'Vibrosabre')}`] === undefined
       && withSight.explain[`attack:${indexOf(withSight, 'Bowcaster')}`]?.parts.some((part) => part.label === 'ефект: Приладдя'));
+  // F-086: weather as an effect of the scene — the owner's own file, on everyone.
+  const weatherOf = (g) => [...g].reverse().find((m) => m.type === 'weather')?.weather;
+  ok('F-086 погода Міролла з файла власника: чотири погоди й правило планети',
+    await wait(gm, (g) => weatherOf(g)?.planet === 'Міролл')
+      && weatherOf(gm.got)?.choices?.length === 4 && weatherOf(gm.got)?.always?.effects?.length === 5
+      && (weatherOf(gm.got)?.problems ?? []).length === 0);
+  ok('F-086 правило планети вже в числах партії',
+    sheets['krinzh-dor'].explain['skill:Insight'].parts.some((p) => p.label === 'ефект: Подих Бань'));
+  gm.ws.send(JSON.stringify({ type: 'weather-set', weather: 'stina' }));
+  ok('F-086 майстер перемкнув погоду — її видно і в майстра, і в гравця',
+    await wait(gm, (g) => weatherOf(g)?.now?.name === 'Стіна')
+      && await wait(p1, (g) => weatherOf(g)?.now?.name === 'Стіна'));
+  p1.ws.send(JSON.stringify({ type: 'weather-set', weather: 'para' }));
+  ok('F-086 гравець погоду не перемикає',
+    await wait(p1, (g) => g.some((m) => m.type === 'refused' && m.reason === 'погоду перемикає майстер')));
+  gm.ws.send(JSON.stringify({ type: 'weather-set', weather: null }));
+  await wait(gm, (g) => weatherOf(g)?.now === null);
+
   // F-085: the scene's NPCs. The GM leads them; a player sees only a shown name.
   gm.ws.send(JSON.stringify({ type: 'npc-set', npc: {
     id: 'fc-ron', name: 'Торговець Рон', attitude: 'indifferent', wants: 'вивезти товар',

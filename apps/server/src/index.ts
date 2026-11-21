@@ -26,6 +26,7 @@ import {
   parseEnemyEffects,
   parseNpcRemove,
   parseNpcSet,
+  parseWeatherSet,
   rebaseNpc,
   ATTITUDE_BRIEF_KEY,
   parseAttackRoll,
@@ -67,6 +68,7 @@ import { Log } from './log.js';
 import { State } from './state.js';
 import { CombatTracker } from './combat.js';
 import { SceneNpcs } from './npcs.js';
+import { SceneWeather, loadWeather } from './weather.js';
 import { summarizeFights } from './summary.js';
 import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptHashes, MAX_MESSAGE_BYTES } from './guard.js';
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
@@ -195,7 +197,16 @@ export async function start(
     const list = state.one(slug)?.holotableEffects;
     return Array.isArray(list) ? (list as HolotableEffect[]) : [];
   };
-  const sheets = computeSummaries(ROOT, charactersDir, effectsOf);
+  /**
+   * What a sheet is computed with: the character's own effects and the scene's (F-086).
+   * Kept apart from `effectsOf` on purpose — that one is the character's state, and the
+   * weather must never be written into it.
+   */
+  // `weather` is built further down, once the state folder is known: until then a sheet
+  // is computed without the scene, and the sheets are computed again the moment it is.
+  let weather: SceneWeather | null = null;
+  const sheetEffectsOf = (slug: string): HolotableEffect[] => [...effectsOf(slug), ...(weather?.effects() ?? [])];
+  const sheets = computeSummaries(ROOT, charactersDir, sheetEffectsOf);
   const restPlans = computeRestPlans(ROOT, charactersDir);
   const repoDir = options.repoDir ?? ROOT;
   const stateDir = options.stateDir ?? join(ROOT, 'state');
@@ -228,6 +239,16 @@ export async function start(
   // editor (F-068) writes it; the demo edits its own copy in .cache/demo, like the table
   // settings, so acceptance clicks never change the owner's items.
   const homebrewDir = demo ? tableDir : stateDir;
+  // Weather as an effect of the scene (F-086): the owner's file says what the weathers
+  // are, the log says which one is on. In demo the same file is read — the demo switches
+  // weather in its own throwaway log, and the file itself is never written to.
+  const weatherData = loadWeather(stateDir);
+  weather = new SceneWeather(log, weatherData.file, weatherData.problems);
+  for (const problem of weatherData.problems) console.log(`  ${problem}`);
+  // A weather left on when the laptop died is on again now, so the sheets must say so.
+  if (weather.effects().length > 0) {
+    for (const slug of Object.keys(sheets)) sheets[slug] = computeSummary(ROOT, charactersDir, slug, sheetEffectsOf(slug));
+  }
   if (demo && !existsSync(homebrewFile(tableDir)) && existsSync(homebrewFile(stateDir))) {
     mkdirSync(dirname(homebrewFile(tableDir)), { recursive: true });
     copyFileSync(homebrewFile(stateDir), homebrewFile(tableDir));
@@ -290,7 +311,7 @@ export async function start(
   const publish = (event: GameEvent): void => {
     broadcastAll({ type: 'event', event, state: state.one(event.character) ?? {} });
     if (event.changes.some((c) => c.field === 'holotableEffects') && sheets[event.character] !== undefined) {
-      sheets[event.character] = computeSummary(ROOT, charactersDir, event.character, effectsOf(event.character));
+      sheets[event.character] = computeSummary(ROOT, charactersDir, event.character, sheetEffectsOf(event.character));
       broadcastAll({ type: 'sheets', sheets });
     }
   };
@@ -432,6 +453,7 @@ export async function start(
         send(socket, { type: 'state', characters: state.all(), companions: state.companions() });
         sendHandouts({ socket, role: hello.role, ...(hello.character === undefined ? {} : { character: hello.character }) });
         send(socket, { type: 'npcs', npcs: npcs.view(hello.role === 'gm' ? 'gm' : 'player') });
+        if (weather !== null) send(socket, { type: 'weather', weather: weather.view() });
         if (hello.role === 'gm') send(socket, { type: 'npc-notes', notes: npcs.notes() });
         send(socket, { type: 'sheets', sheets });
         send(socket, { type: 'glossary', terms: glossary.terms });
@@ -862,6 +884,33 @@ export async function start(
         log.append(handout);
         handouts.push(handout);
         for (const c of connected.values()) sendHandouts(c);
+        return;
+      }
+
+      // Weather (F-086): the GM turns it, everyone sees it, and every sheet is computed
+      // again — the numbers move for the whole party at once and move back when it ends.
+      if (kind === 'weather-set') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'погоду перемикає майстер' });
+          return;
+        }
+        const wanted = parseWeatherSet(data);
+        if (typeof wanted === 'string') {
+          send(socket, { type: 'refused', reason: wanted });
+          return;
+        }
+        if (weather === null) {
+          send(socket, { type: 'refused', reason: 'погода ще не готова' });
+          return;
+        }
+        const turned = weather.set(authorOf(), wanted.weather);
+        if (typeof turned === 'string') {
+          send(socket, { type: 'refused', reason: turned });
+          return;
+        }
+        for (const slug of Object.keys(sheets)) sheets[slug] = computeSummary(ROOT, charactersDir, slug, sheetEffectsOf(slug));
+        broadcastAll({ type: 'weather', weather: weather.view() });
+        broadcastAll({ type: 'sheets', sheets });
         return;
       }
 

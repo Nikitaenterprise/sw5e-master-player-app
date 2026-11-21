@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type NpcNote, type NpcRecord, type NpcUndo, type SceneNpc, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type NpcNote, type NpcRecord, type NpcUndo, type SceneNpc, type WeatherNow, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -69,6 +69,8 @@ export interface Snapshot {
   npcs: SceneNpc[];
   /** The trace of NPC changes for the GM's feed, oldest first (F-085). */
   npcNotes: NpcNote[];
+  /** The scene's weather: what is on, what can be turned on (F-086). */
+  weather: WeatherNow | null;
 }
 
 export const EMPTY: Snapshot = {
@@ -99,6 +101,7 @@ export const EMPTY: Snapshot = {
   handouts: [],
   npcs: [],
   npcNotes: [],
+  weather: null,
   glossaryFound: { q: '', rows: [] },
   combat: null,
   counts: {},
@@ -208,6 +211,8 @@ export interface Controls {
   setNpc: (npc: NpcRecord, base?: NpcRecord) => void;
   /** Take back one line of the NPC trace (F-090). */
   undoNpc: (undo: NpcUndo) => void;
+  /** Turn a weather on, or off with null (F-086). */
+  setWeather: (weather: string | null) => void;
   /** This NPC leaves the scene. */
   removeNpc: (npc: string) => void;
   /** The scene is over: everyone out. */
@@ -332,6 +337,9 @@ export function connect(
           break;
         case 'npc-notes':
           update({ npcNotes: m.notes });
+          break;
+        case 'weather':
+          update({ weather: m.weather });
           break;
         case 'homebrew-file':
           update({ homebrewFile: m.items, homebrewCandidates: m.candidates });
@@ -537,6 +545,11 @@ export function connect(
     clearNpcs: () => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'npcs-clear' };
+      socket.send(JSON.stringify(message));
+    },
+    setWeather: (weather) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'weather-set', weather };
       socket.send(JSON.stringify(message));
     },
     removeEnemy: (enemy) => {

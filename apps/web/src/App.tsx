@@ -13,9 +13,10 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { NpcDesk, NpcsInScene } from './Npcs.js';
+import { WeatherBar } from './Weather.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
 import { HandoutDesk, Handouts } from './Handouts.js';
@@ -152,6 +153,7 @@ export function App(): JSX.Element {
                   useItem={(item) => controls.current?.useItem(slug, item.name, false)}
                   useFeature={(feature, allies) => controls.current?.useFeature(slug, feature, allies)}
                   party={Object.keys(snapshot.characters)}
+                  scene={sceneEffects(snapshot.weather)}
                 />
               ))}
           </div>
@@ -166,6 +168,10 @@ export function App(): JSX.Element {
           handouts={snapshot.handouts}
           send={(title, text, to) => controls.current?.sendHandout(title, text, to)}
         />
+      )}
+
+      {gm && !editingGlossary && (
+        <WeatherBar weather={snapshot.weather} set={(key) => controls.current?.setWeather(key)} />
       )}
 
       {gm && !editingGlossary && (
@@ -307,6 +313,7 @@ function PlayerSheet({
     <section>
       <Handouts handouts={snapshot.handouts} />
       <NpcsInScene npcs={snapshot.npcs} />
+      <WeatherBar weather={snapshot.weather} />
       <h2>Мій стан</h2>
       {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
         <DeathSavesBlock
@@ -318,6 +325,7 @@ function PlayerSheet({
       <Managed state={state} waiting={waiting} sendChange={sendChange} />
       <Effects
         list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
+        scene={sceneEffects(snapshot.weather)}
         items={snapshot.homebrew[character] ?? []}
         {...(state.holotableItemsUsed === undefined ? {} : { used: state.holotableItemsUsed })}
         use={(item) => controls.current?.useItem(character, item.name, true)}
@@ -897,6 +905,7 @@ export function Effects({
   spend = true,
   weapons = [],
   targets,
+  scene = [],
 }: {
   list: HolotableEffect[];
   set?: (list: HolotableEffect[]) => void;
@@ -915,6 +924,12 @@ export function Effects({
    * so only its saves, armour class, initiative and attacks are on the list.
    */
   targets?: string[];
+  /**
+   * What the scene puts on everyone right now (F-086): the weather. Shown beside the
+   * character's own effects and taken off only by turning the weather off, so there is
+   * no × on them.
+   */
+  scene?: HolotableEffect[];
 }): JSX.Element | null {
   const term = useTerm();
   const skill = (x: string): string => term('skill', x);
@@ -928,7 +943,7 @@ export function Effects({
   const [until, setUntil] = useState<HolotableEffect['until']>('fight');
   const [rounds, setRounds] = useState('1');
   const [problem, setProblem] = useState<string | null>(null);
-  if (list.length === 0 && set === undefined && items.length === 0) return null;
+  if (list.length === 0 && scene.length === 0 && set === undefined && items.length === 0) return null;
   // An item's effects are on when every one of them is: the button then says so.
   const isOn = (item: HomebrewItem): boolean => list.some((e) => e.source === item.name);
   return (
@@ -953,6 +968,11 @@ export function Effects({
           ))}
         </div>
       )}
+      {scene.map((e) => (
+        <span key={e.id} className="effect scene" title="Ефект сцени: погода. Знімається, коли майстер перемкне погоду">
+          {effectText(e, skill, weaponName)}
+        </span>
+      ))}
       {list.map((e) => (
         <span key={e.id} className="effect">
           {effectText(e, skill, weaponName)}
@@ -2129,10 +2149,13 @@ export function Card({
   useItem,
   useFeature,
   party = [],
+  scene: sceneOn,
 }: {
   slug: string;
   state: CharacterState;
   sheet: SheetSummary | undefined;
+  /** What the scene puts on everyone right now (F-086) — the same list for each card. */
+  scene?: HolotableEffect[];
   /** The book's conditions to pick from, and how to set the list (F-056). Absent — read only. */
   conditionChoices?: string[];
   setConditions?: (list: string[]) => void;
@@ -2339,6 +2362,7 @@ export function Card({
       <Effects
         list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
         weapons={sheet.attacks}
+        {...(sceneOn === undefined ? {} : { scene: sceneOn })}
         {...(setEffects === undefined ? {} : { set: setEffects })}
         {...(items === undefined ? {} : { items })}
         {...(state.holotableItemsUsed === undefined ? {} : { used: state.holotableItemsUsed })}
