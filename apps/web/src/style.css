@@ -727,3 +727,40 @@ a.ref-link:hover { color: var(--accent); }
   background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem; padding: .15rem .5rem; font: inherit; font-size: .85rem; cursor: pointer;
 }
 .ship-crew { list-style: none; padding: 0; margin: .4rem 0; font-size: .9rem; display: flex; flex-direction: column; gap: .15rem; }
+
+/* The ship's sheet (F-031): one page per ship, print-ready like the character sheets. */
+.s-sheet { max-width: 48rem; margin: 0 auto 1.5rem; padding: 1rem 1.2rem; background: var(--panel); border: 1px solid var(--border); border-radius: .5rem; }
+.s-head h1 { margin: 0; font-size: 1.5rem; }
+.s-sub { margin: .1rem 0 .6rem; color: var(--muted); font-size: .9rem; }
+.s-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem 1.2rem; }
+.s-block { break-inside: avoid; }
+.s-block h2 { font-size: .95rem; margin: .2rem 0 .3rem; border-bottom: 1px solid var(--border); padding-bottom: .15rem; }
+.s-wide { grid-column: 1 / -1; }
+.s-line { margin: .15rem 0; font-size: .88rem; }
+.s-legend { margin: .2rem 0 0; color: var(--muted); font-size: .76rem; }
+.s-abilities, .s-weapons { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.s-abilities th, .s-abilities td, .s-weapons th, .s-weapons td { border: 1px solid var(--border); padding: .15rem .3rem; text-align: center; }
+.s-abilities th:first-child { text-align: left; color: var(--muted); font-weight: 400; }
+.s-weapons th, .s-weapons td { text-align: left; }
+.s-weapons .s-props { color: var(--muted); font-size: .78rem; }
+.s-saves td.proficient { font-weight: 700; }
+.s-saves td.proficient::after { content: ' ●'; font-size: .6rem; vertical-align: super; }
+.s-crew { list-style: none; padding: 0; margin: .2rem 0; display: flex; flex-direction: column; gap: .3rem; font-size: .88rem; }
+.s-crew small { color: var(--muted); }
+.ship-sheet .s-quiet {
+  color: #6b7280;
+}
+
+.s-crew-line { color: var(--muted); font-size: .8rem; }
+.s-alarm { color: var(--bad); }
+.s-warnings ul { margin: .2rem 0; padding-left: 1.1rem; font-size: .82rem; color: var(--muted); }
+.s-foot { margin-top: .6rem; border-top: 1px solid var(--border); padding-top: .3rem; }
+.s-foot p { margin: .1rem 0; font-size: .82rem; }
+
+@media print {
+  .s-root .print-toolbar { display: none; }
+  .s-sheet { max-width: none; margin: 0; padding: 0; border: none; background: #fff; color: #000; page-break-after: always; }
+  .s-sheet:last-child { page-break-after: auto; }
+  .s-abilities th, .s-abilities td, .s-weapons th, .s-weapons td { border-color: #999; }
+  .s-sub, .s-legend, .s-crew small, .s-crew-line, .s-warnings ul { color: #444; }
+}

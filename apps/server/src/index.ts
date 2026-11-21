@@ -89,6 +89,7 @@ import { SceneWeather, loadWeather } from './weather.js';
 import { summarizeFights } from './summary.js';
 import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptHashes, MAX_MESSAGE_BYTES } from './guard.js';
 import { loadShips, ShipStates, systemDamageTable } from './ships.js';
+import { loadDeployments } from './deployments.js';
 import { loadScenario, withScenarioGrants, withScenarioItems } from './scenario.js';
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
@@ -257,6 +258,10 @@ export async function start(
   const ships = new ShipStates(log, loadedShips.baseline);
   // What each level of system damage does — the ship's exhaustion table (F-063).
   const systemDamageLevels = systemDamageTable(compendium);
+  // Crew deployment sheets (F-076, read here for F-031): who is at which station, with
+  // what they took there. The owner's files; a broken one is named, not fatal.
+  const loadedDeployments = loadDeployments(join(dirname(charactersDir), 'deployments'));
+  for (const problem of loadedDeployments.problems) console.log(`  Увага: ${problem}`);
   const shipsMessage = (): FromServer => ({
     type: 'ships',
     ships: Object.fromEntries(Object.entries(loadedShips.summaries).map(([slug, summary]) => [slug, { summary, state: ships.one(slug) ?? {} }])),
@@ -390,7 +395,18 @@ export async function start(
     // The print page reads everything at once over plain HTTP: it is not a screen at
     // the table, so it must not show up in the list of who is connected.
     if ((req.url ?? '').split('?')[0] === '/sheets.json') {
-      const data: PrintData = { session: log.sessionNumber, sheets, characters: state.all(), glossary: glossary.terms };
+      const data: PrintData = {
+        session: log.sessionNumber,
+        sheets,
+        characters: state.all(),
+        glossary: glossary.terms,
+        // The ship sheet (F-031) reads the same way the paper sheets do: one request,
+        // the engine's numbers, no socket and no place at the table.
+        ships: Object.fromEntries(Object.entries(loadedShips.summaries)
+          .map(([slug, summary]) => [slug, { summary, state: ships.one(slug) ?? {} }])),
+        deployments: loadedDeployments.byCharacter,
+        shipProblems: [...loadedShips.problems, ...loadedDeployments.problems],
+      };
       response.writeHead(200, { 'content-type': TYPES['.json'] as string, 'cache-control': 'no-store' });
       response.end(JSON.stringify(data));
       return;

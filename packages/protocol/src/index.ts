@@ -749,6 +749,12 @@ export interface PrintData {
   sheets: Record<string, SheetSummary>;
   characters: Record<string, CharacterState>;
   glossary: Record<string, string>;
+  /** The ships and their state, for the ship sheet (F-031). */
+  ships?: Record<string, { summary: ShipSummary; state: ShipState }>;
+  /** Who is at which station, and what they took there (F-031). */
+  deployments?: Record<string, DeploymentSummary[]>;
+  /** What is wrong with the owner's ship or deployment files, in words (F-031). */
+  shipProblems?: string[];
 }
 
 /** Server → client: the computed sheets. Sent once, on connect. */
@@ -1752,6 +1758,21 @@ export interface ShipSummary {
   /** Who is at which station. */
   crew: { character: string; deployment: string }[];
   warnings: string[];
+}
+
+/**
+ * One deployment of one character, as a screen needs it (F-031): the station, the rank,
+ * and what was picked there. `allowed` is what the rank grants by the book, so the sheet
+ * can say when the two disagree instead of hiding it.
+ */
+export interface DeploymentSummary {
+  deployment: string;
+  rank: number;
+  specialty: boolean;
+  techniques: string[];
+  ventures: string[];
+  /** What the rank grants by the book — so a screen can say the rule, not only the list. */
+  allowed: { techniques: number; ventures: number };
 }
 
 /** The five systems power dice can be stored in, as the book names them. */

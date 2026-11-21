@@ -28,6 +28,16 @@ try {
   ok('демо 2×2 з кнопкою wifi', demo.includes('обірвати wifi'));
   const printData = await (await fetch(`http://localhost:${port}/sheets.json`)).json();
   ok('F-030 дані для друку: пʼять листів по HTTP', Object.keys(printData.sheets).length === 5 && printData.sheets['krinzh-dor'].details.speed.walk === 30);
+  // F-031: the ship's sheet reads everything in one request, like the paper sheets.
+  ok('F-031 лист корабля по HTTP: корабель, листи посад і числа рушія',
+    printData.ships?.['mandrivna-zorya']?.summary?.name === 'Мандрівна Зоря'
+      && printData.ships['mandrivna-zorya'].summary.armorClass === 11
+      && Object.keys(printData.deployments ?? {}).length === 5
+      && printData.deployments['alister'][0].deployment === 'Gunner'
+      && printData.deployments['alister'][0].rank === 1
+      && (printData.shipProblems ?? []).length === 0);
+  const shipPage = await (await fetch(`http://localhost:${port}/?as=ship`)).text();
+  ok('F-031 сторінка листа корабля роздається', /<script[^>]+assets\/index-/.test(shipPage));
   const refHits = await (await fetch(`http://localhost:${port}/api/search?q=${encodeURIComponent('Витонченість')}`)).json();
   const refDoc = await (await fetch(`http://localhost:${port}/api/doc/power/force-push-pull`)).json();
   ok('F-049 довідник: «Витонченість» → Finesse, сторінка сили з текстом книги',

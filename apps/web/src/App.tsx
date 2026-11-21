@@ -93,6 +93,9 @@ export function App(): JSX.Element {
             </>
           )}
           <a href="/?as=ref" target="_blank" rel="noreferrer">Довідник →</a>
+          {Object.keys(snapshot.ships).length > 0 && (
+            <a href="/?as=ship" target="_blank" rel="noreferrer">Лист корабля →</a>
+          )}
         </nav>
       )}
 
@@ -249,6 +252,7 @@ export function App(): JSX.Element {
       {!gm && (
         <nav className="views">
           <a href="/?as=ref">Довідник: сили, предмети, правила →</a>
+          {Object.keys(snapshot.ships).length > 0 && <a href="/?as=ship">Лист корабля →</a>}
         </nav>
       )}
 
