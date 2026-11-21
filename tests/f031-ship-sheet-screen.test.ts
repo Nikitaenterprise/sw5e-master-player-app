@@ -286,8 +286,9 @@ describe('F-031 · лист корабля на екрані', () => {
     expect(data.ships?.['mandrivna-zorya']?.summary.name).toBe('Мандрівна Зоря');
     expect(Object.keys(data.deployments ?? {}).length, 'і листи посад').toBe(5);
     expect(data.deployments?.['alister']?.[0]?.deployment).toBe('Gunner');
-    // The page is a page of its own: it must not take a place at the table (F-030).
-    const page = await (await fetch(`http://127.0.0.1:${server.port}/?as=ship`)).text();
-    expect(page).toContain('<div id="root">');
+    // Whether the built page is really served is checked in `tools/full-check.mjs`,
+    // after `npm run build` — a test must not need a build someone else ran, and on a
+    // clean clone this one asserted on a page that does not exist yet.
+    expect(data.sheets['alister']?.proficiencyBonus, 'і лист навідника їде тим самим запитом').toBe(2);
   }, 30_000);
 });
