@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type ShipState, type ShipSummary, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type ShipDamageOptions, type ShipState, type ShipSummary, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -67,6 +67,8 @@ export interface Snapshot {
   handouts: Handout[];
   /** Ships: numbers and state, for every screen (F-060). */
   ships: Record<string, { summary: ShipSummary; state: ShipState }>;
+  /** What each level of system damage does, from the book (F-063). */
+  systemDamageLevels: string[];
   /** NPCs of the scene this screen may see (F-085). A player gets only shown names. */
   npcs: SceneNpc[];
   /** The scene's trace for the GM's feed — NPCs and weather — oldest first (F-085, F-086). */
@@ -102,6 +104,7 @@ export const EMPTY: Snapshot = {
   homebrewCandidates: [],
   handouts: [],
   ships: {},
+  systemDamageLevels: [],
   npcs: [],
   sceneNotes: [],
   weather: null,
@@ -231,8 +234,12 @@ export interface Controls {
   /** Send a handout to some players, or to all with an empty list. GM only (F-071). */
   sendHandout: (title: string, text: string, to: string[]) => void;
   /** Damage to a ship — shields first; or a change to its state. GM only (F-060). */
-  shipDamage: (ship: string, amount: number) => void;
+  shipDamage: (ship: string, amount: number, options?: ShipDamageOptions) => void;
   shipSet: (ship: string, changes: ShipState) => void;
+  /** Space combat (F-063): the ship's turn starts; a destruction save; a power die moved. */
+  shipTurn: (ship: string, regenerate: boolean, recovered?: number) => void;
+  shipDestructionSave: (ship: string, roll: number) => void;
+  shipPower: (ship: string, from: string, to: string) => void;
   /** A feature's effect on its owner and the allies picked. GM only (F-069). */
   useFeature: (character: string, feature: string, allies: string[]) => void;
   /** Write one item into the homebrew file, or delete it with null. GM only (F-068). */
@@ -336,7 +343,7 @@ export function connect(
           update({ homebrew: m.items, homebrewProblems: m.problems });
           break;
         case 'ships':
-          update({ ships: m.ships });
+          update({ ships: m.ships, systemDamageLevels: m.systemDamageLevels ?? [] });
           break;
         case 'handouts':
           update({ handouts: m.handouts });
@@ -490,9 +497,30 @@ export function connect(
       const message: ToServer = { type: 'attack-roll', character: whom, weapon, roll, ...(said === undefined ? {} : { said }) };
       socket.send(JSON.stringify(message));
     },
-    shipDamage: (ship, amount) => {
+    shipDamage: (ship, amount, options = {}) => {
       if (socket?.readyState !== 1) return;
-      const message: ToServer = { type: 'ship-damage', ship, amount };
+      const message: ToServer = {
+        type: 'ship-damage', ship, amount,
+        ...(options.type === undefined || options.type === 'energy' ? {} : { damageType: options.type }),
+        ...(options.attack === true ? { attack: true } : {}),
+        ...(options.critical === true ? { critical: true } : {}),
+        ...(options.disable === true ? { disable: true } : {}),
+      };
+      socket.send(JSON.stringify(message));
+    },
+    shipTurn: (ship, regenerate, recovered) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'ship-turn', ship, regenerate, ...(recovered === undefined ? {} : { recovered }) };
+      socket.send(JSON.stringify(message));
+    },
+    shipDestructionSave: (ship, roll) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'ship-destruction-save', ship, roll };
+      socket.send(JSON.stringify(message));
+    },
+    shipPower: (ship, from, to) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'ship-power', ship, from, to };
       socket.send(JSON.stringify(message));
     },
     shipSet: (ship, changes) => {

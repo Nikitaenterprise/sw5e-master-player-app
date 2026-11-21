@@ -108,10 +108,10 @@ describe('F-060 · корабель за столом', () => {
   });
 
   it('шкода — спершу щити, решта — корпусу; межі стану тримаються', () => {
-    expect(shipDamage({}, summary, 10)).toEqual({ changes: { shieldPointsLost: 10 }, shields: 10, hull: 0 });
-    expect(shipDamage({}, summary, 30)).toEqual({ changes: { shieldPointsLost: 22, hullPointsLost: 8 }, shields: 22, hull: 8 });
-    expect(shipDamage({ shieldPointsLost: 22, hullPointsLost: 30 }, summary, 50), 'нижче нуля корпус не падає')
-      .toEqual({ changes: { hullPointsLost: 38 }, shields: 0, hull: 8 });
+    expect(shipDamage({}, summary, 10)).toMatchObject({ changes: { shieldPointsLost: 10 }, shields: 10, hull: 0 });
+    expect(shipDamage({}, summary, 30)).toMatchObject({ changes: { shieldPointsLost: 22, hullPointsLost: 8 }, shields: 22, hull: 8 });
+    // What happens at 0 hull — disabled or destroyed — is space combat's (F-063).
+    expect(shipDamage({ shieldPointsLost: 22, hullPointsLost: 30 }, summary, 50).changes.hullPointsLost, 'нижче нуля корпус не падає').toBe(38);
     expect(shipDamage({}, { ...summary, shields: null }, 5).changes, 'без щитів — одразу корпус').toEqual({ hullPointsLost: 5 });
 
     expect(checkShipState({ hullPointsLost: 38, shieldPointsLost: 22, fuelUsed: 30 }, summary)).toBeNull();

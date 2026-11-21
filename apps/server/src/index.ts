@@ -58,8 +58,18 @@ import {
   parseHandoutSend,
   parseShipDamage,
   parseShipSet,
+  parseShipTurn,
+  parseShipDestructionSave,
+  parseShipPower,
   checkShipState,
   shipDamage,
+  shipTurnStart,
+  shipDestructionSave,
+  shipPowerMove,
+  shipMaxima,
+  SHIP_STABLE,
+  SHIP_DESTROYED,
+  POWER_SPENT,
   type ShipState,
   nextTurnRound,
   handoutsFor,
@@ -78,7 +88,7 @@ import { SceneNpcs } from './npcs.js';
 import { SceneWeather, loadWeather } from './weather.js';
 import { summarizeFights } from './summary.js';
 import { isAllowedHost, isLoopback, isSameOrigin, securityHeaders, inlineScriptHashes, MAX_MESSAGE_BYTES } from './guard.js';
-import { loadShips, ShipStates } from './ships.js';
+import { loadShips, ShipStates, systemDamageTable } from './ships.js';
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 import { computeSummaries, computeSummary, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
@@ -244,9 +254,12 @@ export async function start(
   const loadedShips = loadShips(options.shipsDir ?? join(stateDir, 'ships'), compendium);
   for (const problem of loadedShips.problems) console.log(`  Увага: ${problem}`);
   const ships = new ShipStates(log, loadedShips.baseline);
+  // What each level of system damage does — the ship's exhaustion table (F-063).
+  const systemDamageLevels = systemDamageTable(compendium);
   const shipsMessage = (): FromServer => ({
     type: 'ships',
     ships: Object.fromEntries(Object.entries(loadedShips.summaries).map(([slug, summary]) => [slug, { summary, state: ships.one(slug) ?? {} }])),
+    systemDamageLevels,
   });
   // Every name the glossary can hold (F-052), and the editor's list built from it.
   const catalog = buildTermCatalog(compendium, sheets, SKILLS);
@@ -907,12 +920,13 @@ export async function start(
       // The ship (F-060): the GM deals damage — shields first, then the hull — and
       // repairs; every screen sees it at once. Players do not write ship state: what
       // their stations do with it comes with space combat (F-063).
-      if (kind === 'ship-damage' || kind === 'ship-set') {
-        if (who.role !== 'gm') {
-          send(socket, { type: 'refused', reason: 'стан корабля міняє майстер' });
-          return;
-        }
-        const parsed = kind === 'ship-damage' ? parseShipDamage(data) : parseShipSet(data);
+      if (kind === 'ship-damage' || kind === 'ship-set' || kind === 'ship-turn' || kind === 'ship-destruction-save' || kind === 'ship-power') {
+        const parsed =
+          kind === 'ship-damage' ? parseShipDamage(data)
+            : kind === 'ship-set' ? parseShipSet(data)
+              : kind === 'ship-turn' ? parseShipTurn(data)
+                : kind === 'ship-destruction-save' ? parseShipDestructionSave(data)
+                  : parseShipPower(data);
         if (typeof parsed === 'string') {
           send(socket, { type: 'refused', reason: parsed });
           return;
@@ -923,12 +937,52 @@ export async function start(
           send(socket, { type: 'refused', reason: `немає корабля «${parsed.ship}»` });
           return;
         }
+        // The crew distributes and spends the power dice ("the crew determines how these
+        // dice are distributed"); everything else about the ship is the GM's (F-063).
+        const crewMember = who.character !== undefined && summary.crew.some((c) => c.character === who.character);
+        if (who.role !== 'gm' && !(parsed.type === 'ship-power' && crewMember)) {
+          send(socket, { type: 'refused', reason: parsed.type === 'ship-power' ? 'живлення розподіляє екіпаж цього корабля' : 'стан корабля міняє майстер' });
+          return;
+        }
         let changes: ShipState;
         let note: string;
         if (parsed.type === 'ship-damage') {
-          const dealt = shipDamage(now, summary, parsed.amount);
+          const dealt = shipDamage(now, summary, parsed.amount, {
+            ...(parsed.damageType === undefined ? {} : { type: parsed.damageType }),
+            ...(parsed.attack === true ? { attack: true } : {}),
+            ...(parsed.critical === true ? { critical: true } : {}),
+            ...(parsed.disable === true ? { disable: true } : {}),
+          });
           changes = dealt.changes;
-          note = `шкода ${parsed.amount}: щити −${dealt.shields}, корпус −${dealt.hull}`;
+          const kindText = parsed.damageType === undefined ? '' : ` (${parsed.damageType})`;
+          note = [`шкода ${parsed.amount}${kindText}: щити −${dealt.shields}, корпус −${dealt.hull}`, ...dealt.outcome].join('; ');
+        } else if (parsed.type === 'ship-turn') {
+          const start = shipTurnStart(now, summary, parsed.regenerate, parsed.recovered);
+          changes = start.changes;
+          note = ['початок ходу корабля', ...start.outcome].join('; ');
+          if (Object.keys(changes).length === 0) {
+            send(socket, { type: 'refused', reason: `початок ходу: ${start.outcome.join(', ') || 'нічого не змінилось'}` });
+            return;
+          }
+        } else if (parsed.type === 'ship-destruction-save') {
+          const conditions = now.conditions ?? [];
+          if (shipMaxima(summary, now).hull - (now.hullPointsLost ?? 0) > 0 || conditions.includes(SHIP_STABLE) || conditions.includes(SHIP_DESTROYED)) {
+            send(socket, { type: 'refused', reason: 'кидок на руйнування — лише коли корпус 0 і корабель не стабільний' });
+            return;
+          }
+          const save = shipDestructionSave(now, summary, parsed.roll);
+          changes = save.changes;
+          note = `кидок на руйнування ${parsed.roll}: ${save.outcome}`;
+        } else if (parsed.type === 'ship-power') {
+          const moved = shipPowerMove(now, summary, parsed.from, parsed.to);
+          if (moved === null) {
+            send(socket, { type: 'refused', reason: 'перекинути не можна: там немає кубика або тут немає місця' });
+            return;
+          }
+          changes = moved;
+          note = parsed.to === POWER_SPENT ? `живлення: витрачено з ${parsed.from}`
+            : parsed.from === POWER_SPENT ? `живлення: повернуто в ${parsed.to}`
+              : `живлення: ${parsed.from} → ${parsed.to}`;
         } else {
           const problem = checkShipState(parsed.changes, summary);
           if (problem !== null) {

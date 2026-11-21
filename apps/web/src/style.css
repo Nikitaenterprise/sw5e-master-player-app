@@ -714,3 +714,16 @@ a.ref-link:hover { color: var(--accent); }
 .ship-strip summary { cursor: pointer; }
 .ship-strip summary small { color: var(--muted); }
 .ship-strip .ship-bar { margin-top: .35rem; }
+.ship-alarm { color: var(--bad); font-size: .9rem; }
+.ship-strip summary .ship-alarm { color: var(--bad); }
+.ship-damage, .ship-turn { display: flex; flex-wrap: wrap; gap: .35rem .6rem; align-items: center; margin: .5rem 0; font-size: .85rem; }
+.ship-damage label, .ship-turn label { display: inline-flex; gap: .25rem; align-items: center; }
+.ship-damage select, .ship-power-move select {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem; padding: .15rem .3rem; font: inherit; font-size: .85rem;
+}
+.ship-turn small { color: var(--muted); }
+.ship-power-move { display: inline-flex; flex-wrap: wrap; gap: .3rem; align-items: center; font-size: .85rem; }
+.ship-power-move button {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: .35rem; padding: .15rem .5rem; font: inherit; font-size: .85rem; cursor: pointer;
+}
+.ship-crew { list-style: none; padding: 0; margin: .4rem 0; font-size: .9rem; display: flex; flex-direction: column; gap: .15rem; }

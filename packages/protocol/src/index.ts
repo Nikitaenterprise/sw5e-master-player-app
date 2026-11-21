@@ -81,7 +81,10 @@ export type ToServer =
   | NpcsClear
   | WeatherSet
   | ShipDamage
-  | ShipSet;
+  | ShipSet
+  | ShipTurn
+  | ShipDestructionSave
+  | ShipPower;
 
 /** Server → client. Answer to a greeting: your id and the full list of connected clients. */
 export interface Welcome {
@@ -1683,7 +1686,11 @@ export type LogLine = GameEvent | CombatEvent | Handout | NpcEvent | SceneEvent 
 // changes in the same log, by its own lines, and every screen sees it.
 
 /** What changes on a ship during a session. Its own field set: a ship has no hit points. */
-export const SHIP_FIELDS = ['hullPointsLost', 'shieldPointsLost', 'fuelUsed', 'powerDiceUsed', 'conditions'] as const;
+export const SHIP_FIELDS = [
+  'hullPointsLost', 'shieldPointsLost', 'fuelUsed', 'powerDiceUsed', 'conditions',
+  // Space combat (F-063): levels of system damage, and destruction saves at 0 hull.
+  'systemDamage', 'destructionSaves',
+] as const;
 export type ShipField = (typeof SHIP_FIELDS)[number];
 
 export interface ShipPowerUsed {
@@ -1697,6 +1704,10 @@ export interface ShipState {
   fuelUsed?: number;
   powerDiceUsed?: ShipPowerUsed;
   conditions?: string[];
+  /** Levels of system damage, 0 to 6 — the ship's exhaustion (F-063). */
+  systemDamage?: number;
+  /** Destruction saving throws while at 0 hull (F-063). */
+  destructionSaves?: { successes: number; failures: number };
 }
 
 /** A line of the log: a change to a ship, with from/to pairs like a character's. */
@@ -1750,6 +1761,8 @@ export const SHIP_SYSTEM_NAMES = ['communications', 'engines', 'shields', 'senso
 export interface ShipsMessage {
   type: 'ships';
   ships: Record<string, { summary: ShipSummary; state: ShipState }>;
+  /** What each level of system damage does, from the book's table (F-063). */
+  systemDamageLevels?: string[];
 }
 
 /** GM → server: damage to a ship. The shields take it first, the hull what is left. */
@@ -1757,6 +1770,11 @@ export interface ShipDamage {
   type: 'ship-damage';
   ship: string;
   amount: number;
+  /** One of `SHIP_DAMAGE_TYPES`; energy when absent (F-063). */
+  damageType?: string;
+  attack?: boolean;
+  critical?: boolean;
+  disable?: boolean;
 }
 
 /** GM → server: set some of a ship's state — a repair, shields back, fuel, power dice. */
@@ -1773,7 +1791,17 @@ export function parseShipDamage(data: unknown): ShipDamage | string {
   if (typeof o['ship'] !== 'string' || o['ship'] === '') return 'не вказано корабля';
   const amount = o['amount'];
   if (typeof amount !== 'number' || !Number.isInteger(amount) || amount < 1 || amount > 100_000) return 'шкода — ціле число від 1';
-  return { type: 'ship-damage', ship: o['ship'], amount };
+  const type = o['damageType'] ?? 'energy';
+  if (typeof type !== 'string' || SHIP_DAMAGE_TYPES[type] === undefined) return 'такого типу шкоди немає';
+  for (const flag of ['attack', 'critical', 'disable']) {
+    if (o[flag] !== undefined && typeof o[flag] !== 'boolean') return `«${flag}» — так або ні`;
+  }
+  return {
+    type: 'ship-damage', ship: o['ship'], amount, ...(type === 'energy' ? {} : { damageType: type }),
+    ...(o['attack'] === true ? { attack: true } : {}),
+    ...(o['critical'] === true ? { critical: true } : {}),
+    ...(o['disable'] === true ? { disable: true } : {}),
+  };
 }
 
 export function parseShipSet(data: unknown): ShipSet | string {
@@ -1814,25 +1842,309 @@ export function checkShipState(state: ShipState, ship: ShipSummary): string | nu
       if (!whole(used) || used > ship.power.perSystem) return `кубиків у системі ${system} — від 0 до ${ship.power.perSystem}`;
     }
   }
+  if (state.systemDamage !== undefined && (!whole(state.systemDamage) || state.systemDamage > 6)) return 'пошкодження систем — від 0 до 6';
+  if (state.destructionSaves !== undefined) {
+    const d = state.destructionSaves;
+    if (typeof d !== 'object' || d === null || !whole(d.successes) || !whole(d.failures) || d.successes > 3 || d.failures > 3) {
+      return 'кидки на руйнування — від 0 до 3';
+    }
+  }
   if (state.conditions !== undefined) return checkConditions(state.conditions);
   return null;
 }
 
+// ─── Space combat (F-063) ────────────────────────────────────────────────────
+
+/** Conditions of a ship that the rules name: at 0 hull, stabilised, gone. */
+export const SHIP_DISABLED = 'Disabled';
+export const SHIP_STABLE = 'Stable';
+export const SHIP_DESTROYED = 'Destroyed';
+
 /**
- * Damage as the book deals it: "Whenever a ship with shield points takes damage, the
- * shield takes the damage instead. If this damage reduces the ship's shield points to 0,
- * the hull takes any remaining damage." Returns the new totals lost, and how much each
- * took — for the note in the log.
+ * How each damage type lands on a ship, from the book's list ("Acid damage is less
+ * effective against shields, dealing only half damage to shields…"). 1 — in full,
+ * 0.5 — half, 0 — none. Sonic counts as in space: the fights at this table are.
  */
-export function shipDamage(state: ShipState, ship: ShipSummary, amount: number): { changes: ShipState; shields: number; hull: number } {
-  const shieldsLeft = Math.max(0, (ship.shields?.max ?? 0) - (state.shieldPointsLost ?? 0));
-  const toShields = Math.min(amount, shieldsLeft);
-  const hullLeft = Math.max(0, ship.hull.max - (state.hullPointsLost ?? 0));
-  const toHull = Math.min(amount - toShields, hullLeft);
+export const SHIP_DAMAGE_TYPES: Record<string, { shields: number; hull: number }> = {
+  energy: { shields: 1, hull: 1 },
+  kinetic: { shields: 1, hull: 1 },
+  force: { shields: 1, hull: 1 },
+  true: { shields: 1, hull: 1 },
+  acid: { shields: 0.5, hull: 1 },
+  cold: { shields: 0.5, hull: 1 },
+  fire: { shields: 0.5, hull: 1 },
+  ion: { shields: 1, hull: 0.5 },
+  lightning: { shields: 1, hull: 0.5 },
+  necrotic: { shields: 0.5, hull: 0.5 },
+  poison: { shields: 0, hull: 0 },
+  psychic: { shields: 0, hull: 0 },
+  sonic: { shields: 0, hull: 0 },
+};
+
+/**
+ * Hull and shield maxima as they stand: system damage level 4 halves "hit point
+ * maximum, shield point maximum, and shield regeneration rate".
+ */
+export function shipMaxima(ship: ShipSummary, state: ShipState): { hull: number; shields: number; regeneration: number } {
+  const halved = (state.systemDamage ?? 0) >= 4;
+  const cut = (n: number): number => (halved ? Math.floor(n / 2) : n);
+  return { hull: cut(ship.hull.max), shields: cut(ship.shields?.max ?? 0), regeneration: cut(ship.shields?.regeneration ?? 0) };
+}
+
+export interface ShipDamageOptions {
+  type?: string;
+  /** Hit by an attack roll: the armour's damage reduction applies ("never below 1"). */
+  attack?: boolean;
+  critical?: boolean;
+  /** The attacker chose to disable rather than destroy (primary or secondary weapon). */
+  disable?: boolean;
+}
+
+const withCondition = (list: string[] | undefined, add: string[], drop: string[] = []): string[] => {
+  const out = (list ?? []).filter((c) => !drop.includes(c));
+  for (const c of add) if (!out.includes(c)) out.push(c);
+  return out;
+};
+
+/**
+ * Damage as the book deals it (SotG, «Damage and Repairs»): the armour takes its part off
+ * a hit; the shields take the damage first, each type at its own rate; what gets past
+ * them goes to the hull at the hull's rate. At 0 hull the ship is disabled with a level of
+ * system damage — or destroyed when the damage left over reaches the hull maximum; ion
+ * only disables. A ship already at 0 hull takes a level of system damage for any damage
+ * (two for a critical hit) and is destroyed by damage reaching its hull maximum.
+ */
+export function shipDamage(
+  state: ShipState,
+  ship: ShipSummary,
+  amount: number,
+  options: ShipDamageOptions = {},
+): { changes: ShipState; shields: number; hull: number; outcome: string[] } {
+  const type = options.type ?? 'energy';
+  const rate = SHIP_DAMAGE_TYPES[type] ?? { shields: 1, hull: 1 };
+  const max = shipMaxima(ship, state);
+  const outcome: string[] = [];
+  let raw = amount;
+  if (options.attack === true && ship.damageReduction > 0 && raw > 0) {
+    raw = Math.max(1, raw - ship.damageReduction);
+    outcome.push(`броня −${amount - raw}`);
+  }
+  const lostShields = state.shieldPointsLost ?? 0;
+  const lostHull = state.hullPointsLost ?? 0;
+  const shieldsLeft = Math.max(0, max.shields - lostShields);
+  // How much of the raw damage the shields soak up, and what that costs them.
+  const toShields = rate.shields === 0 ? 0 : Math.min(shieldsLeft, Math.floor(raw * rate.shields));
+  const absorbed = rate.shields === 0 ? 0 : toShields === shieldsLeft ? Math.min(raw, Math.ceil(shieldsLeft / rate.shields)) : raw;
+  const past = raw - absorbed;
+  const hullDamage = Math.floor(past * rate.hull);
+  const hullLeft = Math.max(0, max.hull - lostHull);
+  const toHull = Math.min(hullDamage, hullLeft);
+
   const changes: ShipState = {};
-  if (toShields > 0) changes.shieldPointsLost = (state.shieldPointsLost ?? 0) + toShields;
-  if (toHull > 0) changes.hullPointsLost = (state.hullPointsLost ?? 0) + toHull;
-  return { changes, shields: toShields, hull: toHull };
+  if (toShields > 0) changes.shieldPointsLost = lostShields + toShields;
+  if (toHull > 0) changes.hullPointsLost = lostHull + toHull;
+
+  const conditions = state.conditions ?? [];
+  const level = state.systemDamage ?? 0;
+  if (hullLeft === 0 && hullDamage > 0 && !conditions.includes(SHIP_DESTROYED)) {
+    // Already down: any damage hurts the systems, and stability is gone.
+    if (hullDamage >= max.hull && type !== 'ion') {
+      changes.conditions = withCondition(conditions, [SHIP_DESTROYED], [SHIP_STABLE]);
+      outcome.push('корабель знищено');
+    } else {
+      changes.systemDamage = Math.min(6, level + (options.critical === true ? 2 : 1));
+      changes.conditions = withCondition(conditions, [SHIP_DISABLED], [SHIP_STABLE]);
+      outcome.push(`пошкодження систем ${changes.systemDamage}`);
+    }
+  } else if (hullLeft > 0 && toHull === hullLeft) {
+    const overflow = hullDamage - hullLeft;
+    if (type === 'ion' || options.disable === true) {
+      changes.conditions = withCondition(conditions, [SHIP_DISABLED, SHIP_STABLE]);
+      outcome.push('вимкнено й стабільно');
+    } else if (overflow >= max.hull) {
+      changes.conditions = withCondition(conditions, [SHIP_DESTROYED]);
+      outcome.push('корабель знищено');
+    } else {
+      changes.systemDamage = Math.min(6, level + 1);
+      changes.conditions = withCondition(conditions, [SHIP_DISABLED]);
+      changes.destructionSaves = { successes: 0, failures: 0 };
+      outcome.push(`корпус 0 — вимкнено, пошкодження систем ${changes.systemDamage}`);
+    }
+  }
+  return { changes, shields: toShields, hull: toHull, outcome };
+}
+
+/**
+ * The start of the ship's turn (step 4 of the book's order of combat): "the ship's
+ * reactor replenishes power dice" — into central storage, up to what it holds — and, if
+ * the crew so decides, the shields regenerate by their rate. `recovered` is the number
+ * the reactor gave when its recovery is a roll (1d2); a plain number needs nothing.
+ */
+export function shipTurnStart(
+  state: ShipState,
+  ship: ShipSummary,
+  regenerate: boolean,
+  recovered?: number,
+): { changes: ShipState; outcome: string[] } {
+  const changes: ShipState = {};
+  const outcome: string[] = [];
+  const fixed = /^\d+$/.test(ship.power.recovery) ? Number(ship.power.recovery) : null;
+  const gain = fixed ?? recovered ?? 0;
+  const used = state.powerDiceUsed ?? {};
+  const back = Math.min(gain, used.central ?? 0);
+  if (back > 0) {
+    changes.powerDiceUsed = { ...used, central: (used.central ?? 0) - back };
+    outcome.push(`реактор +${back} у центр`);
+  } else if (gain > 0) {
+    outcome.push('центр повний');
+  }
+  const disabled = (state.conditions ?? []).includes(SHIP_DISABLED);
+  if (regenerate && ship.shields !== null && !disabled) {
+    const lost = state.shieldPointsLost ?? 0;
+    const restored = Math.min(lost, shipMaxima(ship, state).regeneration);
+    if (restored > 0) {
+      changes.shieldPointsLost = lost - restored;
+      outcome.push(`щити +${restored}`);
+    }
+  }
+  return { changes, outcome };
+}
+
+/**
+ * A destruction saving throw: "Roll a d20. If the roll is 10 or higher, you succeed…
+ * On a failure, your ship suffers 1 level of system damage… a 1 counts as two failures…
+ * If you roll a 20, your ship regains 1 hull point." Three successes — stable. The roll is
+ * the die alone: it "isn't tied to any ability score", so there is nothing to add.
+ */
+export function shipDestructionSave(state: ShipState, ship: ShipSummary, roll: number): { changes: ShipState; outcome: string } {
+  const saves = state.destructionSaves ?? { successes: 0, failures: 0 };
+  const level = state.systemDamage ?? 0;
+  const conditions = state.conditions ?? [];
+  if (roll === 20) {
+    return {
+      changes: {
+        hullPointsLost: Math.max(0, shipMaxima(ship, state).hull - 1),
+        destructionSaves: { successes: 0, failures: 0 },
+        conditions: withCondition(conditions, [], [SHIP_DISABLED, SHIP_STABLE]),
+      },
+      outcome: '20 — корабель отримує 1 корпусу',
+    };
+  }
+  if (roll >= 10) {
+    const successes = saves.successes + 1;
+    if (successes >= 3) {
+      return {
+        changes: { destructionSaves: { successes: 0, failures: 0 }, conditions: withCondition(conditions, [SHIP_STABLE]) },
+        outcome: 'третій успіх — корабель стабільний',
+      };
+    }
+    return { changes: { destructionSaves: { ...saves, successes } }, outcome: `успіх ${successes} з 3` };
+  }
+  const hurt = roll === 1 ? 2 : 1;
+  const systemDamage = Math.min(6, level + hurt);
+  return {
+    changes: { destructionSaves: { ...saves, failures: Math.min(3, saves.failures + hurt) }, systemDamage },
+    outcome: roll === 1 ? `1 — два провали, пошкодження систем ${systemDamage}` : `провал, пошкодження систем ${systemDamage}`,
+  };
+}
+
+/** Not a storage: where a used die goes, and where a returned one comes from. */
+export const POWER_SPENT = 'spent';
+
+/**
+ * One power die, one step: moved between central storage and a system — "the crew
+ * determines how these dice are distributed through the power coupling" — or spent from a
+ * storage (`to: 'spent'`), or put back into one (`from: 'spent'`). Always relative to the
+ * state of the moment, so two people doing it at once never undo each other. Null — no
+ * such step: no die there, or no room here.
+ */
+export function shipPowerMove(state: ShipState, ship: ShipSummary, from: string, to: string): ShipState | null {
+  const pools = ['central', ...SHIP_SYSTEM_NAMES] as string[];
+  const known = (p: string): boolean => p === POWER_SPENT || pools.includes(p);
+  if (from === to || !known(from) || !known(to)) return null;
+  const used = { central: state.powerDiceUsed?.central ?? 0, systems: { ...(state.powerDiceUsed?.systems ?? {}) } };
+  const capacity = (pool: string): number => (pool === 'central' ? ship.power.central : ship.power.perSystem);
+  const spent = (pool: string): number => (pool === 'central' ? used.central : (used.systems[pool] ?? 0));
+  const set = (pool: string, n: number): void => {
+    if (pool === 'central') used.central = n;
+    else used.systems[pool] = n;
+  };
+  if (from !== POWER_SPENT && capacity(from) - spent(from) < 1) return null;
+  if (to !== POWER_SPENT && spent(to) < 1) return null;
+  if (from !== POWER_SPENT) set(from, spent(from) + 1);
+  if (to !== POWER_SPENT) set(to, spent(to) - 1);
+  return { powerDiceUsed: used };
+}
+
+/** GM → server: the ship's turn starts. */
+export interface ShipTurn {
+  type: 'ship-turn';
+  ship: string;
+  regenerate: boolean;
+  /** What the reactor gave, when its recovery is a roll. */
+  recovered?: number;
+}
+
+/** GM → server: a destruction saving throw — the d20 alone. */
+export interface ShipDestructionSave {
+  type: 'ship-destruction-save';
+  ship: string;
+  roll: number;
+}
+
+/** GM or a crew member → server: move a power die between storages. */
+export interface ShipPower {
+  type: 'ship-power';
+  ship: string;
+  from: string;
+  to: string;
+}
+
+export function parseShipTurn(data: unknown): ShipTurn | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'ship-turn') return 'не хід корабля';
+  if (typeof o['ship'] !== 'string' || o['ship'] === '') return 'не вказано корабля';
+  if (typeof o['regenerate'] !== 'boolean') return 'регенерація щитів — так або ні';
+  const r = o['recovered'];
+  if (r !== undefined && (typeof r !== 'number' || !Number.isInteger(r) || r < 0 || r > 20)) return 'відновлені кубики — ціле число';
+  return { type: 'ship-turn', ship: o['ship'], regenerate: o['regenerate'], ...(r === undefined ? {} : { recovered: r as number }) };
+}
+
+export function parseShipDestructionSave(data: unknown): ShipDestructionSave | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'ship-destruction-save') return 'не кидок на руйнування';
+  if (typeof o['ship'] !== 'string' || o['ship'] === '') return 'не вказано корабля';
+  const problem = checkInitiativeRoll(o['roll']);
+  if (problem !== null) return problem;
+  return { type: 'ship-destruction-save', ship: o['ship'], roll: o['roll'] as number };
+}
+
+export function parseShipPower(data: unknown): ShipPower | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'ship-power') return 'не кубик живлення';
+  if (typeof o['ship'] !== 'string' || o['ship'] === '') return 'не вказано корабля';
+  if (typeof o['from'] !== 'string' || typeof o['to'] !== 'string') return 'звідки й куди — назви сховищ';
+  return { type: 'ship-power', ship: o['ship'], from: o['from'], to: o['to'] };
+}
+
+/**
+ * The ship's initiative from the fight on the table: "Every PC on a ship rolls initiative
+ * normally, and the lowest initiative on each ship sets the initiative for that ship."
+ * Null until every crew member has rolled — the lowest is not known before that.
+ */
+export function shipInitiative(crew: string[], combat: CombatState | null): { value: number; by: string } | null {
+  if (combat === null || crew.length === 0) return null;
+  let lowest: { value: number; by: string } | null = null;
+  for (const slug of crew) {
+    const fighter = combat.order.find((f) => f.kind === 'character' && f.character === slug);
+    const value = fighter === undefined ? null : initiativeOf(fighter);
+    if (value === null) return null;
+    if (lowest === null || value < lowest.value) lowest = { value, by: slug };
+  }
+  return lowest;
 }
 
 /**

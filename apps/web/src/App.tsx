@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { NpcDesk, NpcsInScene } from './Npcs.js';
 import { WeatherBar } from './Weather.js';
@@ -168,8 +168,16 @@ export function App(): JSX.Element {
           key={slug}
           summary={ship.summary}
           state={ship.state}
-          damage={(amount) => controls.current?.shipDamage(slug, amount)}
+          damage={(amount, options) => controls.current?.shipDamage(slug, amount, options)}
           set={(changes) => controls.current?.shipSet(slug, changes)}
+          turn={(regenerate, recovered) => controls.current?.shipTurn(slug, regenerate, recovered)}
+          destructionSave={(roll) => controls.current?.shipDestructionSave(slug, roll)}
+          move={(from, to) => controls.current?.shipPower(slug, from, to)}
+          fighting={snapshot.combat !== null}
+          initiative={shipInitiative(ship.summary.crew.map((c) => c.character), snapshot.combat)}
+          party={snapshot.characters}
+          exhaustionLevels={snapshot.exhaustionLevels}
+          systemDamageLevels={snapshot.systemDamageLevels}
         />
       ))}
 
@@ -324,7 +332,16 @@ function PlayerSheet({
     <section>
       <Handouts handouts={snapshot.handouts} />
       {Object.entries(snapshot.ships).map(([slug, ship]) => (
-        <ShipStrip key={slug} summary={ship.summary} state={ship.state} character={character} />
+        <ShipStrip
+          key={slug}
+          summary={ship.summary}
+          state={ship.state}
+          character={character}
+          {...(snapshot.characters[character] === undefined ? {} : { crewState: snapshot.characters[character] })}
+          exhaustionLevels={snapshot.exhaustionLevels}
+          systemDamageLevels={snapshot.systemDamageLevels}
+          move={(from, to) => controls.current?.shipPower(slug, from, to)}
+        />
       ))}
       <NpcsInScene npcs={snapshot.npcs} />
       <WeatherBar weather={snapshot.weather} />

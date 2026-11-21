@@ -104,3 +104,20 @@ export class ShipStates {
     return event;
   }
 }
+
+/**
+ * The book's table of system damage, level by level (SotG, «Appendix A: Conditions»):
+ * "Disadvantage on ability checks", "1 Slowed Level"… — quoted, not retold (F-063).
+ */
+export function systemDamageTable(compendium: Compendium): string[] {
+  const body = String(compendium.all('starship-rule').find((d) => d.title === 'Appendix A: Conditions')?.['body'] ?? '');
+  const from = body.indexOf('#### System Damage');
+  if (from === -1) return [];
+  const out: string[] = [];
+  for (const line of body.slice(from).split('\n').slice(1)) {
+    if (line.startsWith('####')) break;
+    const m = /^\|\s*(\d+)\s*\|\s*(.+?)\s*\|\s*$/.exec(line.trim());
+    if (m !== null) out[Number(m[1]) - 1] = String(m[2]).replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+  }
+  return out.filter((e) => e !== undefined);
+}

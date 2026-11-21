@@ -248,6 +248,14 @@ try {
   ok('F-060 шкода 25: щити −22, корпус −3 — і це видно на телефоні Сандри',
     await wait(p1, (g) => shipOf(g)?.state.shieldPointsLost === 22 && shipOf(g)?.state.hullPointsLost === 3));
 
+  // F-063: space combat — the ship's turn, and the crew moving power from a phone.
+  gm.ws.send(JSON.stringify({ type: 'ship-turn', ship: 'mandrivna-zorya', regenerate: true }));
+  ok('F-063 початок ходу корабля: регенерація повернула щити (−22 → −10)',
+    await wait(p1, (g) => shipOf(g)?.state.shieldPointsLost === 10));
+  p2.ws.send(JSON.stringify({ type: 'ship-set', ship: 'mandrivna-zorya', changes: { hullPointsLost: 0 } }));
+  ok('F-063 гравець не лагодить корабель — це майстер',
+    await wait(p2, (g) => g.some((m) => m.type === 'refused' && m.reason === 'стан корабля міняє майстер')));
+
   // F-086: weather as an effect of the scene — the owner's own file, on everyone.
   const weatherOf = (g) => [...g].reverse().find((m) => m.type === 'weather')?.weather;
   const npcsOf = (g) => [...g].reverse().find((m) => m.type === 'npcs')?.npcs ?? [];
