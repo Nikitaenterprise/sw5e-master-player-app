@@ -119,12 +119,20 @@ describe('F-086 · погода як ефект сцени', () => {
     expect(problems, 'файл власника в репозиторії — без помилок').toEqual([]);
     expect(file.planet).toBe('Міролл');
     expect(file.weathers.map((w) => w.name)).toEqual(['Пара', 'Стіна', 'Молоко', 'Спів']);
-    expect(file.always?.name).toBe('Подих Бань');
+    expect(file.always?.name).toBe('Чисте повітря');
     expect(file.always?.effects, 'правило планети — на пʼять навичок від Мудрості').toHaveLength(5);
     expect(file.always?.note, 'і сказано, чого застосунок не рахує').toContain('додай +1 сам');
-    // The four weathers have no effects written yet — and the file says so, not the code.
-    expect(file.weathers.every((w) => w.effects.length === 0)).toBe(true);
-    expect(file.weathers[0]?.note).toContain('не вписані');
+    // The owner's rules as he wrote them (step L-06, 21.11.2026): three weathers give
+    // what the app can count, and the fourth says plainly that the table counts it all.
+    expect(file.weathers.find((w) => w.key === 'para')?.effects).toEqual([{ target: 'skill:Stealth', mode: 'disadvantage' }]);
+    expect(file.weathers.find((w) => w.key === 'stina')?.effects).toEqual([{ target: 'skill:Perception', mode: 'disadvantage' }]);
+    expect(file.weathers.find((w) => w.key === 'moloko')?.effects, 'туман — на дальні атаки (F-083)')
+      .toEqual([{ target: 'attack:ranged', mode: 'disadvantage' }]);
+    expect(file.weathers.find((w) => w.key === 'spiv')?.effects).toEqual([]);
+    expect(file.weathers.find((w) => w.key === 'spiv')?.note, 'і сказано, що тут рахує стіл').toContain('не рахує нічого');
+    // Every weather says something about itself: a weather with no effects and no note
+    // would be a silent nothing on the GM's screen.
+    expect(file.weathers.every((w) => w.note.trim() !== '')).toBe(true);
   });
 
   it('ефекти сцени збираються з правила планети й поточної погоди', () => {

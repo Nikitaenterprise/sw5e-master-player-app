@@ -273,7 +273,7 @@ try {
       && weatherOf(gm.got)?.choices?.length === 4 && weatherOf(gm.got)?.always?.effects?.length === 5
       && (weatherOf(gm.got)?.problems ?? []).length === 0);
   ok('F-086 правило планети вже в числах партії',
-    sheets['krinzh-dor'].explain['skill:Insight'].parts.some((p) => p.label === 'ефект: Подих Бань'));
+    sheets['krinzh-dor'].explain['skill:Insight'].parts.some((p) => p.label === 'ефект: Чисте повітря'));
   gm.ws.send(JSON.stringify({ type: 'weather-set', weather: 'stina' }));
   ok('F-086 майстер перемкнув погоду — її видно і в майстра, і в гравця',
     await wait(gm, (g) => weatherOf(g)?.now?.name === 'Стіна')
