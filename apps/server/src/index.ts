@@ -37,7 +37,6 @@ import {
   deathSaveOutcome,
   deathSavesOf,
   DEATH_SAVES_LIMIT,
-  MISMATCH_MARK,
   type CharacterState,
   combatForPlayer,
   parseCountsSet,
@@ -867,7 +866,7 @@ export async function start(
           send(socket, { type: 'refused', reason: 'рятівні вже скінчились — тепер вирішує майстер' });
           return;
         }
-        const outcome = deathSaveOutcome(save.roll, save.said);
+        const outcome = deathSaveOutcome(save.roll);
         const changes: CharacterState =
           outcome === 'revive'
             ? { hitPointsLost: max - 1, deathSaves: { successes: 0, failures: 0 } }
@@ -878,8 +877,7 @@ export async function start(
                 },
               };
         const words = { success: 'успіх', failure: 'провал', 'double-failure': 'два провали (1 на кубику)', revive: '20 — встає з 1 ХП' }[outcome];
-        const counted = save.said === undefined ? `${save.roll}` : `${save.said}${save.said === save.roll ? '' : ` ${MISMATCH_MARK} випало ${save.roll}`}`;
-        const event = state.apply(save.character, changes, authorOf(), `рятівний від смерті: ${counted} — ${words}`);
+        const event = state.apply(save.character, changes, authorOf(), `рятівний від смерті: ${save.roll} — ${words}`);
         if (typeof event === 'string') {
           send(socket, { type: 'refused', reason: event });
           return;
@@ -1382,9 +1380,15 @@ export async function start(
           ? intent.changes
           : rebase(current, intent.base, intent.changes);
 
+      // Below zero there is nothing (F-095): damage past the maximum is cut off, so a
+      // character at 0 stays at 0 and the sheet never shows a negative number.
+      const maxHp = sheets[intent.character]?.maxHitPoints;
+      if (maxHp !== undefined && typeof changes.hitPointsLost === 'number' && changes.hitPointsLost > maxHp) {
+        changes.hitPointsLost = maxHp;
+      }
+
       // Healed from 0 by any amount: the death saving throws start over — in the same
       // event, so an undo puts the marks back together with the hit points (F-058).
-      const maxHp = sheets[intent.character]?.maxHitPoints;
       if (current !== undefined && maxHp !== undefined && typeof changes.hitPointsLost === 'number'
         && changes.hitPointsLost < maxHp && changes.deathSaves === undefined) {
         const marks = deathSavesOf(current);

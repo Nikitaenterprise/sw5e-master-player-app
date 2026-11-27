@@ -99,19 +99,21 @@ describe('F-009 · стенд на втрату даних', () => {
     const dir = scratch();
     const { child, port } = await serveInProcess(dir);
     const probe = await start(0, options(scratch()));
-    const before = probe.state.one('alister')?.hitPointsLost as number;
+    const before = (probe.state.one('alister')?.temporaryHitPoints as number | undefined) ?? 0;
     await probe.close();
 
     const gm = await rawSocket(port, { role: 'gm' });
     // A stream of +1s, as fast as the socket takes them. Each is a difference (F-045),
-    // so the final number says exactly how many were applied.
+    // so the final number says exactly how many were applied. Temporary hit points,
+    // because they have no ceiling: lost hit points stop at the maximum since F-095, and
+    // a +1 past it is answered without a log line.
     let sent = 0;
     const pump = setInterval(() => {
       for (let i = 0; i < 5; i += 1) {
         sent += 1;
         gm.socket.send(JSON.stringify({
           type: 'intent', character: 'alister', id: `kill-${sent}`,
-          base: { hitPointsLost: 0 }, changes: { hitPointsLost: 1 },
+          base: { temporaryHitPoints: 0 }, changes: { temporaryHitPoints: 1 },
         }));
       }
     }, 2);
@@ -129,7 +131,7 @@ describe('F-009 · стенд на втрату даних', () => {
 
     // And the state after a restart is exactly the log: one +1 per line.
     server = await start(0, options(dir));
-    expect(server.state.one('alister')?.hitPointsLost).toBe(before + events.length);
+    expect(server.state.one('alister')?.temporaryHitPoints).toBe(before + events.length);
     expect(events.length, 'нічого не задвоїлось').toBe(inLog.size);
   }, 60_000);
 

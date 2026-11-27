@@ -60,13 +60,12 @@ async function screen(port: number, hello: object) {
 }
 
 describe('F-058 · рятівні від смерті', () => {
-  it('що робить кидок — за книгою; рахується число людини, крім 1 і 20 на кубику', () => {
+  it('що робить кидок — за книгою; рахується лише d20 (F-095: рятівний без модифікаторів)', () => {
     expect(deathSaveOutcome(10)).toBe('success');
     expect(deathSaveOutcome(9)).toBe('failure');
     expect(deathSaveOutcome(1)).toBe('double-failure');
     expect(deathSaveOutcome(20)).toBe('revive');
-    expect(deathSaveOutcome(8, 12), 'бонус гравця робить успіх').toBe('success');
-    expect(deathSaveOutcome(1, 15), 'одиниця на кубику — завжди два провали').toBe('double-failure');
+    expect(deathSaveOutcome(12)).toBe('success');
     expect(deathSavesOf({ deathSaves: { successes: 7, failures: -1 } })).toEqual({ successes: 3, failures: 0 });
     expect(checkDeathSaves({ successes: 4 })).toBe('рятівних — від 0 до 3');
     expect(parseDeathSave({ type: 'death-save', character: 'x', roll: 0 })).toBe('на d20 випадає від 1 до 20');
@@ -89,9 +88,9 @@ describe('F-058 · рятівні від смерті', () => {
     anam.send({ type: 'death-save', character: 'anam-melekh', roll: 8, said: 8 });
     await until(() => master.events().length === 2);
     expect(master.events()[1]?.note).toBe('рятівний від смерті: 8 — провал');
-    anam.send({ type: 'death-save', character: 'anam-melekh', roll: 6, said: 13 });
+    anam.send({ type: 'death-save', character: 'anam-melekh', roll: 13, said: 16 });
     await until(() => master.events().length === 3);
-    expect(master.events()[2]?.note, 'число гравця, і знак розбіжності').toBe('рятівний від смерті: 13 ≠ випало 6 — успіх');
+    expect(master.events()[2]?.note, 'сума гравця не рахується — лише кубик (F-095)').toBe('рятівний від смерті: 13 — успіх');
     expect(server.state.one('anam-melekh')?.deathSaves).toEqual({ successes: 1, failures: 1 });
 
     other.send({ type: 'death-save', character: 'anam-melekh', roll: 15 });
@@ -136,13 +135,13 @@ describe('F-058 · рятівні від смерті', () => {
 
   it('екрани: на телефоні три й три, у майстра рядок; у стрічці — словами', () => {
     const phone = renderToStaticMarkup(createElement(DeathSavesBlock, {
-      state: { deathSaves: { successes: 1, failures: 2 } }, counts: 'player', roll: () => undefined,
+      state: { deathSaves: { successes: 1, failures: 2 } }, roll: () => undefined,
     })).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     expect(phone).toContain('Ти без свідомості');
     expect(phone).toContain('успіхи ●○○');
     expect(phone).toContain('провали ●●○');
     const over = renderToStaticMarkup(createElement(DeathSavesBlock, {
-      state: { deathSaves: { successes: 0, failures: 3 } }, counts: 'player', roll: () => undefined,
+      state: { deathSaves: { successes: 0, failures: 3 } }, roll: () => undefined,
     }));
     expect(over).toContain('три провали — що це означає, вирішує майстер');
     expect(over, 'поля кидка вже немає').not.toContain('рятівний</button>');

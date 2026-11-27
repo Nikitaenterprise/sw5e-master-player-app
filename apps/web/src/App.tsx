@@ -365,11 +365,15 @@ function PlayerSheet({
       {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
         <DeathSavesBlock
           state={state}
-          counts={whoCounts(snapshot.counts, character)}
-          roll={(value, said) => controls.current?.deathSave(character, value, said)}
+          roll={(value) => controls.current?.deathSave(character, value)}
         />
       )}
-      <Managed state={state} waiting={waiting} sendChange={sendChange} />
+      <Managed
+        state={state}
+        waiting={waiting}
+        sendChange={sendChange}
+        {...(sheet === undefined ? {} : { maxHitPoints: sheet.maxHitPoints })}
+      />
       <Effects
         list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
         scene={sceneEffects(snapshot.weather)}
@@ -429,11 +433,14 @@ export function Managed({
   state,
   waiting = new Set(),
   sendChange,
+  maxHitPoints,
 }: {
   state: CharacterState;
   /** Fields with a change the server has not confirmed yet. */
   waiting?: Set<string>;
   sendChange: (changes: CharacterState) => void;
+  /** Lost hit points stop here: below zero there is nothing (F-095). */
+  maxHitPoints?: number;
 }): JSX.Element {
   const [fresh, setFresh] = useState('');
   const term = useTerm();
@@ -453,6 +460,7 @@ export function Managed({
     <div className="managed">
       {STEPS.map(({ field, steps }) => {
         const now = typeof state[field] === 'number' ? (state[field] as number) : 0;
+        const top = field === 'hitPointsLost' && maxHitPoints !== undefined ? maxHitPoints : Number.POSITIVE_INFINITY;
         return (
           <div key={field} className={`state-row${waiting.has(field) ? ' waiting' : ''}`}>
             <span className="label">{LABELS[field]}</span>
@@ -462,8 +470,8 @@ export function Managed({
                 <button
                   key={step}
                   type="button"
-                  disabled={now + step < 0}
-                  onClick={() => sendChange({ [field]: Math.max(0, now + step) })}
+                  disabled={now + step < 0 || (step > 0 && now >= top)}
+                  onClick={() => sendChange({ [field]: Math.min(top, Math.max(0, now + step)) })}
                 >
                   {step > 0 ? `+${step}` : step}
                 </button>
@@ -1616,17 +1624,16 @@ export function deathSavesText(state: CharacterState): string {
 
 /**
  * At 0 hit points (F-058): the phone shows the three and three, and takes the d20 rolled
- * at the table — two numbers when the person counts (ADR 0007). The book decides what a
- * roll does; three failures only stop the rolling — the table decides the rest.
+ * at the table. A death save is a bare d20 — nothing is added to it (F-095), so there is
+ * one field whoever counts. The book decides what a roll does; three failures only stop
+ * the rolling — the table decides the rest.
  */
 export function DeathSavesBlock({
   state,
-  counts,
   roll,
 }: {
   state: CharacterState;
-  counts: WhoCounts;
-  roll: (value: number, said?: number) => void;
+  roll: (value: number) => void;
 }): JSX.Element {
   const d = deathSavesOf(state);
   const over = d.failures >= DEATH_SAVES_LIMIT || d.successes >= DEATH_SAVES_LIMIT;
@@ -1642,11 +1649,10 @@ export function DeathSavesBlock({
       ) : (
         <>
           <p className="hint">
-            {counts === 'player'
-              ? 'Кинь d20, впиши, що випало, і що вийшло разом. 10 і більше — успіх, 1 — два провали, 20 — встаєш з 1 ХП.'
-              : 'Кинь d20 і впиши, що випало. 10 і більше — успіх, 1 — два провали, 20 — встаєш з 1 ХП.'}
+            Кинь d20 і впиши, що випало — без жодних модифікаторів. 10 і більше — успіх, 1 — два
+            провали, 20 — встаєш з 1 ХП.
           </p>
-          <RollInput label="Рятівний від смерті: що випало на d20" sum={counts === 'player' ? 'optional' : 'none'} button="рятівний" submit={roll} />
+          <RollInput label="Рятівний від смерті: d20" sum="none" button="рятівний" submit={(value) => roll(value)} />
         </>
       )}
     </section>
@@ -1697,6 +1703,20 @@ export function MyTurn({
 }): JSX.Element {
   const term = useTerm();
   const last = combat.lastAttack?.character === character && combat.lastAttack.round === combat.round ? combat.lastAttack : undefined;
+  const lost = typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0;
+  if (sheet.maxHitPoints - lost <= 0) {
+    // Unconscious (F-095): the whole turn is one death save — no attacks, no pools, and
+    // no "turn over" either; the GM moves the turn on.
+    return (
+      <section className="my-turn down">
+        <h2>Твій хід · раунд {combat.round}</h2>
+        <p className="hint">
+          Ти без свідомості: у цей хід — лише рятівний від смерті. Кинь його в блоці «Ти без
+          свідомості» вище; хід далі передасть майстер.
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="my-turn">
       <h2>Твій хід · раунд {combat.round}</h2>

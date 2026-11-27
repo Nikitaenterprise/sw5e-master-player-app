@@ -1098,13 +1098,14 @@ export function parseDeathSave(data: unknown): DeathSave | string {
 
 /**
  * What a death save does, by the book: 10 or more is a success, a natural 1 two
- * failures, a natural 20 brings the character back with 1 hit point. The die decides
- * the 1 and the 20; for the rest the person's number counts (ADR 0007).
+ * failures, a natural 20 brings the character back with 1 hit point. A death save is a
+ * bare d20 — no ability, no proficiency — so only the die counts (F-095). A total the
+ * person may still send is ignored.
  */
-export function deathSaveOutcome(roll: number, said?: number): 'success' | 'failure' | 'double-failure' | 'revive' {
+export function deathSaveOutcome(roll: number): 'success' | 'failure' | 'double-failure' | 'revive' {
   if (roll === 20) return 'revive';
   if (roll === 1) return 'double-failure';
-  return (said ?? roll) >= 10 ? 'success' : 'failure';
+  return roll >= 10 ? 'success' : 'failure';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
