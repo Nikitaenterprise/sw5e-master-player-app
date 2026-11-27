@@ -1,0 +1,434 @@
+<title>Варіанти вигляду Holotable</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;700&family=JetBrains+Mono:wght@500;700&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@500;600&family=Philosopher:wght@400;700&family=Oswald:wght@500;600&family=Fira+Code:wght@500;600&family=Russo+One&family=Play:wght@400;700&family=Ubuntu+Mono:wght@400;700&family=Inter:wght@400;600;700&family=PT+Mono&display=swap">
+<style>
+/* Layout: a gallery of eight phone screens, the same content in each, one style per card.
+   The page itself commits to one dark look on purpose: every variant is a dark UI. */
+:root {
+  color-scheme: dark;
+  --page-bg: #0B0C10;
+  --page-card: #13151B;
+  --page-line: #262A33;
+  --page-text: #E8EAF0;
+  --page-muted: #9AA1AE;
+  --page-accent: #7CC4FF;
+  --page-head: "Exo 2", "Segoe UI", system-ui, sans-serif;
+  --page-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--page-text);
+  font: 15px/1.55 var(--page-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1520px; margin: 0 auto; padding-block: 28px 56px; display: flex; flex-direction: column; gap: 28px; }
+header.intro { display: flex; flex-direction: column; gap: 10px; max-width: 74ch; }
+header.intro h1 { font: 700 clamp(26px, 4vw, 36px)/1.15 var(--page-head); margin: 0; text-wrap: balance; letter-spacing: .01em; }
+header.intro p { margin: 0; color: var(--page-muted); }
+header.intro strong { color: var(--page-text); font-weight: 600; }
+nav.jump { display: flex; flex-wrap: wrap; gap: 8px; }
+nav.jump a {
+  color: var(--page-text); text-decoration: none; font-size: 13px;
+  padding: 6px 10px; border: 1px solid var(--page-line); background: var(--page-card);
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+nav.jump a:hover, nav.jump a:focus-visible { border-color: var(--page-accent); color: var(--page-accent); outline: none; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; color: var(--page-muted); }
+.controls button {
+  font: inherit; color: var(--page-text); background: var(--page-card); border: 1px solid var(--page-line);
+  padding: 8px 12px; min-height: 40px; cursor: pointer;
+}
+.controls button[aria-pressed="true"] { border-color: var(--page-accent); color: var(--page-accent); }
+.controls button:focus-visible { outline: 2px solid var(--page-accent); outline-offset: 2px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 24px; }
+.card { min-width: 0; background: var(--page-card); border: 1px solid var(--page-line); padding: 18px; display: flex; flex-direction: column; gap: 14px; scroll-margin-top: 16px; }
+.card h2 { margin: 0; font: 700 20px/1.2 var(--page-head); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.card h2 .num { font: 600 13px/1 "JetBrains Mono", ui-monospace, monospace; color: var(--page-muted); letter-spacing: .08em; }
+.card .ref { margin: 0; font-size: 13px; color: var(--page-muted); }
+.card .ref b { color: var(--page-text); font-weight: 600; }
+.card .what { margin: 0; }
+.procon { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; font-size: 13.5px; }
+.procon div { min-width: 0; }
+.procon h3 { margin: 0 0 4px; font: 600 11px/1.3 var(--page-body); text-transform: uppercase; letter-spacing: .1em; color: var(--page-muted); }
+.procon ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.fit { font-size: 13px; padding: 8px 10px; border-left: 3px solid var(--page-line); color: var(--page-muted); }
+.fit.good { border-color: #4BE38A; }
+.fit.warn { border-color: #FFB547; }
+.stage { display: flex; justify-content: center; }
+footer.note { color: var(--page-muted); font-size: 13px; max-width: 80ch; display: flex; flex-direction: column; gap: 6px; }
+
+/* ── The phone ────────────────────────────────────────────────────────────── */
+.ph {
+  width: min(360px, 100%);
+  height: 720px;
+  border: 9px solid #000;
+  border-radius: 46px;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--f-body);
+  box-shadow: 0 0 0 1px #2a2d35, 0 30px 60px rgb(0 0 0 / .5);
+}
+.scr { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; background: var(--backdrop, var(--bg)); scrollbar-width: none; }
+.scr::-webkit-scrollbar { display: none; }
+
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 8px 24px rgb(0 0 0 / .35);
+}
+
+.top { position: sticky; top: 0; z-index: 3; padding: 30px 14px 10px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--edge); }
+.who { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.who .nm { min-width: 0; }
+.who .nm b { display: block; font: var(--w-head, 700) 17px/1.15 var(--f-head); letter-spacing: var(--head-track, .04em); text-transform: var(--head-case, uppercase); overflow-wrap: anywhere; }
+.who .nm span { font-size: 12px; color: var(--muted); }
+.fx {
+  flex: none; font: 600 12px/1 var(--f-num); color: var(--effect); border: 1px solid var(--effect);
+  padding: 7px 9px; background: transparent; min-height: 30px; display: inline-flex; align-items: center; gap: 5px;
+  clip-path: polygon(var(--cut-s) 0, 100% 0, 100% calc(100% - var(--cut-s)), calc(100% - var(--cut-s)) 100%, 0 100%, 0 var(--cut-s));
+}
+.stats { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)) auto; gap: 6px; align-items: end; }
+.st { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.st small { font: 600 10px/1 var(--f-body); color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+.st b { font: var(--w-num, 700) 20px/1 var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st b em { font-style: normal; color: var(--effect); }
+.st b i { font-style: normal; font-size: 13px; color: var(--muted); }
+.hpbar { height: 4px; background: var(--edge); margin-top: 4px; position: relative; }
+.hpbar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 71%; background: var(--ok); }
+.insp { font-size: 18px; color: var(--accent); line-height: 1; align-self: center; }
+
+.urgent { display: flex; flex-direction: column; gap: 6px; }
+.ug {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 44px;
+  background: var(--ug-bg, var(--alert)); color: var(--ug-fg, #fff);
+  clip-path: polygon(var(--cut-s) 0, 100% 0, 100% calc(100% - var(--cut-s)), calc(100% - var(--cut-s)) 100%, 0 100%, 0 var(--cut-s));
+}
+.ug.mail { background: var(--ug2-bg, var(--accent)); color: var(--ug2-fg, #000); }
+.ug .ic { font-size: 16px; flex: none; }
+.ug .tx { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.ug .tx b { font: 700 13px/1.15 var(--f-head); letter-spacing: .08em; text-transform: uppercase; }
+.ug .tx span { font-size: 12px; opacity: .9; overflow-wrap: anywhere; }
+.ug .go { font: 700 18px/1 var(--f-num); flex: none; }
+.pulse .ug { animation: pulse 2s ease-in-out infinite; }
+.pulse .ug.mail { animation-delay: 1s; }
+@keyframes pulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.35); } }
+@media (prefers-reduced-motion: reduce) { .pulse .ug { animation: none; } }
+
+.body { padding: 12px 14px 18px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+
+.pn { position: relative; isolation: isolate; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  --shape: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+.pn::before, .pn::after { content: ""; position: absolute; z-index: -1; clip-path: var(--shape); }
+.pn::before { inset: 0; background: var(--edge); }
+.pn::after { inset: 1px; background: var(--surface); }
+.pn h4 { margin: 0; font: 600 11px/1.2 var(--f-label, var(--f-body)); letter-spacing: var(--label-track, .12em); text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.pn h4 span { color: var(--text); letter-spacing: .04em; text-transform: none; font-family: var(--f-num); }
+
+.eff { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.eff .dot { flex: none; width: 8px; height: 8px; margin-top: 5px; background: var(--effect); transform: rotate(45deg); }
+.eff div { min-width: 0; font-size: 13.5px; }
+.eff b { font-weight: 600; }
+.eff small { display: block; color: var(--muted); font-size: 12px; }
+
+.ab { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.a { padding: 8px 6px 7px; text-align: center; border: 1px solid var(--edge); background: var(--tile, transparent); min-width: 0; }
+.a small { display: block; font: 600 10px/1 var(--f-body); letter-spacing: .12em; color: var(--muted); }
+.a b { display: block; font: var(--w-num, 700) 22px/1.15 var(--f-num); font-variant-numeric: tabular-nums; }
+.a i { font: normal 11px/1 var(--f-num); color: var(--muted); }
+.a.fxd { border-color: var(--effect); }
+.a.fxd b, .a.fxd i { color: var(--effect); }
+
+.act { display: flex; flex-direction: column; gap: 8px; }
+.w { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border: 1px solid var(--edge); min-width: 0; background: var(--tile, transparent); }
+.w .k { flex: none; font: 600 10px/1.3 var(--f-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); width: 46px; padding-top: 2px; }
+.w .d { min-width: 0; flex: 1; }
+.w .d b { display: block; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.w .d span { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.w .dice { flex: none; font: 700 13px/1.3 var(--f-num); color: var(--accent); text-align: right; }
+.w.no { border-color: var(--alert); }
+.w.no .d b { color: var(--alert); }
+.w.no .d span { color: var(--text); }
+.pips { display: flex; gap: 5px; align-items: center; }
+.pips i { width: 11px; height: 11px; border: 1px solid var(--accent); transform: rotate(45deg); }
+.pips i.on { background: var(--accent); }
+.pips span { font: 600 12px/1 var(--f-num); color: var(--muted); margin-left: 6px; }
+
+.tabs { position: sticky; bottom: 0; z-index: 3; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 4px 22px; border-top: 1px solid var(--edge); margin-top: auto; }
+.tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; min-height: 48px; color: var(--muted); font: 600 10.5px/1.1 var(--f-body); letter-spacing: .02em; position: relative; min-width: 0; }
+.tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: square; }
+.tab.on { color: var(--accent); }
+.tab.on::before { content: ""; position: absolute; top: 0; left: 22%; right: 22%; height: 2px; background: var(--accent); box-shadow: var(--tab-glow, none); }
+.tab .bd { position: absolute; top: 2px; right: 18%; min-width: 16px; height: 16px; padding: 0 4px; background: var(--alert); color: #fff; font: 700 10px/16px var(--f-num); text-align: center; }
+
+/* ── 1 · Голостіл ─────────────────────────────────────────────────────────── */
+.v1 { --bg:#07090F; --surface:#0E1320; --edge:#24304A; --text:#E6ECF5; --muted:#8C9AB3; --accent:#4FB4FF; --alert:#FF4D5E; --ok:#4BE38A; --effect:#4FB4FF;
+  --glass: rgb(14 19 32 / .72); --glass-hi: rgb(255 255 255 / .14); --cut: 10px; --cut-s: 6px;
+  --f-head:"Exo 2", system-ui, sans-serif; --f-num:"JetBrains Mono", ui-monospace, monospace; --f-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --backdrop: radial-gradient(1px 1px at 20% 30%, #9cc9ff 50%, transparent 51%) 0 0/90px 110px, radial-gradient(1px 1px at 70% 80%, #6f8fbf 50%, transparent 51%) 0 0/130px 90px, radial-gradient(120% 60% at 50% 0%, #10203c 0%, #07090F 60%);
+  --tab-glow: 0 0 10px #4FB4FF; --ug-bg:#3a0f18; --ug-fg:#FFD7DC; --ug2-bg:#0d2a44; --ug2-fg:#CFE8FF; }
+.v1 .ug { border-left: 3px solid var(--alert); }
+.v1 .ug.mail { border-left-color: var(--accent); }
+.v1 .a, .v1 .w { border-color: #1C2740; }
+
+/* ── 2 · Імперський протокол ─────────────────────────────────────────────── */
+.v2 { --bg:#000; --surface:#0A0A0A; --edge:#3A3A3A; --text:#F2F2F2; --muted:#9A9A9A; --accent:#FFFFFF; --alert:#E5242C; --ok:#F2F2F2; --effect:#FFFFFF;
+  --glass: rgb(8 8 8 / .82); --glass-hi: rgb(255 255 255 / .08); --cut: 4px; --cut-s: 3px;
+  --f-head:"IBM Plex Sans Condensed", "Arial Narrow", sans-serif; --f-num:"IBM Plex Mono", ui-monospace, monospace; --f-body:"IBM Plex Sans Condensed", system-ui, sans-serif;
+  --head-track:.16em; --label-track:.22em;
+  --backdrop: repeating-linear-gradient(0deg, transparent 0 23px, #111 23px 24px), #000;
+  --ug-bg:#E5242C; --ug-fg:#fff; --ug2-bg:#F2F2F2; --ug2-fg:#000; }
+.v2 .a.fxd, .v2 .fx { border-style: dashed; }
+.v2 .a.fxd b { text-decoration: underline; text-underline-offset: 3px; }
+.v2 .pips i { transform: none; border-radius: 0; }
+.v2 .eff .dot { transform: none; }
+.v2 .tab.on { color: #fff; }
+.v2 .tab.on::before { left: 0; right: 0; }
+
+/* ── 3 · Стара Республіка ────────────────────────────────────────────────── */
+.v3 { --bg:#071318; --surface:#0D1F26; --edge:#2D4A52; --text:#EDE6D6; --muted:#9FB1AE; --accent:#D9B25F; --alert:#E2574C; --ok:#6FD3A8; --effect:#D9B25F;
+  --glass: rgb(9 28 34 / .74); --glass-hi: rgb(217 178 95 / .22); --cut: 8px; --cut-s: 5px;
+  --f-head:"Philosopher", Georgia, serif; --f-num:"IBM Plex Mono", ui-monospace, monospace; --f-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --head-case: none; --head-track: .03em;
+  --backdrop: radial-gradient(80% 50% at 50% 0%, #10323a 0%, transparent 70%), radial-gradient(60% 40% at 100% 100%, #14282a 0%, transparent 70%), #071318;
+  --ug-bg:#4a1a16; --ug-fg:#FFE2D6; --ug2-bg:#3b3015; --ug2-fg:#F6E3B5; }
+.v3 .pn { --shape: polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, var(--cut) 100%, 0 calc(100% - var(--cut)), 0 var(--cut)); }
+.v3 .pn::after { box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 4px rgb(217 178 95 / .28); }
+.v3 .pn h4 { color: var(--accent); }
+.v3 .ug { border-top: 1px solid rgb(255 255 255 / .2); }
+
+/* ── 4 · Тактичний штаб ──────────────────────────────────────────────────── */
+.v4 { --bg:#0C0F0B; --surface:#141A13; --edge:#3C4A33; --text:#E3E8D8; --muted:#94A088; --accent:#F0B43C; --alert:#E0503A; --ok:#9BCB5B; --effect:#F0B43C;
+  --glass: rgb(16 22 15 / .78); --glass-hi: rgb(240 180 60 / .18); --cut: 0px; --cut-s: 0px;
+  --f-head:"Oswald", "Arial Narrow", sans-serif; --f-num:"Fira Code", ui-monospace, monospace; --f-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --head-track:.1em; --label-track:.16em;
+  --backdrop: linear-gradient(#1b2418 1px, transparent 1px) 0 0/24px 24px, linear-gradient(90deg, #1b2418 1px, transparent 1px) 0 0/24px 24px, #0C0F0B;
+  --ug-bg:#3d1610; --ug-fg:#FFD2C6; --ug2-bg:#3a2a0c; --ug2-fg:#FFE3A6; }
+/* brackets at the corners instead of cuts */
+.v4 .pn::before { background:
+  linear-gradient(var(--accent), var(--accent)) 0 0/12px 2px no-repeat, linear-gradient(var(--accent), var(--accent)) 0 0/2px 12px no-repeat,
+  linear-gradient(var(--accent), var(--accent)) 100% 100%/12px 2px no-repeat, linear-gradient(var(--accent), var(--accent)) 100% 100%/2px 12px no-repeat,
+  var(--edge); }
+.v4 .ug { border: 1px solid currentColor; }
+.v4 .pips i { transform: none; }
+
+/* ── 5 · Фронт ───────────────────────────────────────────────────────────── */
+.v5 { --bg:#101215; --surface:#1A1D22; --edge:#2E333B; --text:#FFFFFF; --muted:#A9B0BB; --accent:#FF8A1F; --alert:#FF3B3B; --ok:#4CD97B; --effect:#FF8A1F;
+  --glass: rgb(18 20 24 / .76); --glass-hi: rgb(255 255 255 / .1); --cut: 14px; --cut-s: 8px;
+  --f-head:"Russo One", "Arial Black", sans-serif; --f-num:"JetBrains Mono", ui-monospace, monospace; --f-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --w-head: 400; --head-track:.02em;
+  --backdrop: linear-gradient(160deg, #1b1f26 0%, #101215 45%, #15110d 100%);
+  --ug-bg:#FF3B3B; --ug-fg:#fff; --ug2-bg:#FF8A1F; --ug2-fg:#111; }
+.v5 .pn { --shape: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut))); }
+.v5 .ug, .v5 .fx { transform: skewX(-12deg); margin-inline: 6px; clip-path: none; }
+.v5 .ug > *, .v5 .fx > * { transform: skewX(12deg); }
+.v5 .st b { font-size: 24px; }
+.v5 .a b { font-size: 26px; }
+.v5 .tab.on::before { transform: skewX(-20deg); height: 3px; }
+
+/* ── 6 · Повстанська майстерня ───────────────────────────────────────────── */
+.v6 { --bg:#14100C; --surface:#1E1813; --edge:#4A3B2C; --text:#F3E9DA; --muted:#B3A28C; --accent:#F27A1A; --alert:#E04A3A; --ok:#8FC46A; --effect:#F2C14E;
+  --glass: rgb(28 22 17 / .78); --glass-hi: rgb(255 230 200 / .12); --cut: 14px; --cut-s: 7px;
+  --f-head:"Play", system-ui, sans-serif; --f-num:"Ubuntu Mono", ui-monospace, monospace; --f-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --head-track:.18em; --label-track:.24em;
+  --backdrop: radial-gradient(90% 60% at 0% 0%, #2a1c10 0%, transparent 60%), #14100C;
+  --ug-fg:#fff; --ug2-fg:#1a1007; }
+.v6 .ug { background: repeating-linear-gradient(135deg, #7a1f14 0 10px, #5e170f 10px 20px); }
+.v6 .ug.mail { background: repeating-linear-gradient(135deg, #F27A1A 0 10px, #d96a12 10px 20px); }
+.v6 .st b, .v6 .a b { font-size: 23px; }
+.v6 .tab.on::before { height: 3px; background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 9px); }
+
+/* ── 7 · Рідке скло ──────────────────────────────────────────────────────── */
+.v7 { --bg:#0b0820; --surface: rgb(24 18 54 / .42); --edge: rgb(255 255 255 / .2); --text:#FFFFFF; --muted: rgb(255 255 255 / .72); --accent:#7FD4FF; --alert:#FF6B7A; --ok:#6FF0A8; --effect:#9FE3FF;
+  --glass: rgb(30 24 70 / .38); --glass-hi: rgb(255 255 255 / .35); --cut: 6px; --cut-s: 4px;
+  --f-head:"Inter", system-ui, -apple-system, sans-serif; --f-num:"JetBrains Mono", ui-monospace, monospace; --f-body:"Inter", system-ui, -apple-system, sans-serif;
+  --head-case: none; --head-track: 0;
+  --backdrop: radial-gradient(60% 40% at 15% 20%, #5a2fb8 0%, transparent 70%), radial-gradient(50% 40% at 90% 45%, #1e7fb0 0%, transparent 70%), radial-gradient(60% 50% at 30% 95%, #b03a7a 0%, transparent 70%), #0b0820;
+  --tile: rgb(255 255 255 / .04);
+  --ug-bg: rgb(255 80 100 / .55); --ug-fg:#fff; --ug2-bg: rgb(110 200 255 / .45); --ug2-fg:#fff; }
+.v7 .pn::after { -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%); }
+.v7 .ug { -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+
+/* ── 8 · Ретро-фосфор ────────────────────────────────────────────────────── */
+.v8 { --bg:#050302; --surface:#0D0804; --edge:#5A3A10; --text:#FFB347; --muted:#B07A2E; --accent:#FFCC66; --alert:#FF5533; --ok:#FFB347; --effect:#FFE7A8;
+  --glass: rgb(14 8 3 / .84); --glass-hi: rgb(255 179 71 / .18); --cut: 8px; --cut-s: 5px;
+  --f-head:"PT Mono", ui-monospace, monospace; --f-num:"PT Mono", ui-monospace, monospace; --f-body:"PT Mono", ui-monospace, monospace;
+  --w-head: 400; --w-num: 400; --head-track:.12em;
+  --backdrop: #050302;
+  --ug-bg:#FF5533; --ug-fg:#050302; --ug2-bg:#FFB347; --ug2-fg:#050302; }
+.v8 { text-shadow: 0 0 6px rgb(255 179 71 / .45); }
+.v8 .scan { position: absolute; inset: 0; pointer-events: none; z-index: 5; background: repeating-linear-gradient(0deg, rgb(0 0 0 / .22) 0 1px, transparent 1px 3px); }
+.v8 .ug .tx b, .v8 .ug .tx span { text-shadow: none; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h1>Вісім варіантів вигляду Holotable</h1>
+    <p>Скрізь той самий екран: <strong>телефон Крінж-Дора, вкладка «Лист»</strong>, щойно майстер почав бій і роздав записку. Згори — дві термінові смуги, як вирішили 28.11.2026. Модифікатори, КБ 13, ініціатива +2, максимум ХП 34 (з бакта-інʼєктором 38), кубики переваги 4d4, кріопістолет і маневри — справжні, з рушія; значення характеристик під модифікаторами й поточні ХП — приклад.</p>
+    <p>Відрізняється лише стиль: кольори, форма кутів, шрифти, скло. <strong>Обери номер</strong>, або змішай: «кольори з 2, кути з 5».</p>
+    <p>Тут шрифти вантажаться з Google Fonts лише для показу. У застосунку обраний шрифт лежатиме файлом, бо за столом інтернету немає. Без інтернету ця сторінка покаже системні шрифти.</p>
+  </header>
+
+  <nav class="jump" aria-label="До варіанта"></nav>
+
+  <div class="controls">
+    <button type="button" id="pulse-toggle" aria-pressed="true">Пульс термінових смуг: увімкнено</button>
+    <span>Прокручуй екран телефона, щоб побачити скло над вмістом.</span>
+  </div>
+
+  <section class="grid" id="grid" aria-label="Варіанти"></section>
+
+  <footer class="note">
+    <p>Сторінка лежить у репозиторії: <code>docs/дизайн/варіанти.html</code>. Канон — <code>docs/дизайн/ДИЗАЙН-ІНТЕРФЕЙСУ.md</code>, джерела — <code>docs/дизайн/ДЖЕРЕЛА.md</code>.</p>
+    <p>Орієнтири — мова форм жанру, а не копія чужої графіки: жодних логотипів, кадрів і шрифтів з ігор чи серіалів.</p>
+  </footer>
+</div>
+
+<script>
+const VARIANTS = [
+  { id: 'v1', name: 'Голостіл', ref: 'чернетка дизайну + Star Wars: The Old Republic',
+    what: 'Темний космос, тонкі сині лінії, два зрізані кути, скляні смуги з синім відтінком. Те, що зараз записано в каноні.',
+    pro: ['найспокійніший для очей увечері', 'числа й ефекти виділені одним кольором', 'скло лише на краях'],
+    con: ['найменш «характерний»', 'синій на синьому губить межі панелей'],
+    fit: ['good', 'Збігається з каноном як є.'] },
+  { id: 'v2', name: 'Імперський протокол', ref: 'Andor — імперська ОС: «чорне й біле з дотиками червоного»',
+    what: 'Чисто чорне й біле, червоний лише для тривоги. Майже без світіння, дрібні зрізи, вузький строгий шрифт, підписи з великою розрядкою.',
+    pro: ['найвищий контраст і читабельність', 'термінове видно миттєво: червоне — лише воно', 'найлегший для телефона'],
+    con: ['холодний, «клінічний» — може здатися нудним', 'ефект видно лише підкресленням і пунктиром, без кольору'],
+    fit: ['good', 'Лягає на канон. Міняються лише кольори.'] },
+  { id: 'v3', name: 'Стара Республіка', ref: 'Star Wars: The Old Republic і Knights of the Old Republic',
+    what: 'Глибокий синьо-бірюзовий із золотом, кути зрізані з усіх чотирьох боків, тонка друга рамка всередині, заголовки з засічками.',
+    pro: ['найтепліший і «фентезійний»', 'золоті заголовки панелей легко шукати очима'],
+    con: ['подвійні рамки — більше дрібних деталей на малому екрані', 'шрифт із засічками гірше читається дрібним'],
+    fit: ['warn', 'Відходить від канону: чотири зрізи замість двох, заголовки з засічками.'] },
+  { id: 'v4', name: 'Тактичний штаб', ref: 'Star Wars: Empire at War — штабний екран',
+    what: 'Оливково-сірий, бурштинові дані, сітка на тлі, кутові скоби замість зрізів, вузькі військові заголовки.',
+    pro: ['відчуття «командного пункту» — добре для бою', 'скоби не обрізають фокус і рамки'],
+    con: ['сітка на тлі додає шуму', 'оливковий — найменш «зоряновійськовий» колір'],
+    fit: ['warn', 'Відходить від канону: скоби замість зрізаних кутів.'] },
+  { id: 'v5', name: 'Фронт', ref: 'Star Wars Battlefront і Star Wars: Hunters — нахил уперед',
+    what: 'Великі жирні числа, помаранчеве на графіті, смуги й значки нахилені вперед, кути зрізані по діагоналі.',
+    pro: ['найбільші числа — видно з відстані руки', 'найдинамічніший, «ігровий»'],
+    con: ['нахил ускладнює верстку довгих підписів', 'помаранчевий акцент сперечається з помаранчевим попередженням'],
+    fit: ['warn', 'Нахил — нове правило, у каноні його немає.'] },
+  { id: 'v6', name: 'Повстанська майстерня', ref: 'Andor і Rogue One — техніка повстанців',
+    what: 'Теплий темно-коричневий, повстанський помаранчевий, смугасті попереджувальні смуги, великі зрізи, підписи як трафарет.',
+    pro: ['термінові смуги неможливо не помітити', 'теплий, «рукотворний»'],
+    con: ['смугасте тло під текстом знижує контраст', 'найменш «імперський»'],
+    fit: ['good', 'Форма з канону, свої кольори й смуги.'] },
+  { id: 'v7', name: 'Рідке скло', ref: 'iOS 26 Liquid Glass на максимумі',
+    what: 'Яскрава туманність на тлі, скло скрізь — і на смугах, і на кожній панелі, світлий край, мінімальні зрізи.',
+    pro: ['найсучасніший, найближчий до iPhone', 'ефектно виглядає на скриншоті'],
+    con: ['текст на склі над строкатим тлом читається гірше — саме за це критикують iOS 26', 'багато шарів розмиття гальмують слабкі телефони'],
+    fit: ['warn', 'Суперечить канону: там скло лише на краях екрана. Показано для порівняння.'] },
+  { id: 'v8', name: 'Ретро-фосфор', ref: 'старі бортові термінали, кабіни 80-х',
+    what: 'Усе бурштиновим моноширинним, світіння літер, рядки розгортки, скло ледь помітне.',
+    pro: ['найсильніша атмосфера «бортового компʼютера»', 'одна гама — нічого не сперечається'],
+    con: ['усе одного кольору: здоровʼя, ефект і тривогу важче розрізнити', 'моноширинний текст займає більше місця'],
+    fit: ['warn', 'Відходить від канону: один колір замість семантичних, моноширинний текст.'] },
+];
+
+const ICON = {
+  sheet: '<svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>',
+  scene: '<svg viewBox="0 0 24 24"><path d="M3 20l6-10 4 6 3-4 5 8z"/><circle cx="17" cy="6" r="2"/></svg>',
+  items: '<svg viewBox="0 0 24 24"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3M4 13h16"/></svg>',
+  ship: '<svg viewBox="0 0 24 24"><path d="M12 3l3 7 6 2-6 2-3 7-3-7-6-2 6-2z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="M3 6l9 7 9-7"/></svg>',
+};
+
+function phone(v) {
+  return `
+  <div class="ph ${v.id}" role="img" aria-label="Телефон гравця у стилі «${v.name}»">
+    <div class="scr">
+      <div class="top glass">
+        <div class="who">
+          <div class="nm"><b>Крінж-Дор</b><span>Кел-Дор · Учений 4 · Політик</span></div>
+          <span class="fx"><span>◆ ефекти 1</span></span>
+        </div>
+        <div class="stats">
+          <div class="st"><small>ХП</small><b>27<i>/</i><em>38</em></b><div class="hpbar"></div></div>
+          <div class="st"><small>КБ</small><b>13</b></div>
+          <div class="st"><small>Ініц</small><b>+2</b></div>
+          <div class="st"><small>Швид</small><b>30</b></div>
+          <span class="insp" title="Натхнення">★</span>
+        </div>
+        <div class="urgent">
+          <div class="ug"><span class="ic">⚔</span><span class="tx"><b>Бій почався</b><span>Раунд 1 · кинь ініціативу</span></span><span class="go">›</span></div>
+          <div class="ug mail"><span class="ic">✉</span><span class="tx"><b>Нова роздатка</b><span>від майстра · натисни, щоб прочитати</span></span><span class="go">›</span></div>
+        </div>
+      </div>
+
+      <div class="body">
+        <div class="pn">
+          <h4>Діє на тебе</h4>
+          <div class="eff"><span class="dot"></span><div><b>Бакта-інʼєктор: Статура +1</b><small>до довгого відпочинку · максимум ХП 34 → 38</small></div></div>
+        </div>
+
+        <div class="pn">
+          <h4>Характеристики</h4>
+          <div class="ab">
+            <div class="a"><small>СИЛ</small><b>+0</b><i>10</i></div>
+            <div class="a"><small>СПР</small><b>+2</b><i>14</i></div>
+            <div class="a fxd"><small>СТА</small><b>+2</b><i>13 → 14</i></div>
+            <div class="a"><small>ІНТ</small><b>+4</b><i>18</i></div>
+            <div class="a"><small>МУД</small><b>+2</b><i>14</i></div>
+            <div class="a"><small>ХАР</small><b>+1</b><i>12</i></div>
+          </div>
+        </div>
+
+        <div class="pn">
+          <h4>Мої дії <span>кубики переваги</span></h4>
+          <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><span>3 / 4 · d4</span></div>
+          <div class="act">
+            <div class="w"><span class="k">Дія</span><span class="d"><b>Кріопістолет (Cryo pistol)</b><span>дальність 30/120 · злісний 1</span></span><span class="dice">d20<br>1d4 холод</span></div>
+            <div class="w no"><span class="k">Дія</span><span class="d"><b>Боукастер (Bowcaster)</b><span>Не володієш, і потрібна Сила 13: кидок з перешкодою</span></span><span class="dice">—</span></div>
+            <div class="w"><span class="k">Бонус</span><span class="d"><b>Згуртування (Rally)</b><span>маневр · союзник отримує тимчасові ХП</span></span><span class="dice">d4</span></div>
+            <div class="w"><span class="k">Реакц</span><span class="d"><b>Парирування (Parry)</b><span>маневр · зменшити шкоду від удару в ближньому бою</span></span><span class="dice">d4</span></div>
+          </div>
+        </div>
+      </div>
+
+      <nav class="tabs glass" aria-label="Вкладки">
+        <span class="tab on">${ICON.sheet}Лист</span>
+        <span class="tab">${ICON.scene}Сцена</span>
+        <span class="tab">${ICON.items}Речі</span>
+        <span class="tab">${ICON.ship}Корабель</span>
+        <span class="tab">${ICON.mail}Роздатки<span class="bd">1</span></span>
+      </nav>
+    </div>
+    ${v.id === 'v8' ? '<div class="scan"></div>' : ''}
+  </div>`;
+}
+
+const grid = document.getElementById('grid');
+const jump = document.querySelector('nav.jump');
+grid.innerHTML = VARIANTS.map((v, i) => `
+  <article class="card" id="${v.id}">
+    <h2><span class="num">${String(i + 1).padStart(2, '0')}</span>${v.name}</h2>
+    <p class="ref">Орієнтир: <b>${v.ref}</b></p>
+    <p class="what">${v.what}</p>
+    <div class="stage pulse">${phone(v)}</div>
+    <div class="procon">
+      <div><h3>За</h3><ul>${v.pro.map((x) => `<li>${x}</li>`).join('')}</ul></div>
+      <div><h3>Проти</h3><ul>${v.con.map((x) => `<li>${x}</li>`).join('')}</ul></div>
+    </div>
+    <p class="fit ${v.fit[0]}">${v.fit[1]}</p>
+  </article>`).join('');
+jump.innerHTML = VARIANTS.map((v, i) => `<a href="#${v.id}">${i + 1} · ${v.name}</a>`).join('');
+
+const toggle = document.getElementById('pulse-toggle');
+toggle.addEventListener('click', () => {
+  const on = toggle.getAttribute('aria-pressed') !== 'true';
+  toggle.setAttribute('aria-pressed', String(on));
+  toggle.textContent = `Пульс термінових смуг: ${on ? 'увімкнено' : 'вимкнено'}`;
+  document.querySelectorAll('.stage').forEach((s) => s.classList.toggle('pulse', on));
+});
+</script>
