@@ -16,6 +16,8 @@ const required = [
   'docs/ПРОЦЕС.md',
   'docs/СТАРТ-НА-НОВОМУ-КОМПІ.md',
   'docs/ЯК-ВІДКАТИТИ.md',
+  'docs/дизайн/ДИЗАЙН-ІНТЕРФЕЙСУ.md',
+  'docs/дизайн/ДЖЕРЕЛА.md',
   'docs/decisions/0001-формат-sw5e-com.md',
   'docs/decisions/0002-журнал-подій.md',
   'docs/decisions/0003-обчислюване-не-зберігається.md',
