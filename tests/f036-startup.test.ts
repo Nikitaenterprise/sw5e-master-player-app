@@ -105,9 +105,11 @@ describe('F-036 · застосунок справді стартує', () => {
     expect(meets('v22.11.9', '>=22.12')).toBe(false);
     expect(meets('24.1.0', '>=22.12')).toBe(true);
     expect(meets(process.versions.node, requiredRange(root)), 'тести самі мусять іти на годящому Node').toBe(true);
-    for (const bat of ['ВСТАНОВИТИ.bat', 'ЗАПУСТИТИ.bat', 'ТЕСТ-4-ЕКРАНИ.bat', 'ПЕРЕВІРИТИ.bat']) {
+    const launchers = ['ВСТАНОВИТИ', 'ЗАПУСТИТИ', 'ТЕСТ-4-ЕКРАНИ', 'ПЕРЕВІРИТИ'];
+    // The Mac twins (F-092) say the same with a forward slash.
+    for (const bat of [...launchers.map((n) => `${n}.bat`), ...launchers.map((n) => `${n}.command`)]) {
       const text = readFileSync(join(root, bat), 'utf8');
-      const check = text.indexOf('node tools\\check-node.mjs');
+      const check = Math.max(text.indexOf('node tools\\check-node.mjs'), text.indexOf('node tools/check-node.mjs'));
       expect(check, `${bat} не перевіряє версію Node`).toBeGreaterThan(-1);
       for (const later of ['npm install', 'npm start', 'npm run check']) {
         const at = text.indexOf(later);

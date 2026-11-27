@@ -24,7 +24,7 @@ const PROPER_NOUNS = [
 ];
 
 /** A reference to a real file whose name is Ukrainian, e.g. docs/ПРОЦЕС.md. */
-const FILE_REFERENCE = /[\p{L}\d_-]+\.(bat|md|json|jsonl|ts|tsx|mjs|css|html|gz|pdf)/gu;
+const FILE_REFERENCE = /[\p{L}\d_-]+\.(bat|command|md|json|jsonl|ts|tsx|mjs|css|html|gz|pdf)/gu;
 
 function walk(dir: string): string[] {
   const out: string[] = [];

@@ -108,6 +108,11 @@ describe('F-037 · демо не займає номери справжніх с
     const runBat = readFileSync(join(root, 'ЗАПУСТИТИ.bat'), 'utf8');
     expect(demoBat).toMatch(/^set HOLOTABLE_DEMO=1\r?$/m);
     expect(runBat, 'справжній запуск явно гасить демо').toMatch(/^set HOLOTABLE_DEMO=\r?$/m);
+    // The Mac twins (F-092) do the same.
+    const demoMac = readFileSync(join(root, 'ТЕСТ-4-ЕКРАНИ.command'), 'utf8');
+    const runMac = readFileSync(join(root, 'ЗАПУСТИТИ.command'), 'utf8');
+    expect(demoMac).toMatch(/^export HOLOTABLE_DEMO=1$/m);
+    expect(runMac, 'справжній запуск на Mac явно гасить демо').toMatch(/^unset HOLOTABLE_DEMO$/m);
   });
 
   it('на кожному екрані демо видно, що це демо', () => {

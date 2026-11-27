@@ -10,5 +10,8 @@
 # вони мусять лишатись CRLF, cmd.exe з ними надійніший.
 *.bat text eol=crlf
 
+# .command — ті самі запускачі для Mac (F-092). bash на Mac не читає CRLF.
+*.command text eol=lf
+
 # Архів даних правил звіряється по sha256 (F-003) — жодної нормалізації.
 *.tar.gz binary
