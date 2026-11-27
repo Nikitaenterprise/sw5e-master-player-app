@@ -1340,6 +1340,10 @@ function OrderRow({
   const term = useTerm();
   const who = fighterName(fighter, term);
   const enemy = fighter.kind === 'enemy';
+  // The GM corrects a rolled initiative (F-099): another roll for the same fighter
+  // replaces the first one in the log. Nothing is changed by the app on its own.
+  const [fixing, setFixing] = useState(false);
+  const whom = enemy ? fighter.id : fighter.character;
   return (
     <li
       className={
@@ -1370,6 +1374,27 @@ function OrderRow({
             {fighter.said === fighter.total ? '' : '≠ '}лист: {fighter.total} ({fighter.roll} {signed(fighter.modifier)})
           </small>
         </span>
+      )}
+      {fighter.roll !== null && !fixing && (
+        <span className="fix">
+          {fighter.said !== null && fighter.said !== fighter.total && fighter.total !== null && (
+            <button type="button" onClick={() => roll(whom, fighter.roll as number)}>
+              взяти за листом: {fighter.total}
+            </button>
+          )}
+          <button type="button" onClick={() => setFixing(true)}>змінити</button>
+        </span>
+      )}
+      {fighter.roll !== null && fixing && (
+        <RollInput
+          label={`Нова ініціатива за ${who}`}
+          sum={fighter.counts === 'player' && !enemy ? 'optional' : 'none'}
+          button="замінити"
+          submit={(value, said) => {
+            roll(whom, value, said);
+            setFixing(false);
+          }}
+        />
       )}
       {current && <i className="mark">← хід</i>}
       {skipsTurn(fighter) && <small className="skips">пропускає хід</small>}

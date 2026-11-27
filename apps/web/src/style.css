@@ -815,3 +815,7 @@ a.ref-link:hover { color: var(--accent); }
 .homebrew-item .left { color: var(--waiting); }
 .effects details.spent { color: var(--muted); font-size: .85rem; }
 .effects details.spent summary { cursor: pointer; }
+
+/* F-099: the GM's correction of a rolled initiative */
+.order li .fix { display: inline-flex; gap: .35rem; }
+.order li .fix button { font-size: .75rem; padding: .15rem .45rem; }
