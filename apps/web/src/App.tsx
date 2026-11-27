@@ -160,6 +160,7 @@ export function App(): JSX.Element {
                   useFeature={(feature, allies) => controls.current?.useFeature(slug, feature, allies)}
                   party={Object.keys(snapshot.characters)}
                   scene={sceneEffects(snapshot.weather)}
+                  setInspiration={(on) => controls.current?.sendChange(slug, { hasInspiration: on })}
                 />
               ))}
           </div>
@@ -486,14 +487,14 @@ export function Managed({
       <div className="state-row">
         <span className="label">{LABELS.hasInspiration}</span>
         <b className="value">{state.hasInspiration === true ? 'так' : 'ні'}</b>
-        <span className="buttons">
-          <button
-            type="button"
-            onClick={() => sendChange({ hasInspiration: state.hasInspiration !== true })}
-          >
-            {state.hasInspiration === true ? 'прибрати' : 'дати'}
-          </button>
-        </span>
+        {/* The GM gives inspiration; the phone can only spend it (F-097). */}
+        {state.hasInspiration === true && (
+          <span className="buttons">
+            <button type="button" onClick={() => sendChange({ hasInspiration: false })}>
+              використати натхнення
+            </button>
+          </span>
+        )}
       </div>
 
       <div className="conditions-block">
@@ -2218,6 +2219,7 @@ export function Card({
   useFeature,
   party = [],
   scene: sceneOn,
+  setInspiration,
 }: {
   slug: string;
   state: CharacterState;
@@ -2239,6 +2241,8 @@ export function Card({
   useFeature?: (feature: string, allies: string[]) => void;
   /** Everyone else in the party, for picking allies within range. */
   party?: string[];
+  /** The GM gives or takes inspiration (F-097). Absent — only the star is shown. */
+  setInspiration?: (on: boolean) => void;
 }): JSX.Element {
   const term = useTerm();
   const conditions = (Array.isArray(state.conditions) ? state.conditions : []) as string[];
@@ -2266,6 +2270,11 @@ export function Card({
       <h3>
         {name(slug)}
         {state.hasInspiration === true && <span className="inspiration" title="Натхнення">★</span>}
+        {setInspiration !== undefined && (
+          <button type="button" className="inspire" onClick={() => setInspiration(state.hasInspiration !== true)}>
+            {state.hasInspiration === true ? 'забрати натхнення' : 'дати натхнення'}
+          </button>
+        )}
         {sheet.warnings.length > 0 && (
           <span className="warn" title={sheet.warnings.join('\n')}>
             ⚠ {sheet.warnings.length}

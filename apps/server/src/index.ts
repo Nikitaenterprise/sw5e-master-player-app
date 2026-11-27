@@ -1370,6 +1370,11 @@ export async function start(
           refuse('ефекти накладає майстер; свій предмет — кнопкою «використати»');
           return;
         }
+        // Inspiration is the GM's to give; the player only spends it (F-097).
+        if (intent.changes.hasInspiration === true) {
+          refuse('натхнення дає майстер');
+          return;
+        }
       }
 
       // What the person pressed is a difference from what they saw. Apply that

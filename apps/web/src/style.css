@@ -84,6 +84,7 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 .card .line { margin: -.35rem 0 .6rem; font-size: .72rem; color: var(--muted); }
 .card.is-down { border-color: var(--bad); }
 .inspiration { color: var(--waiting); font-size: .9rem; }
+.card h3 .inspire { margin-left: auto; font-size: .75rem; font-weight: 500; padding: .2rem .5rem; }
 .warn {
   margin-left: auto; font-size: .7rem; color: var(--waiting);
   background: color-mix(in srgb, var(--waiting) 15%, transparent);
