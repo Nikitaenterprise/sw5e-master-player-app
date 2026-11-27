@@ -1002,27 +1002,38 @@ export function Effects({
   if (list.length === 0 && scene.length === 0 && set === undefined && items.length === 0) return null;
   // An item's effects are on when every one of them is: the button then says so.
   const isOn = (item: HomebrewItem): boolean => list.some((e) => e.source === item.name);
+  // A consumable with none left leaves the list for a folded "used up" section (F-098);
+  // an effect it put on is still shown below with the other effects.
+  const gone = (item: HomebrewItem): boolean => item.consumable && itemsLeft(item, used) === 0;
+  const spentItems = items.filter(gone);
   return (
     <div className="effects">
-      {items.length > 0 && (
+      {items.length > spentItems.length && (
         <div className="homebrew-items">
-          {items.map((item) => (
+          {items.filter((item) => !gone(item)).map((item) => (
             <span key={item.name} className="homebrew-item" title={item.effects.map((e) => effectText({ ...e, id: '', source: item.name }, skill, weaponName)).join('\n')}>
               {item.name}
-              {item.consumable ? <small> ×{itemsLeft(item, used)}</small> : item.quantity !== 1 && <small> ×{item.quantity}</small>}
+              {item.consumable ? <small className="left"> лишилось {itemsLeft(item, used)}</small> : item.quantity !== 1 && <small> ×{item.quantity}</small>}
               {item.note !== '' && <small className="item-note"> — {item.note}</small>}
               {use !== undefined && (
-                <button
-                  type="button"
-                  disabled={isOn(item) || (spend && item.consumable && itemsLeft(item, used) === 0)}
-                  onClick={() => use(item)}
-                >
-                  {isOn(item) ? 'діє' : spend ? (item.consumable && itemsLeft(item, used) === 0 ? 'закінчився' : 'використати') : 'накласти'}
+                <button type="button" disabled={isOn(item)} onClick={() => use(item)}>
+                  {isOn(item) ? 'діє' : spend ? 'використати' : 'накласти'}
                 </button>
               )}
             </span>
           ))}
         </div>
+      )}
+      {spentItems.length > 0 && (
+        <details className="spent">
+          <summary>Витрачено · {spentItems.length}</summary>
+          {spentItems.map((item) => (
+            <span key={item.name} className="homebrew-item">
+              {item.name}
+              {item.note !== '' && <small className="item-note"> — {item.note}</small>}
+            </span>
+          ))}
+        </details>
       )}
       {scene.map((e) => (
         <span key={e.id} className="effect scene" title="Ефект сцени: погода. Знімається, коли майстер перемкне погоду">

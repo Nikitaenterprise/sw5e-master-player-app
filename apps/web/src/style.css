@@ -810,3 +810,8 @@ a.ref-link:hover { color: var(--accent); }
   .s-sub, .s-legend, .s-crew small, .s-crew-line, .s-warnings ul { color: #444; }
   .s-sheet h1, .s-sheet h2, .role-card h2, .role-card h3 { color: #111; }
 }
+
+/* F-098: what is left of a consumable, and the folded list of used-up ones */
+.homebrew-item .left { color: var(--waiting); }
+.effects details.spent { color: var(--muted); font-size: .85rem; }
+.effects details.spent summary { cursor: pointer; }

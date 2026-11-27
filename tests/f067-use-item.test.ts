@@ -151,15 +151,16 @@ describe('F-067 · «використати» предмет', () => {
     expect(server.state.one('nigra-4')?.holotableItemsUsed, 'витрачене — з журналу').toEqual({ 'стимулятор': 1 });
   }, 30_000);
 
-  it('телефон: «використати» з кількістю; коли діє — «діє»; закінчився — кнопка вимкнена', () => {
+  it('телефон: «використати» з кількістю; коли діє — «діє»; закінчився — у «Витрачено» (F-098)', () => {
     const cig: HomebrewItem = { name: 'Cigarettes', quantity: 6, note: '', consumable: true, effects: [{ target: 'skill:Athletics', mode: 'disadvantage', until: 'manual' }] };
     const fresh = renderToStaticMarkup(createElement(Effects, { list: [], items: [cig], use: () => undefined }));
-    expect(fresh).toContain('Cigarettes<small> ×6</small>');
+    expect(fresh).toContain('Cigarettes<small class="left"> лишилось 6</small>');
     expect(fresh).toContain('<button type="button">використати</button>');
     const on = renderToStaticMarkup(createElement(Effects, { list: itemEffects(cig, null, () => 'a'), items: [cig], used: { cigarettes: 1 }, use: () => undefined }));
-    expect(on).toContain('×5');
+    expect(on).toContain('лишилось 5');
     expect(on).toContain('disabled="">діє</button>');
     const gone = renderToStaticMarkup(createElement(Effects, { list: [], items: [STIM], used: { 'стимулятор': 1 }, use: () => undefined }));
-    expect(gone).toContain('disabled="">закінчився</button>');
+    expect(gone, 'порожній — у згорнутому «Витрачено», без кнопки').toContain('<details class="spent"><summary>Витрачено · 1</summary>');
+    expect(gone).not.toContain('використати');
   });
 });
