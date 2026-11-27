@@ -819,3 +819,8 @@ a.ref-link:hover { color: var(--accent); }
 /* F-099: the GM's correction of a rolled initiative */
 .order li .fix { display: inline-flex; gap: .35rem; }
 .order li .fix button { font-size: .75rem; padding: .15rem .45rem; }
+
+/* F-100: a button that asks on the page before it acts */
+.confirm-start { font-size: .8rem; }
+.confirm-ask { display: inline-flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: .85rem; }
+.confirm-ask .danger { border-color: var(--bad); color: var(--bad); }

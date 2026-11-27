@@ -1127,6 +1127,50 @@ export function fighterName(fighter: Fighter, term: Term): string {
 const ENEMY_STEPS = [-10, -5, -1, 1, 5];
 
 /**
+ * A button that asks before it acts, on the page itself (F-100). The browser's own
+ * dialog is easy to miss and some screens block it; this one cannot be.
+ */
+export function ConfirmButton({
+  label,
+  question,
+  yes,
+  onConfirm,
+  initiallyAsking = false,
+}: {
+  label: string;
+  question: string;
+  yes: string;
+  onConfirm: () => void;
+  /** For a test that wants to see the question without a click. */
+  initiallyAsking?: boolean;
+}): JSX.Element {
+  const [asking, setAsking] = useState(initiallyAsking);
+  if (!asking) {
+    return (
+      <button type="button" className="confirm-start" onClick={() => setAsking(true)}>
+        {label}
+      </button>
+    );
+  }
+  return (
+    <span className="confirm-ask" role="group" aria-label={question}>
+      <span>{question}</span>
+      <button
+        type="button"
+        className="danger"
+        onClick={() => {
+          setAsking(false);
+          onConfirm();
+        }}
+      >
+        {yes}
+      </button>
+      <button type="button" onClick={() => setAsking(false)}>ні</button>
+    </span>
+  );
+}
+
+/**
  * An enemy's numbers on the GM's line (F-055): AC, hit points with damage and healing,
  * the attacks with their text on hover. Straight from the bestiary — and only here:
  * a player's screen never receives them.
@@ -1171,17 +1215,14 @@ function EnemyDetails({
             {step > 0 ? `+${step}` : step}
           </button>
         ))}
-        <button
-          type="button"
-          className="remove"
-          title="Прибрати з бою"
-          onClick={() => {
-            if (confirm(`Прибрати з бою: ${fighter.name}?`)) remove(fighter.id);
-          }}
-        >
-          ✕
-        </button>
       </span>
+      {/* Its own button, apart from the damage ones, and asked on the page (F-100). */}
+      <ConfirmButton
+        label="прибрати з бою"
+        question={`Прибрати з бою: ${fighter.name}?`}
+        yes="так, прибрати"
+        onConfirm={() => remove(fighter.id)}
+      />
       {setConditions !== undefined && (
         <Conditions list={fighter.conditions ?? []} choices={conditionChoices} set={(list) => setConditions(fighter.id, list)} />
       )}
