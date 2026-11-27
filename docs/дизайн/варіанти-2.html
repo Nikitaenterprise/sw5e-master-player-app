@@ -1,0 +1,436 @@
+<title>Голостіл під склом</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Play:wght@400;700&family=Inter:wght@400;600;700&display=swap">
+<style>
+/* Layout: round two of the look — eight phones on one base (glass everywhere over a nebula,
+   cut corners only, SWTOR palette of orange, red and blue gradients). Page is dark on purpose. */
+:root {
+  color-scheme: dark;
+  --page-bg: #0A0B10;
+  --page-card: #12141B;
+  --page-line: #262A35;
+  --page-text: #E9EBF1;
+  --page-muted: #9BA2B0;
+  --page-accent: #FF9A3C;
+  --page-head: "Exo 2", "Segoe UI", system-ui, sans-serif;
+  --page-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page-bg); color: var(--page-text); font: 15px/1.55 var(--page-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1520px; margin: 0 auto; padding-block: 28px 56px; display: flex; flex-direction: column; gap: 26px; }
+header.intro { display: flex; flex-direction: column; gap: 10px; max-width: 76ch; }
+header.intro h1 { font: 700 clamp(26px, 4vw, 36px)/1.15 var(--page-head); margin: 0; text-wrap: balance; }
+header.intro h1 span { background: linear-gradient(90deg, #FF9A3C, #E8333F 45%, #3FA9FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
+header.intro p { margin: 0; color: var(--page-muted); }
+header.intro strong { color: var(--page-text); font-weight: 600; }
+.base { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; }
+.base div { min-width: 0; padding: 10px 12px; background: var(--page-card); border-left: 2px solid var(--page-accent); font-size: 13.5px; color: var(--page-muted); }
+.base b { display: block; color: var(--page-text); font-weight: 600; margin-bottom: 2px; }
+nav.jump { display: flex; flex-wrap: wrap; gap: 8px; }
+nav.jump a {
+  color: var(--page-text); text-decoration: none; font-size: 13px; padding: 6px 10px;
+  border: 1px solid var(--page-line); background: var(--page-card);
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+nav.jump a:hover, nav.jump a:focus-visible { border-color: var(--page-accent); color: var(--page-accent); outline: none; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; color: var(--page-muted); }
+.controls button { font: inherit; color: var(--page-text); background: var(--page-card); border: 1px solid var(--page-line); padding: 8px 12px; min-height: 40px; cursor: pointer; }
+.controls button[aria-pressed="true"] { border-color: var(--page-accent); color: var(--page-accent); }
+.controls button:focus-visible { outline: 2px solid var(--page-accent); outline-offset: 2px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 24px; }
+.card { min-width: 0; background: var(--page-card); border: 1px solid var(--page-line); padding: 18px; display: flex; flex-direction: column; gap: 14px; scroll-margin-top: 16px; }
+.card h2 { margin: 0; font: 700 20px/1.2 var(--page-head); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.card h2 .num { font: 600 13px/1 "JetBrains Mono", ui-monospace, monospace; color: var(--page-muted); letter-spacing: .08em; }
+.card .mix { margin: 0; font-size: 13px; color: var(--page-muted); }
+.card .mix b { color: var(--page-text); font-weight: 600; }
+.card .what { margin: 0; }
+.sw { display: flex; gap: 0; height: 10px; }
+.sw i { flex: 1; }
+.procon { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; font-size: 13.5px; }
+.procon div { min-width: 0; }
+.procon h3 { margin: 0 0 4px; font: 600 11px/1.3 var(--page-body); text-transform: uppercase; letter-spacing: .1em; color: var(--page-muted); }
+.procon ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.stage { display: flex; justify-content: center; }
+footer.note { color: var(--page-muted); font-size: 13px; max-width: 80ch; display: flex; flex-direction: column; gap: 6px; }
+
+/* ── The phone: glass everywhere, cut corners only ─────────────────────────── */
+.ph {
+  width: min(360px, 100%); height: 720px; border: 9px solid #000; border-radius: 46px; overflow: hidden;
+  position: relative; background: var(--bg); color: var(--text); font-family: var(--f-body);
+  box-shadow: 0 0 0 1px #2a2d35, 0 30px 60px rgb(0 0 0 / .5);
+}
+.scr { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; background: var(--backdrop); scrollbar-width: none; }
+.scr::-webkit-scrollbar { display: none; }
+.stars { position: absolute; inset: 0; pointer-events: none; background: var(--stars, none); }
+
+.glass {
+  background: var(--bar-tint);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 10px 30px rgb(0 0 0 / .35);
+}
+
+.top { position: sticky; top: 0; z-index: 3; padding: 30px 14px 10px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid transparent; border-image: var(--line-grad) 1; }
+.who { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.who .nm { min-width: 0; }
+.who .nm b { display: block; font: var(--w-head, 700) 17px/1.15 var(--f-head); letter-spacing: var(--head-track, .06em); text-transform: uppercase; overflow-wrap: anywhere; }
+.who .nm span { font-size: 12px; color: var(--muted); }
+.fx { flex: none; position: relative; isolation: isolate; font: 600 12px/1 var(--f-num); color: var(--effect); padding: 8px 10px; min-height: 30px; display: inline-flex; align-items: center;
+  --s: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); clip-path: var(--s); }
+.fx::before, .fx::after { content: ""; position: absolute; z-index: -1; clip-path: var(--s); }
+.fx::before { inset: 0; background: var(--effect); }
+.fx::after { inset: 1px; background: var(--bar-tint); }
+.stats { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)) auto; gap: 6px; align-items: end; }
+.st { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.st small { font: 600 10px/1 var(--f-label, var(--f-body)); color: var(--muted); letter-spacing: var(--label-track, .12em); text-transform: uppercase; }
+.st b { font: 700 21px/1 var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: var(--num-glow, none); }
+.st b em { font-style: normal; color: var(--effect); }
+.st b i { font-style: normal; font-size: 13px; color: var(--muted); }
+.hpbar { height: 4px; background: rgb(255 255 255 / .12); margin-top: 4px; position: relative; }
+.hpbar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 71%; background: var(--hp-grad); }
+.insp { font-size: 18px; color: var(--accent2); line-height: 1; align-self: center; }
+
+.urgent { display: flex; flex-direction: column; gap: 6px; }
+.ug {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 46px; color: #fff; position: relative;
+  background: var(--ug-bg);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.ug.mail { background: var(--ug2-bg); }
+.ug .ic { font-size: 16px; flex: none; }
+.ug .tx { min-width: 0; flex: 1; display: flex; flex-direction: column; text-shadow: 0 1px 2px rgb(0 0 0 / .45); }
+.ug .tx b { font: 700 13px/1.15 var(--f-label, var(--f-head)); letter-spacing: var(--label-track, .1em); text-transform: uppercase; }
+.ug .tx span { font-size: 12px; opacity: .95; overflow-wrap: anywhere; }
+.ug .go { font: 700 18px/1 var(--f-num); flex: none; }
+.pulse .ug { animation: pulse 2s ease-in-out infinite; }
+.pulse .ug.mail { animation-delay: 1s; }
+@keyframes pulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.3) saturate(1.2); } }
+@media (prefers-reduced-motion: reduce) { .pulse .ug { animation: none; } }
+
+.body { padding: 12px 14px 18px; display: flex; flex-direction: column; gap: 12px; flex: 1; position: relative; }
+
+.pn { position: relative; isolation: isolate; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  --shape: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+.pn::before, .pn::after { content: ""; position: absolute; z-index: -1; clip-path: var(--shape); }
+.pn::before { inset: 0; background: var(--edge-grad); }
+.pn::after { inset: 1px; background: var(--panel-tint); -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%); }
+.pn h4 { margin: 0; font: 600 11px/1.2 var(--f-label, var(--f-body)); letter-spacing: var(--label-track, .14em); text-transform: uppercase; color: var(--label, var(--muted)); display: flex; justify-content: space-between; gap: 8px; }
+.pn h4 span { color: var(--muted); letter-spacing: .04em; text-transform: none; font-family: var(--f-num); font-weight: 500; }
+
+.eff { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.eff .dot { flex: none; width: 8px; height: 8px; margin-top: 5px; background: var(--effect); transform: rotate(45deg); box-shadow: 0 0 8px var(--effect); }
+.eff div { min-width: 0; font-size: 13.5px; }
+.eff b { font-weight: 600; }
+.eff small { display: block; color: var(--muted); font-size: 12px; }
+
+.ab { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.a { padding: 8px 6px 7px; text-align: center; background: var(--tile); min-width: 0; border-top: 1px solid var(--tile-line); }
+.a small { display: block; font: 600 10px/1 var(--f-label, var(--f-body)); letter-spacing: .12em; color: var(--muted); }
+.a b { display: block; font: 700 22px/1.15 var(--f-num); font-variant-numeric: tabular-nums; text-shadow: var(--num-glow, none); }
+.a i { font: normal 11px/1 var(--f-num); color: var(--muted); }
+.a.fxd { border-top-color: var(--effect); background: var(--tile-fx); }
+.a.fxd b, .a.fxd i { color: var(--effect); }
+
+.act { display: flex; flex-direction: column; gap: 8px; }
+.w { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; min-width: 0; background: var(--tile); border-left: 2px solid var(--w-line); }
+.w .k { flex: none; font: 600 10px/1.3 var(--f-label, var(--f-body)); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); width: 46px; padding-top: 2px; }
+.w .d { min-width: 0; flex: 1; }
+.w .d b { display: block; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.w .d span { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.w .dice { flex: none; font: 700 13px/1.3 var(--f-num); color: var(--accent); text-align: right; }
+.w.no { border-left-color: var(--alert); background: var(--tile-bad); }
+.w.no .d b { color: var(--alert); }
+.w.no .d span { color: var(--text); }
+.pips { display: flex; gap: 6px; align-items: center; }
+.pips i { width: 11px; height: 11px; border: 1px solid var(--accent2); transform: rotate(45deg); }
+.pips i.on { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+.pips span { font: 600 12px/1 var(--f-num); color: var(--muted); margin-left: 6px; }
+
+.tabs { position: sticky; bottom: 0; z-index: 3; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 4px 22px; margin-top: auto; border-top: 1px solid transparent; border-image: var(--line-grad) 1; }
+.tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; min-height: 48px; color: var(--muted); font: 600 10.5px/1.1 var(--f-body); position: relative; min-width: 0; }
+.tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: square; stroke-linejoin: miter; }
+.tab.on { color: var(--text); }
+.tab.on svg { stroke: var(--accent); filter: drop-shadow(0 0 6px var(--accent)); }
+.tab.on::before { content: ""; position: absolute; top: -6px; left: 20%; right: 20%; height: 2px; background: var(--active-grad); box-shadow: 0 0 10px var(--accent); }
+.tab .bd { position: absolute; top: 2px; right: 16%; min-width: 16px; height: 16px; padding: 0 4px; background: var(--alert); color: #fff; font: 700 10px/16px var(--f-num); text-align: center; }
+
+/* ── Shared SWTOR colours ─────────────────────────────────────────────────── */
+.ph { --orange: #FF8A2B; --red: #E5323E; --blue: #3FA9FF; --cyan: #5FD4FF; --ok: #5FE3A1;
+  --hp-grad: linear-gradient(90deg, #2fbf7a, #5FE3A1); --cut: 10px; --f-num: "JetBrains Mono", ui-monospace, monospace; }
+
+/* 1 · Республіканське скло — синє домінує, помаранчевий — дія */
+.r1 { --bg:#040A1A; --text:#EEF4FF; --muted: rgb(220 232 255 / .7); --accent: var(--cyan); --accent2: var(--orange); --alert: var(--red); --effect: #FFB15C;
+  --backdrop: radial-gradient(70% 45% at 10% 15%, #1d4fb8 0%, transparent 70%), radial-gradient(55% 40% at 95% 50%, #0b7fc0 0%, transparent 70%), radial-gradient(45% 30% at 20% 95%, #c2541a 0%, transparent 70%), #040A1A;
+  --stars: radial-gradient(1px 1px at 20% 30%, #cfe6ff 50%, transparent 51%) 0 0/90px 110px, radial-gradient(1px 1px at 70% 80%, #8fb2e0 50%, transparent 51%) 0 0/130px 90px;
+  --bar-tint: rgb(8 18 44 / .5); --panel-tint: rgb(8 16 40 / .52); --glass-hi: rgb(160 210 255 / .35);
+  --edge-grad: linear-gradient(135deg, rgb(95 212 255 / .8), rgb(255 255 255 / .1) 45%, rgb(255 138 43 / .55));
+  --line-grad: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  --active-grad: linear-gradient(90deg, var(--cyan), var(--blue));
+  --tile: rgb(255 255 255 / .05); --tile-line: rgb(95 212 255 / .35); --tile-fx: rgb(255 177 92 / .1); --tile-bad: rgb(229 50 62 / .12); --w-line: var(--cyan);
+  --ug-bg: linear-gradient(100deg, rgb(229 50 62 / .85), rgb(255 138 43 / .75));
+  --ug2-bg: linear-gradient(100deg, rgb(30 111 217 / .8), rgb(95 212 255 / .6));
+  --f-head:"Exo 2", system-ui, sans-serif; --f-body: system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+/* 2 · Імперське скло — червоне домінує, синій — ефект */
+.r2 { --bg:#0B0306; --text:#FFF1EE; --muted: rgb(255 225 220 / .68); --accent: #FF6A4E; --accent2: var(--orange); --alert: #FF2E3B; --effect: var(--cyan);
+  --backdrop: radial-gradient(70% 45% at 85% 10%, #9a0f1d 0%, transparent 70%), radial-gradient(60% 45% at 0% 60%, #5a0818 0%, transparent 70%), radial-gradient(40% 30% at 80% 95%, #d9611a 0%, transparent 70%), #0B0306;
+  --bar-tint: rgb(36 6 12 / .52); --panel-tint: rgb(30 6 12 / .55); --glass-hi: rgb(255 170 150 / .3);
+  --edge-grad: linear-gradient(135deg, rgb(255 90 70 / .85), rgb(255 255 255 / .08) 50%, rgb(255 138 43 / .6));
+  --line-grad: linear-gradient(90deg, transparent, #FF4B3E, transparent);
+  --active-grad: linear-gradient(90deg, #FF2E3B, var(--orange));
+  --tile: rgb(255 255 255 / .05); --tile-line: rgb(255 90 70 / .4); --tile-fx: rgb(95 212 255 / .1); --tile-bad: rgb(255 46 59 / .16); --w-line: #FF6A4E;
+  --ug-bg: linear-gradient(100deg, rgb(200 20 35 / .9), rgb(255 90 50 / .75));
+  --ug2-bg: linear-gradient(100deg, rgb(30 90 200 / .8), rgb(95 212 255 / .55));
+  --f-head:"Inter", system-ui, sans-serif; --f-body:"Inter", system-ui, sans-serif; --head-track:.1em; }
+
+/* 3 · Сутінкове скло — помаранчевий у червоний у синій, діагоналлю */
+.r3 { --bg:#0A0614; --text:#FFF6EE; --muted: rgb(255 236 220 / .7); --accent: var(--orange); --accent2: #FFC15C; --alert: var(--red); --effect: var(--cyan);
+  --backdrop: linear-gradient(165deg, #ff7a1a 0%, #c4162a 32%, #3a0d3e 58%, #142a7a 85%, #0A0614 100%);
+  --bar-tint: rgb(20 8 26 / .45); --panel-tint: rgb(16 8 28 / .55); --glass-hi: rgb(255 210 170 / .35);
+  --edge-grad: linear-gradient(160deg, rgb(255 160 80 / .85), rgb(229 50 62 / .4) 50%, rgb(63 169 255 / .75));
+  --line-grad: linear-gradient(90deg, var(--orange), var(--red), var(--blue));
+  --active-grad: linear-gradient(90deg, var(--orange), var(--red), var(--blue));
+  --tile: rgb(255 255 255 / .06); --tile-line: rgb(255 160 80 / .45); --tile-fx: rgb(95 212 255 / .12); --tile-bad: rgb(229 50 62 / .16); --w-line: var(--orange);
+  --ug-bg: linear-gradient(100deg, rgb(229 50 62 / .85), rgb(255 120 40 / .8));
+  --ug2-bg: linear-gradient(100deg, rgb(40 80 200 / .8), rgb(95 212 255 / .6));
+  --f-head:"Exo 2", system-ui, sans-serif; --f-body:"Inter", system-ui, sans-serif; }
+
+/* 4 · Майстерня під склом — смуги й трафарет з варіанта 6 */
+.r4 { --bg:#120804; --text:#FFF1E2; --muted: rgb(255 228 200 / .7); --accent: var(--orange); --accent2: #FFC15C; --alert: var(--red); --effect: var(--cyan);
+  --backdrop: radial-gradient(70% 50% at 0% 0%, #b8501a 0%, transparent 70%), radial-gradient(60% 40% at 100% 55%, #8a1420 0%, transparent 70%), radial-gradient(50% 35% at 30% 100%, #1a4a9a 0%, transparent 70%), #120804;
+  --bar-tint: rgb(30 14 8 / .5); --panel-tint: rgb(28 12 6 / .55); --glass-hi: rgb(255 200 150 / .3);
+  --edge-grad: linear-gradient(135deg, rgb(255 138 43 / .9), rgb(255 255 255 / .08) 50%, rgb(229 50 62 / .6));
+  --line-grad: repeating-linear-gradient(90deg, var(--orange) 0 8px, transparent 8px 12px);
+  --active-grad: repeating-linear-gradient(90deg, var(--orange) 0 6px, transparent 6px 9px);
+  --tile: rgb(255 255 255 / .05); --tile-line: rgb(255 138 43 / .45); --tile-fx: rgb(95 212 255 / .1); --tile-bad: rgb(229 50 62 / .16); --w-line: var(--orange);
+  --ug-bg: repeating-linear-gradient(135deg, rgb(200 30 30 / .85) 0 10px, rgb(150 20 25 / .85) 10px 20px);
+  --ug2-bg: repeating-linear-gradient(135deg, rgb(255 138 43 / .85) 0 10px, rgb(220 105 25 / .85) 10px 20px);
+  --cut: 14px; --f-head:"Play", system-ui, sans-serif; --f-label:"Play", system-ui, sans-serif; --f-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --head-track:.2em; --label-track:.22em; --label: #FFB15C; }
+
+/* 5 · Голограма — тонкі світні лінії й зорі з варіанта 1 */
+.r5 { --bg:#02060F; --text:#E8F7FF; --muted: rgb(200 235 255 / .68); --accent: var(--cyan); --accent2: var(--orange); --alert: var(--red); --effect: #FFB15C;
+  --backdrop: radial-gradient(80% 50% at 50% 0%, #0b3a6e 0%, transparent 70%), radial-gradient(40% 30% at 100% 90%, #a8401a 0%, transparent 70%), radial-gradient(40% 30% at 0% 80%, #6e0f1d 0%, transparent 70%), #02060F;
+  --stars: radial-gradient(1px 1px at 20% 30%, #cfefff 50%, transparent 51%) 0 0/70px 90px, radial-gradient(1px 1px at 60% 70%, #7fc4ff 50%, transparent 51%) 0 0/110px 80px, repeating-linear-gradient(0deg, rgb(95 212 255 / .05) 0 1px, transparent 1px 4px);
+  --bar-tint: rgb(4 20 40 / .4); --panel-tint: rgb(4 18 38 / .42); --glass-hi: rgb(95 212 255 / .45);
+  --edge-grad: linear-gradient(180deg, rgb(95 212 255 / .9), rgb(95 212 255 / .2));
+  --line-grad: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  --active-grad: var(--cyan);
+  --tile: rgb(95 212 255 / .06); --tile-line: rgb(95 212 255 / .55); --tile-fx: rgb(255 177 92 / .1); --tile-bad: rgb(229 50 62 / .14); --w-line: var(--cyan);
+  --ug-bg: linear-gradient(100deg, rgb(229 50 62 / .75), rgb(255 138 43 / .6));
+  --ug2-bg: linear-gradient(100deg, rgb(20 90 180 / .7), rgb(95 212 255 / .5));
+  --num-glow: 0 0 10px rgb(95 212 255 / .6);
+  --f-head:"Exo 2", system-ui, sans-serif; --f-body: system-ui, -apple-system, "Segoe UI", sans-serif; --head-track:.14em; }
+
+/* 6 · Дві сторони — синій зліва, червоний справа, помаранчеве світло посередині */
+.r6 { --bg:#06060E; --text:#F4F4FA; --muted: rgb(230 232 245 / .7); --accent: var(--blue); --accent2: var(--orange); --alert: var(--red); --effect: #FFB15C;
+  --backdrop: radial-gradient(40% 30% at 50% 45%, rgb(255 138 43 / .55) 0%, transparent 70%), linear-gradient(115deg, #0c3a9a 0%, #0a1430 40%, #300812 62%, #a3121f 100%);
+  --bar-tint: rgb(12 12 26 / .5); --panel-tint: rgb(12 10 24 / .55); --glass-hi: rgb(255 255 255 / .3);
+  --edge-grad: linear-gradient(90deg, rgb(63 169 255 / .85), rgb(255 138 43 / .5) 50%, rgb(229 50 62 / .85));
+  --line-grad: linear-gradient(90deg, var(--blue), var(--orange), var(--red));
+  --active-grad: linear-gradient(90deg, var(--blue), var(--red));
+  --tile: rgb(255 255 255 / .05); --tile-line: rgb(63 169 255 / .45); --tile-fx: rgb(255 177 92 / .12); --tile-bad: rgb(229 50 62 / .16); --w-line: var(--blue);
+  --ug-bg: linear-gradient(100deg, rgb(180 15 30 / .9), rgb(229 50 62 / .75));
+  --ug2-bg: linear-gradient(100deg, rgb(20 80 200 / .85), rgb(63 169 255 / .65));
+  --f-head:"Exo 2", system-ui, sans-serif; --f-body:"Inter", system-ui, sans-serif; }
+
+/* 7 · Бронзове скло — золото-помаранчеві рамки, сині дані */
+.r7 { --bg:#07070B; --text:#F6EEDF; --muted: rgb(240 225 200 / .68); --accent: var(--cyan); --accent2: #F2B04A; --alert: var(--red); --effect: #F2B04A;
+  --backdrop: radial-gradient(70% 45% at 100% 0%, #8a4a12 0%, transparent 70%), radial-gradient(55% 40% at 0% 50%, #12306e 0%, transparent 70%), radial-gradient(40% 30% at 70% 100%, #6e121c 0%, transparent 70%), #07070B;
+  --bar-tint: rgb(20 16 12 / .55); --panel-tint: rgb(18 14 12 / .58); --glass-hi: rgb(242 176 74 / .4);
+  --edge-grad: linear-gradient(135deg, #F2C26A, #9a5a1a 40%, rgb(255 255 255 / .06) 60%, #c9852c);
+  --line-grad: linear-gradient(90deg, transparent, #F2B04A, transparent);
+  --active-grad: linear-gradient(90deg, #c9852c, #F2C26A, #c9852c);
+  --tile: rgb(255 255 255 / .045); --tile-line: rgb(242 176 74 / .5); --tile-fx: rgb(242 176 74 / .12); --tile-bad: rgb(229 50 62 / .14); --w-line: #F2B04A;
+  --ug-bg: linear-gradient(100deg, rgb(170 20 30 / .88), rgb(229 80 40 / .72));
+  --ug2-bg: linear-gradient(100deg, rgb(160 100 20 / .85), rgb(242 176 74 / .7));
+  --label: #F2B04A; --f-head:"Exo 2", system-ui, sans-serif; --f-body: system-ui, -apple-system, "Segoe UI", sans-serif; --head-track:.12em; }
+
+/* 8 · Неонове скло — найяскравіші градієнти, світіння */
+.r8 { --bg:#05030C; --text:#FFFFFF; --muted: rgb(240 235 255 / .72); --accent: #6FD8FF; --accent2: #FF9A3C; --alert: #FF3D5A; --effect: #FFC266;
+  --backdrop: radial-gradient(55% 40% at 15% 10%, #ff6a1a 0%, transparent 70%), radial-gradient(55% 40% at 90% 35%, #e0203a 0%, transparent 70%), radial-gradient(60% 45% at 20% 85%, #1f6fff 0%, transparent 70%), radial-gradient(40% 30% at 90% 95%, #00b4ff 0%, transparent 70%), #05030C;
+  --bar-tint: rgb(14 8 30 / .48); --panel-tint: rgb(12 8 26 / .55); --glass-hi: rgb(255 255 255 / .45);
+  --edge-grad: conic-gradient(from 210deg, #FF9A3C, #FF3D5A, #6FD8FF, #3F6BFF, #FF9A3C);
+  --line-grad: linear-gradient(90deg, #FF9A3C, #FF3D5A, #6FD8FF);
+  --active-grad: linear-gradient(90deg, #FF9A3C, #FF3D5A, #6FD8FF);
+  --tile: rgb(255 255 255 / .06); --tile-line: rgb(111 216 255 / .5); --tile-fx: rgb(255 194 102 / .14); --tile-bad: rgb(255 61 90 / .18); --w-line: #FF9A3C;
+  --ug-bg: linear-gradient(100deg, #FF3D5A, #FF9A3C);
+  --ug2-bg: linear-gradient(100deg, #3F6BFF, #6FD8FF);
+  --num-glow: 0 0 12px rgb(255 154 60 / .55);
+  --cut: 12px; --f-head:"Exo 2", system-ui, sans-serif; --f-body:"Inter", system-ui, sans-serif; --head-track:.08em; }
+.r8 .pn::before { inset: -1px; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h1>Раунд 2: <span>скло, зрізані кути, палітра SWTOR</span></h1>
+    <p>Вісім варіантів на одній основі. Екран той самий, що й у першому раунді: <strong>телефон Крінж-Дора, вкладка «Лист»</strong>, щойно почався бій і прийшла роздатка. Обирайте фаворитів — можна кількох, можна «кольори з 3, смуги з 4».</p>
+  </header>
+
+  <div class="base" aria-label="Що спільне в усіх восьми">
+    <div><b>Основа — варіант 7</b>Скло скрізь: смуги, панелі, плитки. Під ним — кольорова туманність.</div>
+    <div><b>Палітра SWTOR</b>Помаранчевий, червоний і синій — градієнтами, у різних пропорціях.</div>
+    <div><b>Жодних заокруглень</b>Лише прямі й зрізані кути. Заокруглена тут тільки рамка самого телефона.</div>
+    <div><b>З варіантів 6 і 1</b>Смугасті термінові смуги й трафарет (6), тонкі світні лінії й зорі (1) — у різних дозах.</div>
+  </div>
+
+  <nav class="jump" aria-label="До варіанта"></nav>
+
+  <div class="controls">
+    <button type="button" id="pulse-toggle" aria-pressed="true">Пульс термінових смуг: увімкнено</button>
+    <span>Прокручуй екран телефона — так видно, як скло розмиває тло.</span>
+  </div>
+
+  <section class="grid" id="grid" aria-label="Варіанти"></section>
+
+  <footer class="note">
+    <p>Перший раунд — <code>docs/дизайн/варіанти.html</code>, цей — <code>docs/дизайн/варіанти-2.html</code>. Канон і хід вибору — <code>docs/дизайн/ДИЗАЙН-ІНТЕРФЕЙСУ.md</code>, розділ 14.</p>
+    <p>Шрифти тут — з Google Fonts лише для показу; у застосунку обраний ляже файлом. Скло на кожній панелі важче для слабкого телефона, ніж скло лише на краях: це перевіримо на ваших телефонах у F-114.</p>
+  </footer>
+</div>
+
+<script>
+const VARIANTS = [
+  { id: 'r1', name: 'Республіканське скло', mix: 'скло 7 · лінії й зорі 1',
+    sw: ['#1d4fb8', '#5FD4FF', '#FF8A2B', '#E5323E'],
+    what: 'Синє домінує, помаранчевий — для дій і ефектів, червоний — лише тривога. Зоряне тло, рамки переходять із блакитного в помаранчевий.',
+    pro: ['найспокійніший — добре для довгого вечора', 'помаранчеве ефекту одразу видно на синьому'],
+    con: ['червоного й помаранчевого мало — менше «SWTOR»'] },
+  { id: 'r2', name: 'Імперське скло', mix: 'скло 7 · акценти 1',
+    sw: ['#9a0f1d', '#FF6A4E', '#FF8A2B', '#5FD4FF'],
+    what: 'Червоне домінує, помаранчеві відблиски, синій лишено ефектам — щоб «що діє на мене» вирізнялось.',
+    pro: ['найдраматичніший', 'синій ефект на червоному не сплутаєш ні з чим'],
+    con: ['червоне тло спорідне з тривогою — термінова смуга менше вирізняється', 'втомлює очі за кілька годин'] },
+  { id: 'r3', name: 'Сутінкове скло', mix: 'скло 7 · градієнт на все тло',
+    sw: ['#ff7a1a', '#c4162a', '#3a0d3e', '#142a7a'],
+    what: 'Одна діагональ через увесь екран: помаранчевий, у червоний, у темно-синій. Рамки й лінії повторюють той самий перехід.',
+    pro: ['найбільше «SWTOR» — усі три кольори в одному русі', 'ефектний на скриншоті'],
+    con: ['верх екрана яскравий — статус-смуга мусить бути щільнішою', 'градієнт тла змагається з даними'] },
+  { id: 'r4', name: 'Майстерня під склом', mix: 'скло 7 · смуги й трафарет 6',
+    sw: ['#b8501a', '#FF8A2B', '#8a1420', '#1a4a9a'],
+    what: 'Теплий помаранчевий, смугасті термінові смуги, трафаретні підписи з великою розрядкою, великі зрізи кутів, пунктирні лінії.',
+    pro: ['термінові смуги неможливо пропустити', 'найбільше характеру'],
+    con: ['смуги під текстом трохи знижують контраст', 'розрядка підписів займає місце'] },
+  { id: 'r5', name: 'Голограма', mix: 'скло 7 · тонкі світні лінії 1',
+    sw: ['#0b3a6e', '#5FD4FF', '#FF8A2B', '#6e0f1d'],
+    what: 'Найпрозоріше скло, блакитні світні рамки й числа, ледь помітні рядки розгортки, помаранчеве й червоне світло з кутів.',
+    pro: ['найсильніше відчуття «голографічного столу»', 'числа світяться — легко знайти'],
+    con: ['найпрозоріше скло — найгірше читається на яскравому тлі', 'світіння чисел може розмивати дрібні цифри'] },
+  { id: 'r6', name: 'Дві сторони', mix: 'скло 7 · градієнти 1',
+    sw: ['#0c3a9a', '#3FA9FF', '#FF8A2B', '#E5323E'],
+    what: 'Синій ліворуч, червоний праворуч, помаранчеве світло посередині — Республіка й Імперія на одному екрані. Рамки йдуть синій → помаранчевий → червоний.',
+    pro: ['найзбалансованіший: усі три кольори рівною мірою', 'бій (червоне) і роздатка (синє) розрізняються кольором'],
+    con: ['тло ділиться навпіл — панелі виглядають по-різному ліворуч і праворуч'] },
+  { id: 'r7', name: 'Бронзове скло', mix: 'скло 7 · рамки в дусі інтерфейсу SWTOR',
+    sw: ['#F2C26A', '#c9852c', '#12306e', '#E5323E'],
+    what: 'Золото-помаранчеві рамки й підписи, як в ігровому інтерфейсі, димне скло, сині дані, червоне — тривога.',
+    pro: ['найближче до самого інтерфейсу SWTOR', 'золоті підписи панелей легко шукати очима'],
+    con: ['найтемніше скло — менше ефекту «рідкого скла»', 'золото й помаранчевий ефект близькі'] },
+  { id: 'r8', name: 'Неонове скло', mix: 'скло 7 · світіння 1 · смуги 6',
+    sw: ['#FF9A3C', '#FF3D5A', '#6FD8FF', '#3F6BFF'],
+    what: 'Найяскравіші градієнти: рамки переливаються помаранчевим, червоним і синім, числа світяться, термінові смуги — суцільні градієнти.',
+    pro: ['найсучасніший і найефектніший', 'термінове видно з будь-якої відстані'],
+    con: ['найважчий для очей і батареї', 'стільки кольору, що ефект і тривога губляться'] },
+];
+
+const ICON = {
+  sheet: '<svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>',
+  scene: '<svg viewBox="0 0 24 24"><path d="M3 20l6-10 4 6 3-4 5 8z"/><path d="M15 4h4v4h-4z"/></svg>',
+  items: '<svg viewBox="0 0 24 24"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3M4 13h16"/></svg>',
+  ship: '<svg viewBox="0 0 24 24"><path d="M12 3l3 7 6 2-6 2-3 7-3-7-6-2 6-2z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="M3 6l9 7 9-7"/></svg>',
+};
+
+function phone(v) {
+  return `
+  <div class="ph ${v.id}" role="img" aria-label="Телефон гравця у стилі «${v.name}»">
+    <div class="scr">
+      <div class="stars"></div>
+      <div class="top glass">
+        <div class="who">
+          <div class="nm"><b>Крінж-Дор</b><span>Кел-Дор · Учений 4 · Політик</span></div>
+          <span class="fx">◆ ефекти 1</span>
+        </div>
+        <div class="stats">
+          <div class="st"><small>ХП</small><b>27<i>/</i><em>38</em></b><div class="hpbar"></div></div>
+          <div class="st"><small>КБ</small><b>13</b></div>
+          <div class="st"><small>Ініц</small><b>+2</b></div>
+          <div class="st"><small>Швид</small><b>30</b></div>
+          <span class="insp" title="Натхнення">★</span>
+        </div>
+        <div class="urgent">
+          <div class="ug"><span class="ic">⚔</span><span class="tx"><b>Бій почався</b><span>Раунд 1 · кинь ініціативу</span></span><span class="go">›</span></div>
+          <div class="ug mail"><span class="ic">✉</span><span class="tx"><b>Нова роздатка</b><span>від майстра · натисни, щоб прочитати</span></span><span class="go">›</span></div>
+        </div>
+      </div>
+
+      <div class="body">
+        <div class="pn">
+          <h4>Діє на тебе</h4>
+          <div class="eff"><span class="dot"></span><div><b>Бакта-інʼєктор: Статура +1</b><small>до довгого відпочинку · максимум ХП 34 → 38</small></div></div>
+        </div>
+
+        <div class="pn">
+          <h4>Характеристики</h4>
+          <div class="ab">
+            <div class="a"><small>СИЛ</small><b>+0</b><i>10</i></div>
+            <div class="a"><small>СПР</small><b>+2</b><i>14</i></div>
+            <div class="a fxd"><small>СТА</small><b>+2</b><i>13 → 14</i></div>
+            <div class="a"><small>ІНТ</small><b>+4</b><i>18</i></div>
+            <div class="a"><small>МУД</small><b>+2</b><i>14</i></div>
+            <div class="a"><small>ХАР</small><b>+1</b><i>12</i></div>
+          </div>
+        </div>
+
+        <div class="pn">
+          <h4>Мої дії <span>кубики переваги</span></h4>
+          <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><span>3 / 4 · d4</span></div>
+          <div class="act">
+            <div class="w"><span class="k">Дія</span><span class="d"><b>Кріопістолет (Cryo pistol)</b><span>дальність 30/120 · злісний 1</span></span><span class="dice">d20<br>1d4 холод</span></div>
+            <div class="w no"><span class="k">Дія</span><span class="d"><b>Боукастер (Bowcaster)</b><span>Не володієш, і потрібна Сила 13: кидок з перешкодою</span></span><span class="dice">—</span></div>
+            <div class="w"><span class="k">Бонус</span><span class="d"><b>Згуртування (Rally)</b><span>маневр · союзник отримує тимчасові ХП</span></span><span class="dice">d4</span></div>
+            <div class="w"><span class="k">Реакц</span><span class="d"><b>Парирування (Parry)</b><span>маневр · зменшити шкоду від удару в ближньому бою</span></span><span class="dice">d4</span></div>
+          </div>
+        </div>
+      </div>
+
+      <nav class="tabs glass" aria-label="Вкладки">
+        <span class="tab on">${ICON.sheet}Лист</span>
+        <span class="tab">${ICON.scene}Сцена</span>
+        <span class="tab">${ICON.items}Речі</span>
+        <span class="tab">${ICON.ship}Корабель</span>
+        <span class="tab">${ICON.mail}Роздатки<span class="bd">1</span></span>
+      </nav>
+    </div>
+  </div>`;
+}
+
+document.getElementById('grid').innerHTML = VARIANTS.map((v, i) => `
+  <article class="card" id="${v.id}">
+    <h2><span class="num">${String(i + 1).padStart(2, '0')}</span>${v.name}</h2>
+    <p class="mix">Склад: <b>${v.mix}</b></p>
+    <div class="sw" aria-hidden="true">${v.sw.map((c) => `<i style="background:${c}"></i>`).join('')}</div>
+    <p class="what">${v.what}</p>
+    <div class="stage pulse">${phone(v)}</div>
+    <div class="procon">
+      <div><h3>За</h3><ul>${v.pro.map((x) => `<li>${x}</li>`).join('')}</ul></div>
+      <div><h3>Проти</h3><ul>${v.con.map((x) => `<li>${x}</li>`).join('')}</ul></div>
+    </div>
+  </article>`).join('');
+document.querySelector('nav.jump').innerHTML = VARIANTS.map((v, i) => `<a href="#${v.id}">${i + 1} · ${v.name}</a>`).join('');
+
+const toggle = document.getElementById('pulse-toggle');
+toggle.addEventListener('click', () => {
+  const on = toggle.getAttribute('aria-pressed') !== 'true';
+  toggle.setAttribute('aria-pressed', String(on));
+  toggle.textContent = `Пульс термінових смуг: ${on ? 'увімкнено' : 'вимкнено'}`;
+  document.querySelectorAll('.stage').forEach((s) => s.classList.toggle('pulse', on));
+});
+</script>
