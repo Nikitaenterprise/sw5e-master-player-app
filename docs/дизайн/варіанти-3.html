@@ -1,0 +1,464 @@
+<title>Бронза над туманністю</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@500;600&family=Philosopher:wght@400;700&family=Oswald:wght@500;600&family=Fira+Code:wght@500;600&family=Russo+One&family=Play:wght@400;700&family=PT+Mono&family=Inter:wght@400;600;700&display=swap">
+<style>
+/* Layout: round three — eight phones that mix the eight round-one styles onto the chosen base
+   (nebula and stars from 2·1, bronze and blue from 2·7, muted red). One slider sets the
+   character's Force alignment, and the nebula of every phone follows it. Dark page on purpose. */
+:root {
+  color-scheme: dark;
+  --page-bg: #09090D;
+  --page-card: #121219;
+  --page-line: #2A2833;
+  --page-text: #EFEAE0;
+  --page-muted: #A39C90;
+  --page-accent: #F2B04A;
+  --page-head: "Exo 2", "Segoe UI", system-ui, sans-serif;
+  --page-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page-bg); color: var(--page-text); font: 15px/1.55 var(--page-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1520px; margin: 0 auto; padding-block: 28px 56px; display: flex; flex-direction: column; gap: 24px; }
+header.intro { display: flex; flex-direction: column; gap: 10px; max-width: 78ch; }
+header.intro h1 { font: 700 clamp(26px, 4vw, 36px)/1.15 var(--page-head); margin: 0; text-wrap: balance; }
+header.intro h1 span { background: linear-gradient(90deg, #3FA9FF, #F2C26A 50%, #B8424A); -webkit-background-clip: text; background-clip: text; color: transparent; }
+header.intro p { margin: 0; color: var(--page-muted); }
+header.intro strong { color: var(--page-text); font-weight: 600; }
+
+.side {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: rgb(14 13 19 / .92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--page-line); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 21; background: var(--page-bg); }
+.side-head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; justify-content: space-between; }
+.side-head label { font: 600 12px/1.2 var(--page-body); letter-spacing: .12em; text-transform: uppercase; color: var(--page-muted); }
+.side-head output { font: 600 15px/1.3 "JetBrains Mono", ui-monospace, monospace; color: var(--page-text); overflow-wrap: anywhere; min-width: 0; }
+.side input[type="range"] { width: 100%; accent-color: var(--page-accent); height: 28px; }
+.legend { height: 8px; background: linear-gradient(90deg, #1d4fb8, #0b7fc0 25%, #6a4a1c 50%, #6a1422 75%, #3c0d26); }
+.legend-labels { display: flex; justify-content: space-between; font: 500 12px/1 "JetBrains Mono", ui-monospace, monospace; color: var(--page-muted); }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.presets button, .controls button {
+  font: inherit; font-size: 13px; color: var(--page-text); background: var(--page-card); border: 1px solid var(--page-line);
+  padding: 7px 11px; min-height: 40px; cursor: pointer;
+}
+.presets button:focus-visible, .controls button:focus-visible, .side input:focus-visible { outline: 2px solid var(--page-accent); outline-offset: 2px; }
+.presets button[aria-pressed="true"], .controls button[aria-pressed="true"] { border-color: var(--page-accent); color: var(--page-accent); }
+.side small { color: var(--page-muted); font-size: 12.5px; }
+
+nav.jump { display: flex; flex-wrap: wrap; gap: 8px; }
+nav.jump a {
+  color: var(--page-text); text-decoration: none; font-size: 13px; padding: 6px 10px; border: 1px solid var(--page-line); background: var(--page-card);
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+nav.jump a:hover, nav.jump a:focus-visible { border-color: var(--page-accent); color: var(--page-accent); outline: none; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; color: var(--page-muted); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 24px; }
+.card { min-width: 0; background: var(--page-card); border: 1px solid var(--page-line); padding: 18px; display: flex; flex-direction: column; gap: 14px; scroll-margin-top: 200px; }
+.card h2 { margin: 0; font: 700 20px/1.2 var(--page-head); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.card h2 .num { font: 600 13px/1 "JetBrains Mono", ui-monospace, monospace; color: var(--page-muted); letter-spacing: .08em; }
+.card .mix { margin: 0; font-size: 13px; color: var(--page-muted); }
+.card .mix b { color: var(--page-text); font-weight: 600; }
+.card .what { margin: 0; }
+.procon { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; font-size: 13.5px; }
+.procon div { min-width: 0; }
+.procon h3 { margin: 0 0 4px; font: 600 11px/1.3 var(--page-body); text-transform: uppercase; letter-spacing: .1em; color: var(--page-muted); }
+.procon ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.stage { display: flex; justify-content: center; }
+footer.note { color: var(--page-muted); font-size: 13px; max-width: 80ch; display: flex; flex-direction: column; gap: 6px; }
+
+/* ── The phone ─────────────────────────────────────────────────────────────── */
+.ph {
+  /* the chosen base: bronze and gold from 2·7, blue data, muted red */
+  --bg:#05070D; --text:#F4EEE2; --muted: rgb(236 224 205 / .72);
+  --gold:#F2C26A; --bronze:#9a5a1a; --data:#5FD4FF; --dice:#F2B04A; --effect:#7FE0FF; --alert:#E07A72; --ok:#5FE3A1;
+  --panel-tint: rgb(16 13 12 / .58); --bar-tint: rgb(18 15 12 / .55); --glass-hi: rgb(242 176 74 / .4);
+  --edge-grad: linear-gradient(135deg, #F2C26A, #9a5a1a 40%, rgb(255 255 255 / .06) 60%, #c9852c);
+  --line-grad: linear-gradient(90deg, transparent, #F2B04A, transparent);
+  --active-grad: linear-gradient(90deg, #c9852c, #F2C26A, #c9852c);
+  --tile: rgb(255 255 255 / .045); --tile-line: rgb(242 176 74 / .45); --tile-fx: rgb(127 224 255 / .1); --tile-bad: rgb(184 66 74 / .16);
+  --ug-bg: linear-gradient(100deg, rgb(130 28 40 / .9), rgb(180 84 40 / .8));
+  --ug2-bg: linear-gradient(100deg, rgb(150 96 22 / .88), rgb(222 160 66 / .72));
+  --cut: 10px; --cut-s: 8px;
+  --f-head:"Exo 2", system-ui, sans-serif; --f-num:"JetBrains Mono", ui-monospace, monospace; --f-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* the nebula follows the alignment; set by the slider */
+  --neb1: #1d4fb8; --neb2: #0b7fc0;
+  --backdrop:
+    radial-gradient(70% 45% at 10% 15%, var(--neb1) 0%, transparent 70%),
+    radial-gradient(55% 40% at 95% 50%, var(--neb2) 0%, transparent 70%),
+    radial-gradient(45% 30% at 20% 95%, #6e3c10 0%, transparent 70%),
+    var(--bg);
+  --stars: radial-gradient(1px 1px at 20% 30%, #f3e6cf 50%, transparent 51%) 0 0/90px 110px, radial-gradient(1px 1px at 70% 80%, #b9a98f 50%, transparent 51%) 0 0/130px 90px;
+
+  width: min(360px, 100%); height: 720px; border: 9px solid #000; border-radius: 46px; overflow: hidden;
+  position: relative; background: var(--bg); color: var(--text); font-family: var(--f-body);
+  box-shadow: 0 0 0 1px #2a2d35, 0 30px 60px rgb(0 0 0 / .5);
+}
+.scr { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; background: var(--backdrop); scrollbar-width: none; transition: background .4s; }
+.scr::-webkit-scrollbar { display: none; }
+.stars { position: absolute; inset: 0; pointer-events: none; background: var(--stars); }
+@media (prefers-reduced-motion: reduce) { .scr { transition: none; } }
+
+.glass {
+  background: var(--bar-tint);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 10px 30px rgb(0 0 0 / .35);
+}
+.top { position: sticky; top: 0; z-index: 3; padding: 30px 14px 10px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid transparent; border-image: var(--line-grad) 1; }
+.who { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; min-width: 0; }
+.who .nm { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.who .nm b { font: var(--w-head, 700) 17px/1.15 var(--f-head); letter-spacing: var(--head-track, .1em); text-transform: var(--head-case, uppercase); overflow-wrap: anywhere; }
+.who .nm span { font-size: 12px; color: var(--muted); }
+.who .nm .al { font: 600 11px/1.3 var(--f-num); color: var(--gold); overflow-wrap: anywhere; }
+.fx { flex: none; position: relative; isolation: isolate; font: 600 12px/1 var(--f-num); color: var(--effect); padding: 8px 10px; min-height: 30px; display: inline-flex; align-items: center;
+  --s: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); clip-path: var(--s); }
+.fx::before, .fx::after { content: ""; position: absolute; z-index: -1; clip-path: var(--s); }
+.fx::before { inset: 0; background: var(--effect); }
+.fx::after { inset: 1px; background: var(--bar-tint); }
+.stats { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)) auto; gap: 6px; align-items: end; }
+.st { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.st small { font: 600 10px/1 var(--f-label, var(--f-body)); color: var(--muted); letter-spacing: var(--label-track, .12em); text-transform: uppercase; }
+.st b { font: var(--w-num, 700) var(--num-size, 21px)/1 var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--num-color, var(--text)); text-shadow: var(--num-glow, none); }
+.st b em { font-style: normal; color: var(--effect); }
+.st b i { font-style: normal; font-size: 13px; color: var(--muted); }
+.hpbar { height: 4px; background: rgb(255 255 255 / .12); margin-top: 4px; position: relative; }
+.hpbar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 71%; background: linear-gradient(90deg, #2fbf7a, #5FE3A1); }
+.insp { font-size: 18px; color: var(--gold); line-height: 1; align-self: center; }
+
+.urgent { display: flex; flex-direction: column; gap: 6px; }
+.ug {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 46px; color: #fff; position: relative;
+  background: var(--ug-bg);
+  clip-path: polygon(var(--cut-s) 0, 100% 0, 100% calc(100% - var(--cut-s)), calc(100% - var(--cut-s)) 100%, 0 100%, 0 var(--cut-s));
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.ug.mail { background: var(--ug2-bg); }
+.ug .ic { font-size: 16px; flex: none; }
+.ug .tx { min-width: 0; flex: 1; display: flex; flex-direction: column; text-shadow: 0 1px 2px rgb(0 0 0 / .5); }
+.ug .tx b { font: 700 13px/1.15 var(--f-label, var(--f-head)); letter-spacing: var(--label-track, .1em); text-transform: uppercase; }
+.ug .tx span { font-size: 12px; opacity: .95; overflow-wrap: anywhere; }
+.ug .go { font: 700 18px/1 var(--f-num); flex: none; }
+.pulse .ug { animation: pulse 2s ease-in-out infinite; }
+.pulse .ug.mail { animation-delay: 1s; }
+@keyframes pulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.28); } }
+@media (prefers-reduced-motion: reduce) { .pulse .ug { animation: none; } }
+
+.body { padding: 12px 14px 18px; display: flex; flex-direction: column; gap: 12px; flex: 1; position: relative; }
+.pn { position: relative; isolation: isolate; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  --shape: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+.pn::before, .pn::after { content: ""; position: absolute; z-index: -1; clip-path: var(--shape); }
+.pn::before { inset: 0; background: var(--edge-grad); }
+.pn::after { inset: 1px; background: var(--panel-tint); -webkit-backdrop-filter: blur(16px) saturate(150%); backdrop-filter: blur(16px) saturate(150%); }
+.pn h4 { margin: 0; font: 600 11px/1.2 var(--f-label, var(--f-body)); letter-spacing: var(--label-track, .14em); text-transform: uppercase; color: var(--gold); display: flex; justify-content: space-between; gap: 8px; }
+.pn h4 span { color: var(--muted); letter-spacing: .04em; text-transform: none; font-family: var(--f-num); font-weight: 500; }
+.eff { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.eff .dot { flex: none; width: 8px; height: 8px; margin-top: 5px; background: var(--effect); transform: rotate(45deg); box-shadow: 0 0 8px var(--effect); }
+.eff div { min-width: 0; font-size: 13.5px; }
+.eff b { font-weight: 600; }
+.eff small { display: block; color: var(--muted); font-size: 12px; }
+.ab { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.a { padding: 8px 6px 7px; text-align: center; background: var(--tile); min-width: 0; border-top: 1px solid var(--tile-line); }
+.a small { display: block; font: 600 10px/1 var(--f-label, var(--f-body)); letter-spacing: .12em; color: var(--muted); }
+.a b { display: block; font: var(--w-num, 700) calc(var(--num-size, 21px) + 1px)/1.15 var(--f-num); font-variant-numeric: tabular-nums; color: var(--num-color, var(--text)); text-shadow: var(--num-glow, none); }
+.a i { font: normal 11px/1 var(--f-num); color: var(--muted); }
+.a.fxd { border-top-color: var(--effect); background: var(--tile-fx); }
+.a.fxd b, .a.fxd i { color: var(--effect); }
+.act { display: flex; flex-direction: column; gap: 8px; }
+.w { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; min-width: 0; background: var(--tile); border-left: 2px solid var(--gold); }
+.w .k { flex: none; font: 600 10px/1.3 var(--f-label, var(--f-body)); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); width: 46px; padding-top: 2px; }
+.w .d { min-width: 0; flex: 1; }
+.w .d b { display: block; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.w .d span { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.w .dice { flex: none; font: 700 13px/1.3 var(--f-num); color: var(--data); text-align: right; }
+.w.no { border-left-color: var(--alert); background: var(--tile-bad); }
+.w.no .d b { color: var(--alert); }
+.w.no .d span { color: var(--text); }
+.pips { display: flex; gap: 6px; align-items: center; }
+.pips i { width: 11px; height: 11px; border: 1px solid var(--dice); transform: rotate(45deg); }
+.pips i.on { background: var(--dice); box-shadow: 0 0 6px var(--dice); }
+.pips span { font: 600 12px/1 var(--f-num); color: var(--muted); margin-left: 6px; }
+.tabs { position: sticky; bottom: 0; z-index: 3; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 4px 22px; margin-top: auto; border-top: 1px solid transparent; border-image: var(--line-grad) 1; }
+.tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; min-height: 48px; color: var(--muted); font: 600 10.5px/1.1 var(--f-body); position: relative; min-width: 0; }
+.tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: square; stroke-linejoin: miter; }
+.tab.on { color: var(--text); }
+.tab.on svg { stroke: var(--gold); filter: drop-shadow(0 0 6px rgb(242 194 106 / .7)); }
+.tab.on::before { content: ""; position: absolute; top: -6px; left: 20%; right: 20%; height: 2px; background: var(--active-grad); box-shadow: 0 0 10px rgb(242 194 106 / .6); }
+.tab .bd { position: absolute; top: 2px; right: 16%; min-width: 16px; height: 16px; padding: 0 4px; background: #B8424A; color: #fff; font: 700 10px/16px var(--f-num); text-align: center; }
+.scan { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+
+/* 1 · з «Голостолу» — тонкі лінії, світна смуга збоку, світіння вкладки */
+.b1 .ug { border-left: 3px solid rgb(255 255 255 / .45); }
+.b1 .pn::before { background: linear-gradient(180deg, rgb(242 194 106 / .9), rgb(242 194 106 / .15) 60%, rgb(95 212 255 / .4)); }
+
+/* 2 · з «Імперського протоколу» — вузький строгий шрифт, плоска тонка рамка, без світіння */
+.b2 { --f-head:"IBM Plex Sans Condensed", "Arial Narrow", sans-serif; --f-num:"IBM Plex Mono", ui-monospace, monospace; --f-body:"IBM Plex Sans Condensed", system-ui, sans-serif;
+  --head-track:.18em; --label-track:.24em; --cut: 4px; --cut-s: 3px;
+  --edge-grad: rgb(242 194 106 / .55); --active-grad: #F2C26A; }
+.b2 .eff .dot, .b2 .pips i.on { box-shadow: none; }
+.b2 .tab.on svg { filter: none; }
+.b2 .tab.on::before { box-shadow: none; left: 0; right: 0; }
+
+/* 3 · зі «Старої Республіки» — чотири зрізи, друга тонка рамка, заголовки із засічками */
+.b3 { --f-head:"Philosopher", Georgia, serif; --head-case: none; --head-track: .03em; --cut: 9px; }
+.b3 .pn { --shape: polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, var(--cut) 100%, 0 calc(100% - var(--cut)), 0 var(--cut)); }
+.b3 .pn::after { box-shadow: inset 0 0 0 3px rgb(16 13 12 / .6), inset 0 0 0 4px rgb(242 194 106 / .3); }
+.b3 .who .nm b { font-size: 19px; }
+
+/* 4 · з «Тактичного штабу» — золоті скоби на кутах, сітка на тлі, вузький військовий шрифт */
+.b4 { --f-head:"Oswald", "Arial Narrow", sans-serif; --f-num:"Fira Code", ui-monospace, monospace; --head-track:.12em; --label-track:.16em; --cut: 0px; --cut-s: 0px;
+  --stars: linear-gradient(rgb(242 194 106 / .06) 1px, transparent 1px) 0 0/24px 24px, linear-gradient(90deg, rgb(242 194 106 / .06) 1px, transparent 1px) 0 0/24px 24px, radial-gradient(1px 1px at 20% 30%, #f3e6cf 50%, transparent 51%) 0 0/90px 110px; }
+.b4 .pn::before { background:
+  linear-gradient(#F2C26A, #F2C26A) 0 0/14px 2px no-repeat, linear-gradient(#F2C26A, #F2C26A) 0 0/2px 14px no-repeat,
+  linear-gradient(#F2C26A, #F2C26A) 100% 100%/14px 2px no-repeat, linear-gradient(#F2C26A, #F2C26A) 100% 100%/2px 14px no-repeat,
+  rgb(242 194 106 / .18); }
+.b4 .ug { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .35); }
+
+/* 5 · з «Фронту» — нахил уперед, великі числа, кути навскіс */
+.b5 { --f-head:"Russo One", "Arial Black", sans-serif; --w-head: 400; --head-track:.04em; --num-size: 24px; --cut: 14px; }
+.b5 .pn { --shape: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut))); }
+.b5 .ug, .b5 .fx { transform: skewX(-12deg); margin-inline: 6px; clip-path: none; }
+.b5 .ug > *, .b5 .fx > * { transform: skewX(12deg); }
+.b5 .fx::before, .b5 .fx::after { clip-path: none; }
+.b5 .tab.on::before { transform: skewX(-20deg); height: 3px; }
+
+/* 6 · з «Повстанської майстерні» — приглушені смугасті смуги, трафарет, великі зрізи */
+.b6 { --f-head:"Play", system-ui, sans-serif; --f-label:"Play", system-ui, sans-serif; --head-track:.2em; --label-track:.22em; --cut: 14px;
+  --ug-bg: repeating-linear-gradient(135deg, rgb(130 30 40 / .88) 0 10px, rgb(98 22 30 / .88) 10px 20px);
+  --ug2-bg: repeating-linear-gradient(135deg, rgb(200 136 46 / .88) 0 10px, rgb(160 104 30 / .88) 10px 20px);
+  --line-grad: repeating-linear-gradient(90deg, #F2B04A 0 8px, transparent 8px 12px);
+  --active-grad: repeating-linear-gradient(90deg, #F2B04A 0 6px, transparent 6px 9px); }
+
+/* 7 · з «Рідкого скла» й «Голограми» — найпрозоріше скло, світні сині числа, ледь помітна розгортка */
+.b7 { --panel-tint: rgb(14 14 18 / .5); --bar-tint: rgb(14 14 18 / .45); --glass-hi: rgb(255 255 255 / .4);
+  --edge-grad: linear-gradient(160deg, rgb(127 224 255 / .85), rgb(242 194 106 / .35) 50%, rgb(242 194 106 / .8));
+  --num-color: #E6F8FF; --num-glow: 0 0 10px rgb(95 212 255 / .55); }
+.b7 .scan { background: repeating-linear-gradient(0deg, rgb(95 212 255 / .045) 0 1px, transparent 1px 4px); }
+
+/* 8 · з «Ретро-фосфору» — бурштинові моноширинні числа зі світінням, решта — звичайний шрифт */
+.b8 { --f-num:"PT Mono", ui-monospace, monospace; --f-label:"PT Mono", ui-monospace, monospace; --w-num: 400; --num-size: 23px;
+  --num-color: #FFC266; --num-glow: 0 0 8px rgb(255 179 71 / .55); --label-track: .14em; }
+.b8 .scan { background: repeating-linear-gradient(0deg, rgb(0 0 0 / .14) 0 1px, transparent 1px 3px); }
+.b8 .pn h4 { color: #FFC266; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h1>Раунд 3: <span>бронза над туманністю схильності</span></h1>
+    <p>Основа одна для всіх восьми: <strong>тло з «Республіканського скла»</strong> (туманність і зорі), <strong>кольори з «Бронзового скла»</strong> (золото-помаранчеві рамки, сині дані), червоний — лише приглушений. На неї накладено вісім стилів першого раунду, по одному на телефон.</p>
+    <p><strong>Колір туманності — це схильність персонажа.</strong> Шкала з книги, варіантне правило Force Alignment: від Light 100 через Balanced до Dark 100, кожні 10 — ярус. Посуваєш повзунок — і всі вісім телефонів міняють тло, як міняв би майстер.</p>
+  </header>
+
+  <section class="side" aria-label="Схильність персонажа">
+    <div class="side-head">
+      <label for="side">Схильність Крінж-Дора (виставляє майстер)</label>
+      <output id="side-out" for="side">Light 40 · Велика доброчесність II (Major Benevolence)</output>
+    </div>
+    <input type="range" id="side" min="-100" max="100" step="5" value="-40" aria-describedby="side-help">
+    <div class="legend" aria-hidden="true"></div>
+    <div class="legend-labels" aria-hidden="true"><span>Light 100</span><span>Balanced</span><span>Dark 100</span></div>
+    <div class="presets" role="group" aria-label="Швидкий вибір">
+      <button type="button" data-v="-100">Light 100</button>
+      <button type="button" data-v="-40" aria-pressed="true">Light 40</button>
+      <button type="button" data-v="0">Balanced</button>
+      <button type="button" data-v="40">Dark 40</button>
+      <button type="button" data-v="100">Dark 100</button>
+    </div>
+    <small id="side-help">Синій — світло, бронза — рівновага, глибокий червоний — темрява. Яскравого червоного немає навіть на Dark 100.</small>
+  </section>
+
+  <nav class="jump" aria-label="До варіанта"></nav>
+
+  <div class="controls">
+    <button type="button" id="pulse-toggle" aria-pressed="true">Пульс термінових смуг: увімкнено</button>
+    <span>Прокручуй екран телефона, щоб побачити скло над туманністю.</span>
+  </div>
+
+  <section class="grid" id="grid" aria-label="Варіанти"></section>
+
+  <footer class="note">
+    <p>Раунди: <code>docs/дизайн/варіанти.html</code> → <code>варіанти-2.html</code> → цей, <code>варіанти-3.html</code>. Хід вибору — <code>docs/дизайн/ДИЗАЙН-ІНТЕРФЕЙСУ.md</code>, розділ 14; схильність у застосунку — фіча F-115.</p>
+    <p>Назви ярусів українською тут робочі; остаточні ляжуть у глосарій. Шрифти — з Google Fonts лише для показу.</p>
+  </footer>
+</div>
+
+<script>
+const VARIANTS = [
+  { id: 'b1', name: 'Бронзовий голостіл', mix: 'основа + «Голостіл» (1)',
+    what: 'Чиста основа: тонкі золоті лінії, що згасають донизу й переходять у синє, світна смуга збоку термінових повідомлень.',
+    pro: ['найспокійніший і найчитабельніший', 'нічого зайвого — легко розвивати далі'],
+    con: ['найменше власного характеру'] },
+  { id: 'b2', name: 'Бронзовий протокол', mix: 'основа + «Імперський протокол» (2)',
+    what: 'Вузький строгий шрифт із великою розрядкою, плоска тонка золота рамка, дрібні зрізи, без світіння.',
+    pro: ['найчіткіші числа й підписи', 'найлегший для слабкого телефона'],
+    con: ['строгий, «службовий» — тепла бронза трохи холоднішає'] },
+  { id: 'b3', name: 'Бронзова Республіка', mix: 'основа + «Стара Республіка» (3)',
+    what: 'Кути зрізані з усіх чотирьох боків, друга тонка рамка всередині панелі, імʼя й заголовки — шрифтом із засічками.',
+    pro: ['найбільше «старої республіки» й SWTOR', 'золото й засічки — шляхетно'],
+    con: ['подвійні рамки — більше дрібних деталей', 'засічки гірше читаються дрібним'] },
+  { id: 'b4', name: 'Бронзовий штаб', mix: 'основа + «Тактичний штаб» (4)',
+    what: 'Золоті скоби на кутах замість суцільної рамки, ледь помітна золота сітка поверх зірок, вузький військовий шрифт.',
+    pro: ['відчуття командного пункту — добре для бою', 'скоби не обрізають рамку й фокус'],
+    con: ['сітка додає шуму на тлі', 'без зрізаних кутів — менш «зоряновійськовий»'] },
+  { id: 'b5', name: 'Бронзовий фронт', mix: 'основа + «Фронт» (5)',
+    what: 'Термінові смуги й значок ефектів нахилені вперед, великі жирні числа, кути навскіс.',
+    pro: ['найбільші числа — видно з відстані руки', 'найдинамічніший'],
+    con: ['нахил ускладнює довгі підписи', 'жирний шрифт заголовків важчий за бронзу'] },
+  { id: 'b6', name: 'Бронзова майстерня', mix: 'основа + «Повстанська майстерня» (6)',
+    what: 'Приглушені смугасті термінові смуги, трафаретні підписи з великою розрядкою, пунктирні лінії, великі зрізи.',
+    pro: ['термінове неможливо пропустити', 'найтепліший і «рукотворний»'],
+    con: ['смуги під текстом трохи знижують контраст', 'розрядка займає місце'] },
+  { id: 'b7', name: 'Бронзова голограма', mix: 'основа + «Рідке скло» (7) і «Голограма» (2·5)',
+    what: 'Найпрозоріше скло, яке ще читається, світні сині числа, рамки з блакитного в золото, ледь помітна розгортка.',
+    pro: ['найбільше «рідкого скла» — туманність схильності видно найкраще', 'числа світяться'],
+    con: ['на яскравому тлі читається гірше за інших', 'найважчий для слабкого телефона'] },
+  { id: 'b8', name: 'Бронзовий фосфор', mix: 'основа + «Ретро-фосфор» (8)',
+    what: 'Числа й підписи — бурштиновим моноширинним шрифтом зі світінням і рядками розгортки, а весь інший текст — звичайним.',
+    pro: ['атмосфера бортового компʼютера без втрати читабельності тексту', 'числа одразу відрізняються від слів'],
+    con: ['бурштинові числа близькі до золотих рамок'] },
+];
+
+const ICON = {
+  sheet: '<svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>',
+  scene: '<svg viewBox="0 0 24 24"><path d="M3 20l6-10 4 6 3-4 5 8z"/><path d="M15 4h4v4h-4z"/></svg>',
+  items: '<svg viewBox="0 0 24 24"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3M4 13h16"/></svg>',
+  ship: '<svg viewBox="0 0 24 24"><path d="M12 3l3 7 6 2-6 2-3 7-3-7-6-2 6-2z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="M3 6l9 7 9-7"/></svg>',
+};
+
+function phone(v) {
+  return `
+  <div class="ph ${v.id}" role="img" aria-label="Телефон гравця у стилі «${v.name}»">
+    <div class="scr">
+      <div class="stars"></div>
+      <div class="top glass">
+        <div class="who">
+          <div class="nm"><b>Крінж-Дор</b><span>Кел-Дор · Учений 4 · Політик</span><span class="al" data-al></span></div>
+          <span class="fx"><span>◆ ефекти 1</span></span>
+        </div>
+        <div class="stats">
+          <div class="st"><small>ХП</small><b>27<i>/</i><em>38</em></b><div class="hpbar"></div></div>
+          <div class="st"><small>КБ</small><b>13</b></div>
+          <div class="st"><small>Ініц</small><b>+2</b></div>
+          <div class="st"><small>Швид</small><b>30</b></div>
+          <span class="insp" title="Натхнення">★</span>
+        </div>
+        <div class="urgent">
+          <div class="ug"><span class="ic">⚔</span><span class="tx"><b>Бій почався</b><span>Раунд 1 · кинь ініціативу</span></span><span class="go">›</span></div>
+          <div class="ug mail"><span class="ic">✉</span><span class="tx"><b>Нова роздатка</b><span>від майстра · натисни, щоб прочитати</span></span><span class="go">›</span></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="pn">
+          <h4>Діє на тебе</h4>
+          <div class="eff"><span class="dot"></span><div><b>Бакта-інʼєктор: Статура +1</b><small>до довгого відпочинку · максимум ХП 34 → 38</small></div></div>
+        </div>
+        <div class="pn">
+          <h4>Характеристики</h4>
+          <div class="ab">
+            <div class="a"><small>СИЛ</small><b>+0</b><i>10</i></div>
+            <div class="a"><small>СПР</small><b>+2</b><i>14</i></div>
+            <div class="a fxd"><small>СТА</small><b>+2</b><i>13 → 14</i></div>
+            <div class="a"><small>ІНТ</small><b>+4</b><i>18</i></div>
+            <div class="a"><small>МУД</small><b>+2</b><i>14</i></div>
+            <div class="a"><small>ХАР</small><b>+1</b><i>12</i></div>
+          </div>
+        </div>
+        <div class="pn">
+          <h4>Мої дії <span>кубики переваги</span></h4>
+          <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><span>3 / 4 · d4</span></div>
+          <div class="act">
+            <div class="w"><span class="k">Дія</span><span class="d"><b>Кріопістолет (Cryo pistol)</b><span>дальність 30/120 · злісний 1</span></span><span class="dice">d20<br>1d4 холод</span></div>
+            <div class="w no"><span class="k">Дія</span><span class="d"><b>Боукастер (Bowcaster)</b><span>Не володієш, і потрібна Сила 13: кидок з перешкодою</span></span><span class="dice">—</span></div>
+            <div class="w"><span class="k">Бонус</span><span class="d"><b>Згуртування (Rally)</b><span>маневр · союзник отримує тимчасові ХП</span></span><span class="dice">d4</span></div>
+            <div class="w"><span class="k">Реакц</span><span class="d"><b>Парирування (Parry)</b><span>маневр · зменшити шкоду від удару в ближньому бою</span></span><span class="dice">d4</span></div>
+          </div>
+        </div>
+      </div>
+      <nav class="tabs glass" aria-label="Вкладки">
+        <span class="tab on">${ICON.sheet}Лист</span>
+        <span class="tab">${ICON.scene}Сцена</span>
+        <span class="tab">${ICON.items}Речі</span>
+        <span class="tab">${ICON.ship}Корабель</span>
+        <span class="tab">${ICON.mail}Роздатки<span class="bd">1</span></span>
+      </nav>
+    </div>
+    <div class="scan"></div>
+  </div>`;
+}
+
+document.getElementById('grid').innerHTML = VARIANTS.map((v, i) => `
+  <article class="card" id="${v.id}">
+    <h2><span class="num">${String(i + 1).padStart(2, '0')}</span>${v.name}</h2>
+    <p class="mix">Склад: <b>${v.mix}</b></p>
+    <p class="what">${v.what}</p>
+    <div class="stage pulse">${phone(v)}</div>
+    <div class="procon">
+      <div><h3>За</h3><ul>${v.pro.map((x) => `<li>${x}</li>`).join('')}</ul></div>
+      <div><h3>Проти</h3><ul>${v.con.map((x) => `<li>${x}</li>`).join('')}</ul></div>
+    </div>
+  </article>`).join('');
+document.querySelector('nav.jump').innerHTML = VARIANTS.map((v, i) => `<a href="#${v.id}">${i + 1} · ${v.name}</a>`).join('');
+
+/* Force Alignment (book): Light 100 … 0 Balanced … Dark 100; every 10 points a tier.
+   Here negative is Light and positive is Dark. */
+const SIDE = {
+  light:   ['#1d4fb8', '#0b7fc0'],
+  neutral: ['#6a4a1c', '#24324e'],
+  dark:    ['#6a1422', '#3c0d26'],
+};
+const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
+function tierName(score) {
+  const n = Math.abs(score);
+  const light = score < 0;
+  if (n < 10) return 'Рівновага (Balanced)';
+  if (n >= 100) return light ? 'Сяйна істота (Luminous Being)' : 'Темна сутність (Dark Entity)';
+  const k = Math.floor(n / 10);
+  const tier = ROMAN[Math.ceil(k / 2) - 1];
+  const major = k % 2 === 0;
+  if (light) return `${major ? 'Велика' : 'Мала'} доброчесність ${tier} (${major ? 'Major' : 'Minor'} Benevolence)`;
+  return `${major ? 'Велике' : 'Мале'} зіпсуття ${tier} (${major ? 'Major' : 'Minor'} Corruption)`;
+}
+function scoreText(score) {
+  if (score === 0) return 'Balanced 0';
+  return score < 0 ? `Light ${-score}` : `Dark ${score}`;
+}
+function mix(a, b, p) { return `color-mix(in oklab, ${a} ${p}%, ${b})`; }
+function applySide(score) {
+  const p = Math.round(Math.abs(score));
+  const far = score < 0 ? SIDE.light : SIDE.dark;
+  const n1 = mix(far[0], SIDE.neutral[0], p);
+  const n2 = mix(far[1], SIDE.neutral[1], p);
+  const text = `${scoreText(score)} · ${tierName(score)}`;
+  document.querySelectorAll('.ph').forEach((ph) => {
+    ph.style.setProperty('--neb1', n1);
+    ph.style.setProperty('--neb2', n2);
+    const al = ph.querySelector('[data-al]');
+    if (al) al.textContent = `◐ ${text}`;
+  });
+  document.getElementById('side-out').textContent = text;
+  document.querySelectorAll('.presets button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === score)));
+}
+const slider = document.getElementById('side');
+slider.addEventListener('input', () => applySide(Number(slider.value)));
+document.querySelectorAll('.presets button').forEach((b) => b.addEventListener('click', () => {
+  slider.value = b.dataset.v;
+  applySide(Number(b.dataset.v));
+}));
+applySide(Number(slider.value));
+
+const toggle = document.getElementById('pulse-toggle');
+toggle.addEventListener('click', () => {
+  const on = toggle.getAttribute('aria-pressed') !== 'true';
+  toggle.setAttribute('aria-pressed', String(on));
+  toggle.textContent = `Пульс термінових смуг: ${on ? 'увімкнено' : 'вимкнено'}`;
+  document.querySelectorAll('.stage').forEach((s) => s.classList.toggle('pulse', on));
+});
+</script>
