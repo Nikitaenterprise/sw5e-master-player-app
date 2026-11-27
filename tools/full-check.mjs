@@ -361,7 +361,9 @@ try {
   {
     const weatherNow = () => lastOf(gm, 'weather')?.weather;
     gm.ws.send(JSON.stringify({ type: 'weather-roll', why: 'move', value: 2 }));
-    await wait(gm, () => weatherNow()?.now?.key === 'stina');
+    // The weather and its line in the scene notes are two messages; either may come first.
+    await wait(gm, () => weatherNow()?.now?.key === 'stina'
+      && (lastOf(gm, 'scene-notes')?.notes.at(-1)?.text ?? '').includes('(d4=2)'));
     const moved = weatherNow()?.now?.name;
     const trace = lastOf(gm, 'scene-notes')?.notes.at(-1)?.text ?? '';
     gm.ws.send(JSON.stringify({ type: 'weather-roll', why: 'check', value: 5 }));
