@@ -460,6 +460,7 @@ a.ref-link:hover { color: var(--accent); }
 /* ── Enemies in the fight (F-055) ──────────────────────────────────────── */
 .order li.foe { flex-wrap: wrap; border-left: 3px solid color-mix(in srgb, var(--bad) 60%, transparent); }
 .order li.down { opacity: .55; }
+.order li .skips { color: var(--muted); font-size: .8rem; }
 .enemy { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: .4rem .9rem; align-items: center; font-size: .82rem; }
 .enemy-hp b { font-variant-numeric: tabular-nums; }
 .enemy-hp.low b { color: var(--bad); }

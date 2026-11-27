@@ -13,7 +13,7 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { NpcDesk, NpcsInScene } from './Npcs.js';
 import { WeatherBar } from './Weather.js';
@@ -1360,6 +1360,7 @@ function OrderRow({
         </span>
       )}
       {current && <i className="mark">← хід</i>}
+      {skipsTurn(fighter) && <small className="skips">пропускає хід</small>}
       {fighter.companion !== undefined && (
         <span className="with-companion">
           + {fighter.companion.name}:{' '}

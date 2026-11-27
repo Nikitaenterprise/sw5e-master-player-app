@@ -1635,14 +1635,22 @@ export function parseAttackRoll(data: unknown): AttackRoll | string {
   return attack;
 }
 
-/** How many turns until this fighter's, counting from the current one; 0 when it is theirs. */
+/**
+ * How many turns until this fighter's, counting from the current one; 0 when it is theirs.
+ * A downed enemy is passed over (F-096), so it is not counted either.
+ */
 export function turnsUntil(combat: CombatState, id: string): number | null {
   const queue = rotation(combat);
   const mine = queue.findIndex((f) => f.id === id);
   if (mine === -1) return null;
   const now = queue.findIndex((f) => f.id === combat.turn);
-  if (now === -1) return mine;
-  return (mine - now + queue.length) % queue.length;
+  if (now === -1) return queue.slice(0, mine).filter((f) => !skipsTurn(f)).length;
+  let turns = 0;
+  for (let i = now; i !== mine; ) {
+    i = (i + 1) % queue.length;
+    if (!skipsTurn(queue[i] as Fighter)) turns += 1;
+  }
+  return turns;
 }
 
 /** GM → server: the fight begins. The party goes into the order; rolls come next. */
@@ -3008,6 +3016,15 @@ export function rotation(combat: CombatState): Fighter[] {
 }
 
 /**
+ * An enemy with nothing left is passed over (F-096). It stays in the order — healed, it
+ * acts again — but gets no turn. A party member at 0 hit points is not: their turn is
+ * when the death save is rolled.
+ */
+export function skipsTurn(fighter: Fighter): boolean {
+  return fighter.kind === 'enemy' && fighter.status === 'знешкоджений';
+}
+
+/**
  * The round in which this fighter's next turn starts: this round, if their place in the
  * order is still ahead; the next one, if it has passed or is now. Null when they are not
  * in the order — no initiative, no turn (F-074).
@@ -3031,22 +3048,26 @@ export function nextTurn(
   direction: 'next' | 'back',
 ): { turn: string | null; round: number } {
   const queue = rotation(combat);
-  const first = queue[0];
-  const last = queue[queue.length - 1];
-  if (first === undefined || last === undefined) return { turn: null, round: combat.round };
+  const acting = queue.filter((f) => !skipsTurn(f));
+  const first = acting[0];
+  const last = acting[acting.length - 1];
+  if (first === undefined || last === undefined) return { turn: combat.turn, round: combat.round };
 
   const at = queue.findIndex((f) => f.id === combat.turn);
   if (at === -1) return { turn: direction === 'next' ? first.id : last.id, round: combat.round };
 
-  if (direction === 'next') {
-    const ahead = queue[at + 1];
-    return ahead === undefined
-      ? { turn: first.id, round: combat.round + 1 }
-      : { turn: ahead.id, round: combat.round };
+  // Walk the order one place at a time, passing over a downed enemy (F-096); going past
+  // the end starts the next round, going before the start goes back one.
+  const step = direction === 'next' ? 1 : -1;
+  for (let moved = 1; moved <= queue.length; moved += 1) {
+    const place = at + step * moved;
+    const wrapped = place >= queue.length || place < 0;
+    if (wrapped && direction === 'back' && combat.round <= 1) return { turn: combat.turn, round: 1 };
+    const fighter = queue[(place + queue.length) % queue.length] as Fighter;
+    if (skipsTurn(fighter)) continue;
+    return { turn: fighter.id, round: combat.round + (wrapped ? step : 0) };
   }
-  const behind = queue[at - 1];
-  if (behind !== undefined) return { turn: behind.id, round: combat.round };
-  return combat.round <= 1 ? { turn: combat.turn, round: 1 } : { turn: last.id, round: combat.round - 1 };
+  return { turn: combat.turn, round: combat.round };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
