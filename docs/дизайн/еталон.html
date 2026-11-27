@@ -1,0 +1,615 @@
+<title>Бронзова голограма</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;600;700&display=swap">
+<style>
+/* Layout: the reference sheet of the chosen look, "Bronze hologram" (round 3, variant 7).
+   Three phone screens, the alignment scale and the GM laptop, each also renderable alone
+   through #shot-<name> so screenshots can be taken. Dark on purpose: the look is dark. */
+:root {
+  color-scheme: dark;
+  /* ── Final tokens of the look (mirror them in apps/web/src/style.css, F-114) ── */
+  --bg: #05070D;
+  --text: #F4EEE2;
+  --muted: rgb(236 224 205 / .72);
+  --gold: #F2C26A;
+  --bronze: #9A5A1A;
+  --amber: #F2B04A;
+  --data: #5FD4FF;
+  --effect: #7FE0FF;
+  --alert: #E07A72;
+  --ok: #5FE3A1;
+  --num: #E6F8FF;
+  --num-glow: 0 0 10px rgb(95 212 255 / .5);
+  --panel-tint: rgb(14 14 18 / .5);
+  --bar-tint: rgb(14 14 18 / .45);
+  --glass-hi: rgb(255 255 255 / .4);
+  --edge-grad: linear-gradient(160deg, rgb(127 224 255 / .85), rgb(242 194 106 / .35) 50%, rgb(242 194 106 / .8));
+  --line-grad: linear-gradient(90deg, transparent, #F2B04A, transparent);
+  --strip-combat: linear-gradient(100deg, rgb(130 28 40 / .9), rgb(180 84 40 / .8));
+  --strip-mail: linear-gradient(100deg, rgb(150 96 22 / .88), rgb(222 160 66 / .72));
+  --strip-turn: linear-gradient(100deg, rgb(18 80 140 / .9), rgb(95 212 255 / .62));
+  --tile: rgb(255 255 255 / .045);
+  --tile-line: rgb(242 176 74 / .45);
+  --tile-fx: rgb(127 224 255 / .1);
+  --tile-bad: rgb(184 66 74 / .16);
+  --cut: 10px;
+  --cut-s: 8px;
+  --f-head: "Exo 2", "Segoe UI", system-ui, sans-serif;
+  --f-num: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --f-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* the nebula follows the character's alignment; Balanced by default */
+  --neb1: #6a4a1c;
+  --neb2: #24324e;
+
+  /* page chrome */
+  --page-bg: #09090D;
+  --page-card: #121219;
+  --page-line: #2A2833;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page-bg); color: var(--text); font: 15px/1.55 "Inter", var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1520px; margin: 0 auto; padding-block: 28px 64px; display: flex; flex-direction: column; gap: 36px; }
+header.intro { display: flex; flex-direction: column; gap: 10px; max-width: 80ch; }
+header.intro .eyebrow { font: 600 12px/1 var(--f-num); letter-spacing: .16em; text-transform: uppercase; color: var(--amber); }
+header.intro h1 { margin: 0; font: 700 clamp(28px, 4.4vw, 42px)/1.1 var(--f-head); letter-spacing: .02em; text-wrap: balance; }
+header.intro p { margin: 0; color: var(--muted); }
+header.intro strong { color: var(--text); font-weight: 600; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.controls button {
+  font: 500 13px/1.2 "Inter", var(--f-body); color: var(--text); background: var(--page-card); border: 1px solid var(--page-line);
+  padding: 9px 13px; min-height: 42px; cursor: pointer;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.controls button[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
+.controls button:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
+section.part { display: flex; flex-direction: column; gap: 16px; }
+section.part > h2 { margin: 0; font: 700 22px/1.2 var(--f-head); letter-spacing: .04em; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+section.part > h2 small { font: 500 13px/1.3 "Inter", var(--f-body); color: var(--muted); letter-spacing: 0; }
+.phones { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 24px; }
+.slot { min-width: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.slot p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: 360px; text-align: center; }
+.scroll-x { overflow-x: auto; padding-bottom: 8px; }
+.anim-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; }
+.anim-list div { min-width: 0; padding: 12px 14px; background: var(--page-card); border-left: 2px solid var(--amber); font-size: 13.5px; color: var(--muted); }
+.anim-list b { display: block; color: var(--text); font-weight: 600; }
+.anim-list code { font: 500 12px/1.4 var(--f-num); color: var(--data); }
+footer.note { color: var(--muted); font-size: 13px; max-width: 86ch; display: flex; flex-direction: column; gap: 6px; }
+footer.note code, header.intro code { font: 500 12.5px/1.4 var(--f-num); color: var(--gold); }
+
+/* ── The phone ─────────────────────────────────────────────────────────────── */
+.ph {
+  width: min(360px, 100%); height: 740px; border: 9px solid #000; border-radius: 46px; overflow: hidden;
+  position: relative; isolation: isolate; background: var(--bg); color: var(--text); font-family: var(--f-body);
+  box-shadow: 0 0 0 1px #2a2d35, 0 30px 60px rgb(0 0 0 / .5);
+}
+.sky { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; background: var(--bg); }
+.neb {
+  position: absolute; inset: -12%;
+  background:
+    radial-gradient(60% 40% at 12% 16%, var(--neb1) 0%, transparent 70%),
+    radial-gradient(50% 38% at 92% 48%, var(--neb2) 0%, transparent 70%),
+    radial-gradient(42% 28% at 22% 92%, #6E3C10 0%, transparent 70%);
+  will-change: transform;
+}
+.stars, .stars2 { position: absolute; inset: 0; }
+.stars { background: radial-gradient(1px 1px at 20% 30%, #f3e6cf 50%, transparent 51%) 0 0/90px 110px, radial-gradient(1px 1px at 70% 80%, #b9a98f 50%, transparent 51%) 0 0/130px 90px; }
+.stars2 { background: radial-gradient(1.4px 1.4px at 40% 60%, #ffffff 50%, transparent 51%) 0 0/170px 150px, radial-gradient(1.2px 1.2px at 85% 15%, #cfe8ff 50%, transparent 51%) 0 0/210px 190px; opacity: .7; }
+.scanlines { position: absolute; inset: 0; z-index: 6; pointer-events: none; background: repeating-linear-gradient(0deg, rgb(95 212 255 / .04) 0 1px, transparent 1px 4px); }
+.scr { position: absolute; inset: 0; z-index: 1; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; scrollbar-width: none; }
+.scr::-webkit-scrollbar { display: none; }
+
+.glass {
+  background: var(--bar-tint);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 10px 30px rgb(0 0 0 / .35);
+}
+.top { flex: none; position: sticky; top: 0; z-index: 3; padding: 30px 14px 10px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid transparent; border-image: var(--line-grad) 1; overflow: hidden; }
+.top::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 42%, rgb(255 255 255 / .07) 50%, transparent 58%); transform: translateX(-110%); }
+.who { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; min-width: 0; }
+.who .nm { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.who .nm b { font: 700 17px/1.15 var(--f-head); letter-spacing: .1em; text-transform: uppercase; overflow-wrap: anywhere; }
+.who .nm span { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.who .nm .al { font: 600 11px/1.3 var(--f-num); color: var(--gold); }
+.fx { flex: none; position: relative; isolation: isolate; font: 600 12px/1 var(--f-num); color: var(--effect); padding: 8px 10px; min-height: 30px; display: inline-flex; align-items: center;
+  --s: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); clip-path: var(--s); }
+.fx::before, .fx::after { content: ""; position: absolute; z-index: -1; clip-path: var(--s); }
+.fx::before { inset: 0; background: var(--effect); }
+.fx::after { inset: 1px; background: var(--bar-tint); }
+.stats { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)) auto; gap: 6px; align-items: end; }
+.st { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.st small { font: 600 10px/1 var(--f-body); color: var(--muted); letter-spacing: .12em; text-transform: uppercase; }
+.st b { font: 700 21px/1 var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--num); text-shadow: var(--num-glow); }
+.st b em { font-style: normal; color: var(--effect); }
+.st b i { font-style: normal; font-size: 13px; color: var(--muted); text-shadow: none; }
+.hpbar { height: 4px; background: rgb(255 255 255 / .12); margin-top: 4px; position: relative; }
+.hpbar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--hp, 71%); background: linear-gradient(90deg, #2fbf7a, #5FE3A1); }
+.insp { font-size: 18px; color: var(--gold); line-height: 1; align-self: center; }
+
+.urgent { display: flex; flex-direction: column; gap: 6px; }
+.ug {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 46px; color: #fff; position: relative;
+  background: var(--strip-combat);
+  clip-path: polygon(var(--cut-s) 0, 100% 0, 100% calc(100% - var(--cut-s)), calc(100% - var(--cut-s)) 100%, 0 100%, 0 var(--cut-s));
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.ug.mail { background: var(--strip-mail); }
+.ug.turn { background: var(--strip-turn); }
+.ug.quiet { min-height: 38px; padding-block: 6px; }
+.ug .ic { font-size: 16px; flex: none; }
+.ug .tx { min-width: 0; flex: 1; display: flex; flex-direction: column; text-shadow: 0 1px 2px rgb(0 0 0 / .5); }
+.ug .tx b { font: 700 13px/1.15 var(--f-head); letter-spacing: .1em; text-transform: uppercase; }
+.ug .tx span { font-size: 12px; opacity: .95; overflow-wrap: anywhere; }
+.ug .go { font: 700 18px/1 var(--f-num); flex: none; }
+
+.body { padding: 12px 14px 18px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.pn { position: relative; isolation: isolate; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  --shape: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+.pn::before, .pn::after { content: ""; position: absolute; z-index: -1; clip-path: var(--shape); }
+.pn::before { inset: 0; background: var(--edge-grad); background-size: 200% 200%; background-position: 0% 50%; }
+.pn::after { inset: 1px; background: var(--panel-tint); -webkit-backdrop-filter: blur(16px) saturate(150%); backdrop-filter: blur(16px) saturate(150%); }
+.pn h4 { margin: 0; font: 600 11px/1.2 var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); display: flex; justify-content: space-between; gap: 8px; }
+.pn h4 span { color: var(--muted); letter-spacing: .04em; text-transform: none; font-family: var(--f-num); font-weight: 500; }
+.eff { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.eff .dot { flex: none; width: 8px; height: 8px; margin-top: 5px; background: var(--effect); transform: rotate(45deg); box-shadow: 0 0 8px var(--effect); }
+.eff div { min-width: 0; font-size: 13.5px; }
+.eff b { font-weight: 600; }
+.eff small { display: block; color: var(--muted); font-size: 12px; }
+.ab { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.a { padding: 8px 6px 7px; text-align: center; background: var(--tile); min-width: 0; border-top: 1px solid var(--tile-line); }
+.a small { display: block; font: 600 10px/1 var(--f-body); letter-spacing: .12em; color: var(--muted); }
+.a b { display: block; font: 700 22px/1.15 var(--f-num); font-variant-numeric: tabular-nums; color: var(--num); text-shadow: var(--num-glow); }
+.a i { font: normal 11px/1 var(--f-num); color: var(--muted); }
+.a.fxd { border-top-color: var(--effect); background: var(--tile-fx); }
+.a.fxd b, .a.fxd i { color: var(--effect); }
+.act { display: flex; flex-direction: column; gap: 8px; }
+.grp { font: 600 10px/1.2 var(--f-body); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.w { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; min-width: 0; background: var(--tile); border-left: 2px solid var(--gold); }
+.w .k { flex: none; font: 600 10px/1.3 var(--f-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); width: 46px; padding-top: 2px; }
+.w .d { min-width: 0; flex: 1; }
+.w .d b { display: block; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.w .d span { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.w .dice { flex: none; font: 700 13px/1.3 var(--f-num); color: var(--data); text-align: right; }
+.w.no { border-left-color: var(--alert); background: var(--tile-bad); }
+.w.no .d b { color: var(--alert); }
+.w.no .d span { color: var(--text); }
+.pips { display: flex; gap: 6px; align-items: center; }
+.pips i { width: 11px; height: 11px; border: 1px solid var(--amber); transform: rotate(45deg); }
+.pips i.on { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.pips span { font: 600 12px/1 var(--f-num); color: var(--muted); margin-left: 6px; }
+
+/* combat screen */
+.back { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.btn {
+  font: 600 13px/1.1 var(--f-body); color: var(--text); background: rgb(255 255 255 / .06); border: 0; padding: 10px 12px; min-height: 44px;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); display: inline-flex; align-items: center; gap: 6px;
+}
+.btn.primary { background: linear-gradient(100deg, #b8742a, #F2B04A); color: #1a1006; }
+.btn.done { background: rgb(95 227 161 / .16); color: var(--ok); }
+.back .rd { font: 600 12px/1 var(--f-num); color: var(--muted); letter-spacing: .08em; }
+.queue { display: flex; flex-direction: column; gap: 4px; }
+.q { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 10px; background: var(--tile); font-size: 13.5px; }
+.q .n { font: 700 15px/1 var(--f-num); color: var(--num); text-align: right; font-variant-numeric: tabular-nums; }
+.q .nm { min-width: 0; overflow-wrap: anywhere; }
+.q .s { font-size: 12px; color: var(--muted); }
+.q.me { background: linear-gradient(90deg, rgb(95 212 255 / .18), rgb(95 212 255 / .04)); box-shadow: inset 2px 0 0 var(--data); }
+.q.me .nm { font-weight: 600; }
+.q.foe .s { color: var(--alert); }
+.q.down { opacity: .5; }
+.q.down .nm { text-decoration: line-through; }
+.roll { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font: 600 10.5px/1.25 var(--f-body); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.field .in { font: 700 22px/1 var(--f-num); color: var(--num); padding: 10px 12px; background: rgb(0 0 0 / .35); border-bottom: 1px solid var(--gold); min-height: 46px; font-variant-numeric: tabular-nums; }
+.roll .btn { grid-column: 1 / -1; justify-content: center; }
+.hint { font-size: 12px; color: var(--muted); }
+.hint b { color: var(--data); font-weight: 600; font-family: var(--f-num); }
+
+/* items */
+.it { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; background: var(--tile); }
+.it .d { min-width: 0; }
+.it .d b { display: block; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.it .d span { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.it .left { font: 600 12px/1 var(--f-num); color: var(--amber); }
+.chip { font: 600 11px/1 var(--f-num); color: var(--effect); padding: 7px 8px; background: rgb(127 224 255 / .1); }
+.fold { display: flex; justify-content: space-between; align-items: center; padding: 9px 10px; background: rgb(255 255 255 / .03); color: var(--muted); font-size: 13px; }
+
+.tabs { flex: none; position: sticky; bottom: 0; z-index: 3; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 4px 22px; margin-top: auto; border-top: 1px solid transparent; border-image: var(--line-grad) 1; }
+.tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; min-height: 48px; color: var(--muted); font: 600 10.5px/1.1 var(--f-body); position: relative; min-width: 0; }
+.tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: square; stroke-linejoin: miter; }
+.tab.on { color: var(--text); }
+.tab.on svg { stroke: var(--gold); filter: drop-shadow(0 0 6px rgb(242 194 106 / .7)); }
+.tab.on::before { content: ""; position: absolute; top: -6px; left: 20%; right: 20%; height: 2px; background: linear-gradient(90deg, #c9852c, #F2C26A, #c9852c); box-shadow: 0 0 10px rgb(242 194 106 / .6); }
+.tab .bd { position: absolute; top: 2px; right: 16%; min-width: 16px; height: 16px; padding: 0 4px; background: #B8424A; color: #fff; font: 700 10px/16px var(--f-num); text-align: center; }
+
+/* ── Alignment scale ───────────────────────────────────────────────────────── */
+.side-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; min-width: 0; }
+.mini { position: relative; isolation: isolate; height: 230px; overflow: hidden; min-width: 0; background: var(--bg);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+.mini .neb { inset: -20%; }
+.mini .cap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+.mini .cap b { font: 700 18px/1.1 var(--f-num); color: var(--num); text-shadow: var(--num-glow); }
+.mini .cap span { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* ── GM laptop ─────────────────────────────────────────────────────────────── */
+.gm {
+  width: 1280px; height: 800px; position: relative; isolation: isolate; overflow: hidden; color: var(--text); font-family: var(--f-body);
+  border: 1px solid #2a2d35; background: var(--bg); display: grid; grid-template-columns: 200px minmax(0, 1fr) 330px; grid-template-rows: auto minmax(0, 1fr);
+  --neb1: #3a3a52; --neb2: #24324e;
+}
+.gm .sky { z-index: -1; }
+.gm .rail { grid-row: 1 / -1; padding: 22px 14px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid transparent; border-image: linear-gradient(180deg, transparent, #F2B04A, transparent) 1; }
+.gm .brand { font: 700 15px/1 var(--f-head); letter-spacing: .32em; color: var(--gold); padding: 0 8px 18px; }
+.gm .rt { display: flex; align-items: center; gap: 10px; padding: 11px 10px; color: var(--muted); font: 600 13.5px/1 var(--f-body); position: relative; }
+.gm .rt svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: square; }
+.gm .rt.on { color: var(--text); background: linear-gradient(90deg, rgb(242 194 106 / .16), transparent); box-shadow: inset 2px 0 0 var(--gold); }
+.gm .rt.on svg { stroke: var(--gold); }
+.gm .rt .live { margin-left: auto; width: 8px; height: 8px; background: #C0464E; transform: rotate(45deg); box-shadow: 0 0 8px #C0464E; }
+.gm .head { grid-column: 2 / -1; padding: 16px 20px 0; display: flex; flex-direction: column; gap: 10px; }
+.gm .head .ug { max-width: none; }
+.gm .head .ug .acts { display: flex; gap: 8px; flex: none; }
+.gm .main { padding: 16px 20px 20px; overflow: hidden; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.gm .main h3 { margin: 0; font: 700 13px/1 var(--f-head); letter-spacing: .18em; text-transform: uppercase; color: var(--gold); }
+.party { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.pc { position: relative; isolation: isolate; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  --shape: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+.pc::before, .pc::after { content: ""; position: absolute; z-index: -1; clip-path: var(--shape); }
+.pc::before { inset: 0; background: var(--edge-grad); }
+.pc::after { inset: 1px; background:
+  radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--side) 55%, transparent) 0%, transparent 60%),
+  var(--panel-tint);
+  -webkit-backdrop-filter: blur(16px) saturate(150%); backdrop-filter: blur(16px) saturate(150%); }
+.pc .t { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.pc .t b { font: 700 15px/1.15 var(--f-head); letter-spacing: .08em; text-transform: uppercase; overflow-wrap: anywhere; min-width: 0; }
+.pc .t span { font-size: 11.5px; color: var(--muted); display: block; letter-spacing: 0; text-transform: none; font-family: var(--f-body); font-weight: 400; }
+.pc .sd { flex: none; font: 600 10.5px/1 var(--f-num); color: var(--gold); padding: 5px 6px; background: rgb(0 0 0 / .3); }
+.pc .nums { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pc .nums .st b { font-size: 22px; }
+.pc .pool { display: flex; justify-content: space-between; gap: 8px; font: 600 12px/1 var(--f-num); color: var(--muted); }
+.pc .pool b { color: var(--effect); font-weight: 600; }
+.pc .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pc .chips span { font: 600 11px/1 var(--f-num); padding: 6px 7px; background: rgb(127 224 255 / .1); color: var(--effect); }
+.pc .chips span.warn { background: rgb(224 122 114 / .14); color: var(--alert); }
+.pc.turn::before { background: linear-gradient(160deg, #5FD4FF, rgb(95 212 255 / .2) 55%, #5FD4FF); }
+.gm .feed { grid-column: 3; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; overflow: hidden; border-left: 1px solid transparent; border-image: linear-gradient(180deg, transparent, rgb(242 176 74 / .6), transparent) 1; }
+.gm .feed h3 { margin: 0; font: 700 13px/1 var(--f-head); letter-spacing: .18em; text-transform: uppercase; color: var(--gold); }
+.fe { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 9px 10px; background: var(--tile); font-size: 13px; }
+.fe time { font: 500 11px/1.4 var(--f-num); color: var(--muted); }
+.fe div { min-width: 0; overflow-wrap: anywhere; }
+.fe .ne { color: var(--alert); font-family: var(--f-num); font-weight: 600; }
+.fe .ok { color: var(--ok); font-family: var(--f-num); font-weight: 600; }
+
+/* ── Motion: slow, never more than a gentle breath ─────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="off"]) .neb { animation: nebula-drift 90s ease-in-out infinite alternate; }
+  :root:not([data-motion="off"]) .stars2 { animation: twinkle 14s ease-in-out infinite; }
+  :root:not([data-motion="off"]) .top::after { animation: sheen 22s ease-in-out infinite; }
+  :root:not([data-motion="off"]) .ug { animation: breathe 5s ease-in-out infinite; }
+  :root:not([data-motion="off"]) .ug.quiet { animation: none; }
+  :root:not([data-motion="off"]) .st b, :root:not([data-motion="off"]) .a b { animation: glow 10s ease-in-out infinite; }
+  :root:not([data-motion="off"]) .pn::before { animation: edge-flow 30s ease-in-out infinite alternate; }
+  :root:not([data-motion="off"]) .scanlines { animation: scan 40s linear infinite; }
+  :root:not([data-motion="off"]) .gm .rt .live { animation: breathe 5s ease-in-out infinite; }
+}
+@keyframes nebula-drift { from { transform: translate3d(-2%, -1%, 0) scale(1.04); } to { transform: translate3d(2%, 1.5%, 0) scale(1.09); } }
+@keyframes twinkle { 0%, 100% { opacity: .45; } 50% { opacity: .95; } }
+@keyframes sheen { 0%, 60% { transform: translateX(-110%); } 85%, 100% { transform: translateX(110%); } }
+@keyframes breathe { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.14); } }
+@keyframes glow { 0%, 100% { text-shadow: 0 0 6px rgb(95 212 255 / .32); } 50% { text-shadow: 0 0 12px rgb(95 212 255 / .62); } }
+@keyframes edge-flow { from { background-position: 0% 40%; } to { background-position: 100% 60%; } }
+@keyframes scan { from { background-position: 0 0; } to { background-position: 0 160px; } }
+
+/* ── Shot mode: one frame alone, for screenshots (#shot-<name>) ────────────── */
+html[data-shot] body { padding: 0; background: var(--bg); }
+html[data-shot] .wrap { display: none; }
+html[data-shot] *, html[data-shot] *::before, html[data-shot] *::after { animation: none !important; }
+/* fixed width: headless Chrome will not make a window narrower than about 500 px */
+.solo.ph { width: 390px; height: 844px; border: 0; border-radius: 0; box-shadow: none; }
+.solo.gm { width: 100vw; height: 100vh; border: 0; }
+.solo.side-strip { width: 100vw; height: 100vh; padding: 16px; align-content: center; background: var(--page-bg); }
+.solo.side-strip .mini { height: calc(100vh - 32px); }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <span class="eyebrow">Еталон стилю · обрано 28.11.2026</span>
+    <h1>Бронзова голограма</h1>
+    <p>Так виглядає Holotable. <strong>Рідке скло скрізь</strong>, навіть на панелях, над туманністю й зорями. <strong>Бронзово-золоті рамки й підписи</strong>, сині числа й дані, приглушений червоний лише для тривоги. <strong>Жодних заокруглених кутів</strong>: тільки прямі й зрізані. <strong>Колір туманності — схильність персонажа</strong>, яку виставляє майстер: синій для Light, бронза для Balanced, глибокий червоний для Dark.</p>
+    <p>Опис і правила — <code>docs/дизайн/ДИЗАЙН-ІНТЕРФЕЙСУ.md</code>, розділ 0. Знімки цих екранів — <code>docs/дизайн/знімки/</code>. Числа характеристик, КБ й ініціативи взято з рушія; поточні ХП, ініціатива в бою, предмети й схильності — приклад для показу.</p>
+  </header>
+
+  <div class="controls">
+    <button type="button" id="motion-toggle" aria-pressed="true">Анімації: увімкнено</button>
+  </div>
+
+  <section class="part" aria-labelledby="h-phone">
+    <h2 id="h-phone">Телефон гравця <small>Крінж-Дор, Light 40 · 390 × 844</small></h2>
+    <div class="phones">
+      <div class="slot">
+        <div class="ph" data-frame="sheet" data-side="-40"></div>
+        <p>Вкладка «Лист». Щойно почався бій і прийшла роздатка: обидві смуги виїхали згори.</p>
+      </div>
+      <div class="slot">
+        <div class="ph" data-frame="combat" data-side="-40"></div>
+        <p>Екран бою поверх вкладок: твій хід, черга словами, кидок двома числами, дії за видами.</p>
+      </div>
+      <div class="slot">
+        <div class="ph" data-frame="items" data-side="-40"></div>
+        <p>Вкладка «Речі» під час бою: смуга бою згорнута в один рядок, витратне показує, скільки лишилось.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="part" aria-labelledby="h-side">
+    <h2 id="h-side">Схильність — колір туманності <small>Force Alignment з книги: Light 100 … Balanced … Dark 100</small></h2>
+    <div class="scroll-x"><div class="side-strip" data-frame="side" style="min-width: 640px"></div></div>
+  </section>
+
+  <section class="part" aria-labelledby="h-gm">
+    <h2 id="h-gm">Ноутбук майстра <small>ті самі компоненти на всю ширину · 1280 × 800</small></h2>
+    <div class="scroll-x"><div class="gm" data-frame="gm"></div></div>
+  </section>
+
+  <section class="part" aria-labelledby="h-anim">
+    <h2 id="h-anim">Анімації <small>повільні, ніщо не блимає частіше за раз на 5 секунд</small></h2>
+    <div class="anim-list">
+      <div><b>Туманність дрейфує</b>зсув на 2 % і масштаб 1,04 → 1,09 · <code>90 с</code>, туди й назад</div>
+      <div><b>Зорі мерехтять</b>лише другий шар, прозорість 0,45 → 0,95 · <code>14 с</code></div>
+      <div><b>Відблиск по склу</b>світла смуга проходить статус-смугою раз на цикл · <code>22 с</code></div>
+      <div><b>Рамки переливаються</b>градієнт рамки панелі повільно зсувається · <code>30 с</code></div>
+      <div><b>Числа дихають</b>світіння чисел 0,32 → 0,62 · <code>10 с</code></div>
+      <div><b>Термінові смуги дихають</b>яскравість 1 → 1,14, доки не відкрили · <code>5 с</code></div>
+      <div><b>Рядки розгортки</b>повзуть донизу, ледь помітні · <code>40 с</code></div>
+      <div><b>Зменшення руху</b><code>prefers-reduced-motion</code> або перемикач — усе стоїть, лишаються колір і число</div>
+    </div>
+  </section>
+
+  <footer class="note">
+    <p>Сторінка — <code>docs/дизайн/еталон.html</code>. Окремий екран для знімка: допиши в адресу <code>#shot-sheet</code>, <code>#shot-combat</code>, <code>#shot-items</code>, <code>#shot-side</code> або <code>#shot-gm</code>.</p>
+    <p>Шрифти тут — з Google Fonts лише для показу. У застосунку Exo 2 і JetBrains Mono лежатимуть файлами (F-114), текст — системним шрифтом.</p>
+  </footer>
+</div>
+
+<script>
+/* Force Alignment (book): Light 100 … 0 Balanced … Dark 100. Negative here is Light. */
+const SIDE = { light: ['#1d4fb8', '#0b7fc0'], neutral: ['#6a4a1c', '#24324e'], dark: ['#6a1422', '#3c0d26'] };
+const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
+const mix = (a, b, p) => `color-mix(in oklab, ${a} ${p}%, ${b})`;
+function nebula(score) {
+  const far = score < 0 ? SIDE.light : SIDE.dark;
+  // Square root, so the first tiers already tint the sky and 100 is fully saturated.
+  const p = Math.round(Math.sqrt(Math.abs(score) / 100) * 100);
+  return [mix(far[0], SIDE.neutral[0], p), mix(far[1], SIDE.neutral[1], p)];
+}
+function scoreText(s) { return s === 0 ? 'Balanced 0' : s < 0 ? `Light ${-s}` : `Dark ${s}`; }
+function tierName(s) {
+  const n = Math.abs(s), light = s < 0;
+  if (n < 10) return 'Рівновага (Balanced)';
+  if (n >= 100) return light ? 'Сяйна істота (Luminous Being)' : 'Темна сутність (Dark Entity)';
+  const k = Math.floor(n / 10), tier = ROMAN[Math.ceil(k / 2) - 1], major = k % 2 === 0;
+  return light ? `${major ? 'Велика' : 'Мала'} доброчесність ${tier} (${major ? 'Major' : 'Minor'} Benevolence)`
+               : `${major ? 'Велике' : 'Мале'} зіпсуття ${tier} (${major ? 'Major' : 'Minor'} Corruption)`;
+}
+function paint(el, score) {
+  const [a, b] = nebula(score);
+  el.style.setProperty('--neb1', a);
+  el.style.setProperty('--neb2', b);
+}
+
+const ICON = {
+  sheet: '<svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>',
+  scene: '<svg viewBox="0 0 24 24"><path d="M3 20l6-10 4 6 3-4 5 8z"/><path d="M15 4h4v4h-4z"/></svg>',
+  items: '<svg viewBox="0 0 24 24"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3M4 13h16"/></svg>',
+  ship: '<svg viewBox="0 0 24 24"><path d="M12 3l3 7 6 2-6 2-3 7-3-7-6-2 6-2z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="M3 6l9 7 9-7"/></svg>',
+  party: '<svg viewBox="0 0 24 24"><path d="M4 20v-3l4-3h8l4 3v3"/><path d="M9 4h6v6H9z"/></svg>',
+  fight: '<svg viewBox="0 0 24 24"><path d="M4 20L18 6M14 4h6v6M10 20H4v-6"/></svg>',
+  book: '<svg viewBox="0 0 24 24"><path d="M4 4h7l1 2 1-2h7v16h-7l-1 1-1-1H4z"/><path d="M12 6v15"/></svg>',
+};
+const sky = () => '<div class="sky"><div class="neb"></div><div class="stars"></div><div class="stars2"></div></div>';
+
+function status(side) {
+  return `
+      <div class="top glass">
+        <div class="who">
+          <div class="nm"><b>Крінж-Дор</b><span>Кел-Дор · Учений 4 · Політик</span><span class="al">◐ ${scoreText(side)} · ${tierName(side)}</span></div>
+          <span class="fx">◆ ефекти 1</span>
+        </div>
+        <div class="stats">
+          <div class="st"><small>ХП</small><b>27<i>/</i><em>38</em></b><div class="hpbar"></div></div>
+          <div class="st"><small>КБ</small><b>13</b></div>
+          <div class="st"><small>Ініц</small><b>+2</b></div>
+          <div class="st"><small>Швид</small><b>30</b></div>
+          <span class="insp" title="Натхнення">★</span>
+        </div>
+        URGENT
+      </div>`;
+}
+const tabs = (on) => `
+      <nav class="tabs glass" aria-label="Вкладки">
+        <span class="tab${on === 'sheet' ? ' on' : ''}">${ICON.sheet}Лист</span>
+        <span class="tab">${ICON.scene}Сцена</span>
+        <span class="tab${on === 'items' ? ' on' : ''}">${ICON.items}Речі</span>
+        <span class="tab">${ICON.ship}Корабель</span>
+        <span class="tab">${ICON.mail}Роздатки<span class="bd">1</span></span>
+      </nav>`;
+
+const SCREENS = {
+  sheet: (side) => status(side).replace('URGENT', `
+        <div class="urgent">
+          <div class="ug"><span class="ic">⚔</span><span class="tx"><b>Бій почався</b><span>Раунд 1 · кинь ініціативу</span></span><span class="go">›</span></div>
+          <div class="ug mail"><span class="ic">✉</span><span class="tx"><b>Нова роздатка</b><span>від майстра · натисни, щоб прочитати</span></span><span class="go">›</span></div>
+        </div>`) + `
+      <div class="body">
+        <div class="pn"><h4>Діє на тебе</h4>
+          <div class="eff"><span class="dot"></span><div><b>Бакта-інʼєктор: Статура +1</b><small>до довгого відпочинку · максимум ХП 34 → 38</small></div></div>
+        </div>
+        <div class="pn"><h4>Характеристики</h4>
+          <div class="ab">
+            <div class="a"><small>СИЛ</small><b>+0</b><i>10</i></div>
+            <div class="a"><small>СПР</small><b>+2</b><i>14</i></div>
+            <div class="a fxd"><small>СТА</small><b>+2</b><i>13 → 14</i></div>
+            <div class="a"><small>ІНТ</small><b>+4</b><i>18</i></div>
+            <div class="a"><small>МУД</small><b>+2</b><i>14</i></div>
+            <div class="a"><small>ХАР</small><b>+1</b><i>12</i></div>
+          </div>
+        </div>
+        <div class="pn"><h4>Мої дії <span>кубики переваги</span></h4>
+          <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><span>3 / 4 · d4</span></div>
+          <div class="act">
+            <div class="w"><span class="k">Дія</span><span class="d"><b>Кріопістолет (Cryo pistol)</b><span>дальність 30/120 · злісний 1</span></span><span class="dice">d20<br>1d4 холод</span></div>
+            <div class="w no"><span class="k">Дія</span><span class="d"><b>Боукастер (Bowcaster)</b><span>Не володієш, і потрібна Сила 13: кидок з перешкодою</span></span><span class="dice">—</span></div>
+            <div class="w"><span class="k">Бонус</span><span class="d"><b>Згуртування (Rally)</b><span>маневр · союзник отримує тимчасові ХП</span></span><span class="dice">d4</span></div>
+          </div>
+        </div>
+      </div>` + tabs('sheet'),
+
+  combat: (side) => status(side).replace('URGENT', `
+        <div class="urgent">
+          <div class="ug turn"><span class="ic">◆</span><span class="tx"><b>Твій хід</b><span>Раунд 2 · після тебе — Гаморреанець 1</span></span><span class="go">›</span></div>
+        </div>`) + `
+      <div class="body">
+        <div class="back"><span class="btn">← до вкладок</span><span class="rd">БІЙ · РАУНД 2</span></div>
+        <div class="pn"><h4>Черга</h4>
+          <div class="queue">
+            <div class="q"><span class="n">18</span><span class="nm">Нигра 4</span><span class="s">союзник</span></div>
+            <div class="q me"><span class="n">16</span><span class="nm">Крінж-Дор · ти</span><span class="s">ходить</span></div>
+            <div class="q foe"><span class="n">15</span><span class="nm">Гаморреанець 1</span><span class="s">поранений</span></div>
+            <div class="q"><span class="n">12</span><span class="nm">Сандра Вонг</span><span class="s">союзник</span></div>
+            <div class="q foe down"><span class="n">9</span><span class="nm">Гаморреанець 2</span><span class="s">знешкоджений</span></div>
+          </div>
+        </div>
+        <div class="pn"><h4>Твоя ініціатива</h4>
+          <div class="roll">
+            <div class="field"><label>d20 — що випало</label><div class="in">14</div></div>
+            <div class="field"><label>d20 + модифікатор — разом</label><div class="in">16</div></div>
+            <span class="btn done">✓ Відправлено</span>
+          </div>
+          <span class="hint">Модифікатор додаєш ти; майстер бачить і своє число поруч.</span>
+        </div>
+        <div class="pn"><h4>Що можеш зараз</h4>
+          <div class="act">
+            <span class="grp">Дія</span>
+            <div class="w"><span class="k">Атака</span><span class="d"><b>Кріопістолет (Cryo pistol)</b><span>дальність 30/120 · злісний 1</span></span><span class="dice">d20<br>1d4 холод</span></div>
+            <span class="grp">Бонусна дія</span>
+            <div class="w"><span class="k">Маневр</span><span class="d"><b>Згуртування (Rally)</b><span>союзник отримує тимчасові ХП</span></span><span class="dice">d4</span></div>
+            <span class="grp">Реакція</span>
+            <div class="w"><span class="k">Маневр</span><span class="d"><b>Парирування (Parry)</b><span>зменшити шкоду від удару в ближньому бою</span></span><span class="dice">d4</span></div>
+          </div>
+        </div>
+      </div>` + tabs(''),
+
+  items: (side) => status(side).replace('URGENT', `
+        <div class="urgent">
+          <div class="ug quiet"><span class="ic">⚔</span><span class="tx"><b>Бій · раунд 2</b><span>ходить Сандра Вонг</span></span><span class="go">›</span></div>
+        </div>`) + `
+      <div class="body">
+        <div class="pn"><h4>Речі <span>натисни — що робить</span></h4>
+          <div class="act">
+            <div class="it"><span class="d"><b>Бакта-інʼєктор</b><span>+1 Статура до довгого відпочинку</span></span><span class="chip">діє</span></div>
+            <div class="it"><span class="d"><b>Medpac</b><span>лікування · <span class="left">лишилось 2</span></span></span><span class="btn primary">використати</span></div>
+            <div class="it"><span class="d"><b>Кріокомірка (Cryo Cell, Average)</b><span>у кріопістолеті: +1 до влучання й шкоди</span></span><span class="chip">встановлено</span></div>
+            <div class="it"><span class="d"><b>Комлінк</b><span>звʼязок у межах міста</span></span><span></span></div>
+          </div>
+          <div class="fold"><span>Витрачено · 1</span><span>▸</span></div>
+        </div>
+      </div>` + tabs('items'),
+};
+
+document.querySelectorAll('.ph[data-frame]').forEach((ph) => {
+  const side = Number(ph.dataset.side);
+  ph.innerHTML = sky() + `<div class="scr">${SCREENS[ph.dataset.frame](side)}</div><div class="scanlines"></div>`;
+  paint(ph, side);
+});
+
+const strip = document.querySelector('[data-frame="side"]');
+strip.innerHTML = [-100, -40, 0, 40, 100].map((s) => `
+  <div class="mini" data-score="${s}">${sky()}<div class="cap"><b>${scoreText(s)}</b><span>${tierName(s)}</span></div></div>`).join('');
+strip.querySelectorAll('.mini').forEach((m) => paint(m, Number(m.dataset.score)));
+
+const PARTY = [
+  { name: 'Алістер', line: 'Катар · Сентинел 4', hp: 21, max: 26, ac: 14, ini: '+4', pool: ['Сила', '11 / 15'], side: -20, chips: [] },
+  { name: 'Анам Мелех', line: 'Деваронець · Берсерк 4', hp: 44, max: 51, ac: 16, ini: '+2', pool: ['Сила', '6 / 6'], side: 30, chips: ['лють · 1 раунд'] },
+  { name: 'Крінж-Дор', line: 'Кел-Дор · Учений 4', hp: 27, max: 38, ac: 13, ini: '+2', pool: ['Переваги', '3 / 4 d4'], side: -40, chips: ['бакта: СТА +1'] },
+  { name: 'Нигра 4', line: 'Мон Каламарі · Оперативник 4', hp: 31, max: 31, ac: 14, ini: '+4', pool: ['Техніка', '5 / 5'], side: 0, chips: [] },
+  { name: 'Сандра Вонг', line: 'Людина · Консул 4', hp: 6, max: 19, ac: 11, ini: '+1', pool: ['Сила', '9 / 19'], side: -60, chips: ['отруєна'], warn: true, turn: true },
+];
+const gm = document.querySelector('[data-frame="gm"]');
+gm.innerHTML = sky() + `
+  <nav class="rail glass" aria-label="Вкладки майстра">
+    <div class="brand">HOLOTABLE</div>
+    <span class="rt on">${ICON.party}Партія</span>
+    <span class="rt">${ICON.fight}Бій<span class="live"></span></span>
+    <span class="rt">${ICON.scene}Сцена</span>
+    <span class="rt">${ICON.items}Речі</span>
+    <span class="rt">${ICON.ship}Корабель</span>
+    <span class="rt">${ICON.mail}Роздатки</span>
+    <span class="rt">${ICON.book}Довідник</span>
+  </nav>
+  <div class="head">
+    <div class="ug quiet"><span class="ic">⚔</span><span class="tx"><b>Бій · раунд 2</b><span>ходить Сандра Вонг · далі Анам Мелех</span></span>
+      <span class="acts"><span class="btn">↶ Крок назад</span><span class="btn primary">Наступний хід ›</span></span></div>
+  </div>
+  <div class="main">
+    <h3>Партія · 5</h3>
+    <div class="party">${PARTY.map((p) => `
+      <div class="pc${p.turn ? ' turn' : ''}" data-score="${p.side}">
+        <div class="t"><b>${p.name}<span>${p.line}</span></b><span class="sd">${scoreText(p.side)}</span></div>
+        <div class="nums">
+          <div class="st"><small>ХП</small><b>${p.hp}<i>/${p.max}</i></b><div class="hpbar" style="--hp:${Math.round(p.hp / p.max * 100)}%"></div></div>
+          <div class="st"><small>КБ</small><b>${p.ac}</b></div>
+          <div class="st"><small>Ініц</small><b>${p.ini}</b></div>
+        </div>
+        <div class="pool"><span>${p.pool[0]}</span><b>${p.pool[1]}</b></div>
+        ${p.chips.length ? `<div class="chips">${p.chips.map((c) => `<span class="${p.warn ? 'warn' : ''}">${c}</span>`).join('')}</div>` : ''}
+      </div>`).join('')}
+    </div>
+  </div>
+  <aside class="feed glass" aria-label="Стрічка змін">
+    <h3>Стрічка</h3>
+    <div class="fe"><time>21:42</time><div>Сандра Вонг: d20 11, разом 13 · за листом 12 <span class="ne">≠</span></div></div>
+    <div class="fe"><time>21:41</time><div>Крінж-Дор: ініціатива 14 → разом 16 · за листом <span class="ok">16</span></div></div>
+    <div class="fe"><time>21:40</time><div>Майстер почав бій · Гаморреанець ×2</div></div>
+    <div class="fe"><time>21:35</time><div>Крінж-Дор використав Бакта-інʼєктор: Статура +1, максимум ХП 34 → 38</div></div>
+    <div class="fe"><time>21:30</time><div>Майстер: схильність Сандри Light 55 → Light 60</div></div>
+  </aside>`;
+gm.querySelectorAll('.pc').forEach((pc) => {
+  const s = Number(pc.dataset.score);
+  const [a] = nebula(s);
+  pc.style.setProperty('--side', s === 0 ? '#6a4a1c' : a);
+});
+
+/* motion toggle (per-viewer convenience) */
+const toggle = document.getElementById('motion-toggle');
+function setMotion(on) {
+  document.documentElement.dataset.motion = on ? 'on' : 'off';
+  toggle.setAttribute('aria-pressed', String(on));
+  toggle.textContent = `Анімації: ${on ? 'увімкнено' : 'вимкнено'}`;
+}
+toggle.addEventListener('click', () => {
+  const on = toggle.getAttribute('aria-pressed') !== 'true';
+  setMotion(on);
+  try { localStorage.setItem('holotable-motion', on ? 'on' : 'off'); } catch {}
+});
+try { if (localStorage.getItem('holotable-motion') === 'off') setMotion(false); } catch {}
+
+/* shot mode: #shot-<frame> shows that frame alone, for screenshots */
+// Headless Chrome's --screenshot drops the hash, so ?shot=<frame> works too.
+const shot = /^#shot-([a-z]+)$/.exec(location.hash) ?? /[?&]shot=([a-z]+)/.exec(location.search);
+if (shot) {
+  const el = document.querySelector(`[data-frame="${shot[1]}"]`);
+  if (el) {
+    document.documentElement.dataset.shot = shot[1];
+    el.removeAttribute('style');
+    el.classList.add('solo');
+    // Keep the <style> and <link> in place: hide the page, lift the frame out of it.
+    document.body.appendChild(el);
+    document.querySelector('.wrap').hidden = true;
+  }
+}
+</script>
