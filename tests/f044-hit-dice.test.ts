@@ -175,7 +175,7 @@ describe('F-044 · кубики здоровʼя', () => {
     expect(refusals[0]).toBe('кубиків здоровʼя d6 лише 4');
 
     gm.send(JSON.stringify({ type: 'rest', kind: 'long' }));
-    await until(() => events.some((e) => e.note === 'довгий відпочинок'));
+    await until(() => events.some((e) => (e.note ?? '').startsWith('довгий відпочинок')));
     expect(server.state.one('sandra-vong')?.hitDiceUsed, '2 витрачено, 2 повернулось').toEqual({ d6: 0 });
 
     gm.close();

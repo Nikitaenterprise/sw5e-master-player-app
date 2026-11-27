@@ -117,6 +117,7 @@ const isTermKind = (k: string): k is TermKind => TERM_KINDS.includes(k);
 const isContentType = (t: string | undefined): t is ContentType =>
   t !== undefined && (CONTENT_TYPES as readonly string[]).includes(t);
 import { SKILLS } from '../../../packages/engine/src/skills.js';
+import { restSummary } from '../../../packages/engine/src/rest.js';
 
 const SITE_ROOT = join(import.meta.dirname, '..', '..', 'web', 'dist');
 
@@ -933,17 +934,22 @@ export async function start(
         }
         const author: Author = { kind: 'gm', id: who.id };
         const word = rest.kind === 'short' ? 'короткий відпочинок' : 'довгий відпочинок';
+        // What came back, one line per character, for every screen (F-113) — including
+        // "nothing to give back", so a quiet rest no longer looks like a broken one.
+        const lines: Record<string, string> = {};
         for (const [slug, current] of Object.entries(state.all())) {
           const plan = restPlans[slug]?.[rest.kind];
           if (plan === undefined) continue;
           const changes = applyRest(plan, current);
+          lines[slug] = restSummary(changes, current);
           // Someone who spent nothing and lost nothing needs no event. A log line that
           // changes nothing is noise in the GM's feed.
           if (Object.keys(changes).length === 0) continue;
-          const result = state.apply(slug, changes, author, word);
+          const result = state.apply(slug, changes, author, `${word} · ${lines[slug]}`);
           if (typeof result === 'string') continue;
           publish(result);
         }
+        broadcastAll({ type: 'rested', kind: rest.kind, lines });
         return;
       }
 

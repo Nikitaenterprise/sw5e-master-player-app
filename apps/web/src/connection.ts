@@ -3,7 +3,7 @@
 // The client never considers itself the source of truth (ADR 0002). It sends
 // intents and listens for events. If the socket drops it reconnects on its own,
 // because nobody at the table should reload a phone page over a two-second wifi dip.
-import { rebase, type ShipDamageOptions, type ShipState, type ShipSummary, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type WeatherWhy, type RoleCard, type ShipActionCard, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
+import { rebase, type ShipDamageOptions, type ShipState, type ShipSummary, type Handout, type HolotableEffect, type HomebrewDef, type HomebrewItem, type SceneNote, type NpcRecord, type SceneUndo, type SceneNpc, type WeatherNow, type WeatherWhy, type RoleCard, type ShipActionCard, type CompanionSummary, type FightSummary, type CharacterState, type Client, type CombatState, type WhoCounts, type FromServer, type RestedMessage, type GameEvent, type GlossaryRow, type Intent, type Role, type SessionClosed, type SheetSummary, type StateField, type ToServer } from '@holotable/protocol';
 
 export type Connection =
   | { status: 'connecting' }
@@ -65,6 +65,8 @@ export interface Snapshot {
   homebrewCandidates: string[];
   /** Handouts this screen may read, oldest first (F-071). */
   handouts: Handout[];
+  /** The last rest and what it gave each character, in words (F-113). */
+  lastRest: RestedMessage | null;
   /** Ships: numbers and state, for every screen (F-060). */
   ships: Record<string, { summary: ShipSummary; state: ShipState }>;
   /** What each level of system damage does, from the book (F-063). */
@@ -109,6 +111,7 @@ export const EMPTY: Snapshot = {
   homebrewFile: {},
   homebrewCandidates: [],
   handouts: [],
+  lastRest: null,
   ships: {},
   systemDamageLevels: [],
   npcs: [],
@@ -363,6 +366,9 @@ export function connect(
           break;
         case 'handouts':
           update({ handouts: m.handouts });
+          break;
+        case 'rested':
+          update({ lastRest: m });
           break;
         case 'npcs':
           update({ npcs: m.npcs });

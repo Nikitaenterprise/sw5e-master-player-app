@@ -491,7 +491,7 @@ export type { CastingResult } from './casting.js';
 export { computeManeuvers } from './maneuvers.js';
 export type { SuperiorityResult, KnownManeuver, ManeuverAbility, ManeuverType } from './maneuvers.js';
 export { parseLevelTable, levelFromCell, numberFrom } from './levelTable.js';
-export { restPlan, recoveries } from './rest.js';
+export { restPlan, recoveries, restSummary, restTraits } from './rest.js';
 export type { RestKind, RestPlan, Recovery } from './rest.js';
 export type { ArmorClassResult, ArmorPiece } from './armorClass.js';
 export { computeCompanion, COMPANION_PROFICIENCY, COMPANION_NATURES } from './companion.js';

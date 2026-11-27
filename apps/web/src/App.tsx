@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SceneNote, SceneUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
+import type { RestedMessage, CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SceneNote, SceneUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -222,7 +222,13 @@ export function App(): JSX.Element {
         />
       )}
 
-      {gm && !editingGlossary && <Rests rest={(kind) => controls.current?.sendRest(kind)} />}
+      {gm && !editingGlossary && (
+        <Rests
+          rest={(kind) => controls.current?.sendRest(kind)}
+          traits={Object.entries(snapshot.sheets).flatMap(([slug, s]) =>
+            (s.restTraits ?? []).map((t) => ({ who: s.name ?? name(slug), name: t.name, text: t.text })))}
+        />
+      )}
 
       {gm && !editingGlossary && (
         <section className="rests">
@@ -363,6 +369,7 @@ function PlayerSheet({
       <NpcsInScene npcs={snapshot.npcs} />
       <WeatherBar weather={snapshot.weather} />
       <h2>Мій стан</h2>
+      <RestNote rest={snapshot.lastRest} character={character} />
       {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
         <DeathSavesBlock
           state={state}
@@ -374,6 +381,7 @@ function PlayerSheet({
         waiting={waiting}
         sendChange={sendChange}
         {...(sheet === undefined ? {} : { maxHitPoints: sheet.maxHitPoints })}
+        restTraits={sheet?.restTraits ?? []}
       />
       <Effects
         list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
@@ -435,6 +443,7 @@ export function Managed({
   waiting = new Set(),
   sendChange,
   maxHitPoints,
+  restTraits = [],
 }: {
   state: CharacterState;
   /** Fields with a change the server has not confirmed yet. */
@@ -442,6 +451,8 @@ export function Managed({
   sendChange: (changes: CharacterState) => void;
   /** Lost hit points stop here: below zero there is nothing (F-095). */
   maxHitPoints?: number;
+  /** Features that change rests and exhaustion, shown under exhaustion (F-113). */
+  restTraits?: { name: string; text: string }[];
 }): JSX.Element {
   const [fresh, setFresh] = useState('');
   const term = useTerm();
@@ -483,6 +494,7 @@ export function Managed({
       })}
 
       <ExhaustionLine level={typeof state.exhaustion === 'number' ? state.exhaustion : 0} />
+      <RestTraits traits={restTraits} />
 
       <div className="state-row">
         <span className="label">{LABELS.hasInspiration}</span>
@@ -778,6 +790,31 @@ export function Conditions({
 }
 
 /** What the current exhaustion level does — every effect up to it, from the book (F-056). */
+/** On the phone after a rest (F-113): what it gave this character, or that nothing was due. */
+export function RestNote({ rest, character }: { rest: RestedMessage | null; character: string }): JSX.Element | null {
+  const line = rest?.lines[character];
+  if (rest === null || line === undefined) return null;
+  return (
+    <p className="rest-note">
+      {rest.kind === 'short' ? 'Короткий' : 'Довгий'} відпочинок: {line}
+    </p>
+  );
+}
+
+/** A feature that changes how a rest goes (F-113), with the sheet's own text. */
+export function RestTraits({ traits }: { traits: { name: string; text: string }[] }): JSX.Element | null {
+  if (traits.length === 0) return null;
+  return (
+    <>
+      {traits.map((t) => (
+        <p key={t.name} className="rest-trait">
+          <b>{t.name}</b> — {t.text}
+        </p>
+      ))}
+    </>
+  );
+}
+
 export function ExhaustionLine({ level }: { level: number }): JSX.Element | null {
   const table = useContext(ExhaustionContext);
   if (level <= 0) return null;
@@ -2033,7 +2070,14 @@ export function CountsSwitch({
  * server reads each character's own class text. Hit dice are deliberately left alone —
  * spending them is the player's choice and the player's roll.
  */
-export function Rests({ rest }: { rest: (kind: 'short' | 'long') => void }): JSX.Element {
+export function Rests({
+  rest,
+  traits = [],
+}: {
+  rest: (kind: 'short' | 'long') => void;
+  /** Party features that change how a rest goes (F-113), to keep in mind before pressing. */
+  traits?: { who: string; name: string; text: string }[];
+}): JSX.Element {
   return (
     <section className="rests">
       <h2>Відпочинок</h2>
@@ -2051,6 +2095,11 @@ export function Rests({ rest }: { rest: (kind: 'short' | 'long') => void }): JSX
         Кубики здоровʼя витрачають гравці: скільки й що випало — вирішують вони.
         Довгий відпочинок повертає половину від усіх (мінімум один).
       </p>
+      {traits.map((t) => (
+        <p key={`${t.who}-${t.name}`} className="rest-trait">
+          <b>{t.who} · {t.name}</b> — {t.text}
+        </p>
+      ))}
     </section>
   );
 }

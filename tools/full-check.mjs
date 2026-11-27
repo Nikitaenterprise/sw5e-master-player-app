@@ -110,7 +110,7 @@ try {
     await wait(reloaded, (g) => g.some((m) => m.type === 'history' && m.events.some((e) => e.intent === 's1'))));
   reloaded.ws.close();
   gm.ws.send(JSON.stringify({ type: 'rest', kind: 'long' }));
-  ok('F-023 довгий відпочинок', await wait(gm, (g) => g.some((m) => m.type === 'event' && m.event.note === 'довгий відпочинок' && m.event.character === 'sandra-vong')));
+  ok('F-023 довгий відпочинок', await wait(gm, (g) => g.some((m) => m.type === 'event' && (m.event.note ?? '').startsWith('довгий відпочинок · ') && m.event.character === 'sandra-vong')));
   const last = [...gm.got].reverse().find((m) => m.type === 'event' && m.event.character === 'sandra-vong');
   ok('F-023/F-044 після довгого: ХП повні, кубики повернулись', last.state.hitPointsLost === 0 && last.state.hitDiceUsed.d6 === 0);
   p1.ws.send(JSON.stringify({ type: 'rest', kind: 'long' }));

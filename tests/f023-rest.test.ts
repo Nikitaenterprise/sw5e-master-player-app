@@ -157,7 +157,8 @@ describe('F-023 · короткий і довгий відпочинок', () =>
     expect(changed.has('nigra-4')).toBe(true);
     expect(changed.has('alister')).toBe(true);
     expect(changed.has('krinzh-dor'), 'йому відпочинок нічого не міняє').toBe(false);
-    expect(events.every((e) => e.note === 'довгий відпочинок'), 'у журналі сказано, що це було').toBe(true);
+    // Since F-113 the note goes on to say what came back, after a middle dot.
+    expect(events.every((e) => (e.note ?? '').startsWith('довгий відпочинок · ')), 'у журналі сказано, що це було').toBe(true);
     expect(events.every((e) => e.author.kind === 'gm')).toBe(true);
 
     const file = readdirSync(eventsDir).find((f) => f.endsWith('.jsonl'));

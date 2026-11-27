@@ -170,3 +170,50 @@ export function restPlan(sheet: ComputedSheet, compendium: Compendium, kind: Res
 
   return { kind, zeroed, exhaustionDown, hitDiceBack, notes, warnings };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// What a rest said (F-113). A rest that gave nothing back used to write nothing, and one
+// that did said only "short rest" — so at the table it looked as if nothing happened.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type Values = Record<string, unknown>;
+const num = (v: unknown): number => (typeof v === 'number' ? v : 0);
+const diceTotal = (v: unknown): number =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+    ? Object.values(v as Record<string, unknown>).reduce<number>((sum, n) => sum + num(n), 0)
+    : 0;
+
+/**
+ * One line for one character: what this rest gave back, in the words the sheet uses —
+ * or that there was nothing to give back. `changes` is what the rest wrote; `before` is
+ * the state it was written over.
+ */
+export function restSummary(changes: Values, before: Values): string {
+  const back: string[] = [];
+  const gained = (field: string): number => num(before[field]) - num(changes[field]);
+  if ('hitPointsLost' in changes && gained('hitPointsLost') > 0) back.push(`ХП +${gained('hitPointsLost')}`);
+  for (const pool of Object.keys(POOL_NAME) as Recovery['pool'][]) {
+    if (pool in changes && gained(pool) > 0) back.push(`${POOL_NAME[pool]} +${gained(pool)}`);
+  }
+  if ('hitDiceUsed' in changes) {
+    const dice = diceTotal(before['hitDiceUsed']) - diceTotal(changes['hitDiceUsed']);
+    if (dice > 0) back.push(`кубики здоровʼя +${dice}`);
+  }
+  const parts: string[] = back.length > 0 ? [`повернулось: ${back.join(', ')}`] : [];
+  if ('exhaustion' in changes && gained('exhaustion') > 0) parts.push(`виснаження −${gained('exhaustion')}`);
+  if ('temporaryHitPoints' in changes && num(before['temporaryHitPoints']) > 0) parts.push('тимчасові ХП скінчились');
+  return parts.length > 0 ? parts.join('; ') : 'нічого не витрачено — повертати нічого';
+}
+
+/**
+ * Features that change how a rest goes, read from the character's own export (F-113).
+ * A Scholar's discovery is a choice, not a level, so it sits among the custom features
+ * of the sheet; the text shown is the text the sheet carries.
+ */
+const REST_TRAITS = ['Running on Fumes'];
+
+export function restTraits(raw: { customFeatures?: { name: string; content: string }[] }): { name: string; text: string }[] {
+  return (raw.customFeatures ?? [])
+    .filter((f) => REST_TRAITS.includes(f.name.trim()))
+    .map((f) => ({ name: f.name.trim(), text: f.content.replace(/\s+/g, ' ').replace(/\.(?=\S)/g, '. ').trim() }));
+}

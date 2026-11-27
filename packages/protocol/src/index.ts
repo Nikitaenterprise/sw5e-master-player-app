@@ -156,7 +156,8 @@ export type FromServer =
   | SceneNotesMessage
   | WeatherMessage
   | ShipsMessage
-  | RoleCardMessage;
+  | RoleCardMessage
+  | RestedMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (ADR 0002). The event log is the single source of truth. Lines are only appended.
@@ -694,6 +695,8 @@ export interface SheetSummary {
   rollModes?: Record<string, 'advantage' | 'disadvantage' | 'both'>;
   /** Features that give an effect the GM can put on (F-069). Absent when there are none. */
   featureEffects?: FeatureEffectSummary[];
+  /** Features that change how a rest goes, with the sheet's own text (F-113). */
+  restTraits?: { name: string; text: string }[];
   /**
    * Every hand edit in the sheet, with a verdict (F-043): unknown origin, redundant,
    * a choice the sheet never recorded, or the stats of a custom item. `key` is the
@@ -2332,6 +2335,16 @@ export interface HandoutSend {
   title: string;
   text: string;
   to: string[];
+}
+
+/**
+ * Server → every screen, after a rest (F-113): one line per character of what came back,
+ * or that nothing needed to. Not a log line — the log keeps the changes themselves.
+ */
+export interface RestedMessage {
+  type: 'rested';
+  kind: 'short' | 'long';
+  lines: Record<string, string>;
 }
 
 /** Server → one screen: the handouts this screen may read, oldest first. Replaces, never appends. */

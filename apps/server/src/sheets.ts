@@ -27,7 +27,7 @@ function loadCompendium(options: { root: string }): Compendium {
 // are imported by path. Giving them a package.json would mean a new link in
 // node_modules, which means the owner has to run ВСТАНОВИТИ.bat again before the app
 // starts — and "double-click to run" is a hard requirement, not a nicety.
-import { computeCompanion, computeSheet, computeHandEdits, explainSheet, featureEffects, listFeats, restPlan, type RawCompanion, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
+import { computeCompanion, computeSheet, computeHandEdits, explainSheet, featureEffects, listFeats, restPlan, restTraits, type RawCompanion, type RestPlan, type RestKind } from '../../../packages/engine/src/index.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 
 const signedText = (n: number): string => (n >= 0 ? `+${n}` : String(n));
@@ -172,6 +172,7 @@ function summarize(
     explain,
     rollModes: sheet.rollModes,
     ...(features.length === 0 ? {} : { featureEffects: features }),
+    ...(restTraits(raw).length === 0 ? {} : { restTraits: restTraits(raw) }),
     handEdits: computeHandEdits(raw, sheet).map((e) => ({ key: e.key, text: e.text, verdict: e.verdict })),
     warnings: sheet.warnings,
   };

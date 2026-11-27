@@ -824,3 +824,8 @@ a.ref-link:hover { color: var(--accent); }
 .confirm-start { font-size: .8rem; }
 .confirm-ask { display: inline-flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: .85rem; }
 .confirm-ask .danger { border-color: var(--bad); color: var(--bad); }
+
+/* F-113: what a rest gave back, and features that change rests */
+.rest-note { margin: 0 0 .5rem; padding: .45rem .7rem; border-left: 2px solid var(--accent); color: var(--text); font-size: .9rem; }
+.rest-trait { margin: .25rem 0 0; color: var(--muted); font-size: .8rem; }
+.rest-trait b { color: var(--text); font-weight: 600; }
