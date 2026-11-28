@@ -14,7 +14,7 @@ import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
 import { LookToggles } from './Look.js';
-import { shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, nextTurn, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { NpcDesk, NpcsInScene } from './Npcs.js';
 import { WeatherBar } from './Weather.js';
@@ -86,9 +86,9 @@ export function App(): JSX.Element {
 
       {snapshot.refusal !== null && <p className="refusal">{snapshot.refusal}</p>}
 
-      {gm && (
+      {gm && (editingGlossary || editingItems) && (
         <nav className="views">
-          {editingGlossary ? (
+          {editingGlossary || editingItems ? (
             <a href="/?as=gm">← до екрана майстра</a>
           ) : (
             <>
@@ -103,25 +103,9 @@ export function App(): JSX.Element {
         </nav>
       )}
 
-      {gm && !editingGlossary && (
-        <CombatBoard
-          combat={snapshot.combat}
-          start={() => controls.current?.startCombat()}
-          roll={(whom, value, said) => controls.current?.rollInitiative(whom, value, said)}
-          move={(direction) => controls.current?.advanceTurn(direction)}
-          end={(clear) => controls.current?.endCombat(clear)}
-          party={snapshot.characters}
-          rest={(kind) => controls.current?.sendRest(kind)}
-          addEnemies={(monster, count, hp) => controls.current?.addEnemies(monster, count, hp)}
-          damageEnemy={(enemy, amount) => controls.current?.damageEnemy(enemy, amount)}
-          removeEnemy={(enemy) => controls.current?.removeEnemy(enemy)}
-          setEnemyConditions={(enemy, list) => controls.current?.setEnemyConditions(enemy, list)}
-          setEnemyEffects={(enemy, list) => controls.current?.setEnemyEffects(enemy, list)}
-          conditionChoices={conditionChoices}
-        />
-      )}
-
-      {editingItems ? (
+      {gm && !editingGlossary && !editingItems ? (
+        <GmScreen snapshot={snapshot} controls={controls} conditionChoices={conditionChoices} />
+      ) : editingItems ? (
         <ItemsEditor
           items={snapshot.homebrewFile}
           candidates={snapshot.homebrewCandidates}
@@ -138,149 +122,8 @@ export function App(): JSX.Element {
           found={snapshot.glossaryFound}
           searchAll={(q) => controls.current?.searchTerms(q)}
         />
-      ) : gm ? (
-        <section>
-          <h2>Партія — {Object.keys(snapshot.characters).length}</h2>
-          {snapshot.homebrewProblems.map((p) => (
-            <p key={p} className="refusal">{p}</p>
-          ))}
-          <div className="cards">
-            {Object.entries(snapshot.characters)
-              .sort(([a], [b]) => name(a).localeCompare(name(b), 'uk'))
-              .map(([slug, state]) => (
-                <Card
-                  key={slug}
-                  slug={slug}
-                  state={state}
-                  sheet={snapshot.sheets[slug]}
-                  conditionChoices={conditionChoices}
-                  setConditions={(list) => controls.current?.sendChange(slug, { conditions: list })}
-                  {...companionOf(snapshot, slug, (c, changes) => controls.current?.sendChange(c, changes))}
-                  setEffects={(list) => controls.current?.sendChange(slug, { holotableEffects: list })}
-                  items={snapshot.homebrew[slug] ?? []}
-                  useItem={(item) => controls.current?.useItem(slug, item.name, false)}
-                  useFeature={(feature, allies) => controls.current?.useFeature(slug, feature, allies)}
-                  party={Object.keys(snapshot.characters)}
-                  scene={sceneEffects(snapshot.weather)}
-                  setInspiration={(on) => controls.current?.sendChange(slug, { hasInspiration: on })}
-                />
-              ))}
-          </div>
-        </section>
       ) : (
         <PlayerSheet character={character} snapshot={snapshot} controls={controls} />
-      )}
-
-      {gm && !editingGlossary && Object.entries(snapshot.ships).map(([slug, ship]) => (
-        <ShipPanel
-          key={slug}
-          summary={ship.summary}
-          state={ship.state}
-          damage={(amount, options) => controls.current?.shipDamage(slug, amount, options)}
-          set={(changes) => controls.current?.shipSet(slug, changes)}
-          turn={(regenerate, recovered) => controls.current?.shipTurn(slug, regenerate, recovered)}
-          destructionSave={(roll) => controls.current?.shipDestructionSave(slug, roll)}
-          move={(from, to) => controls.current?.shipPower(slug, from, to)}
-          seat={(deployment, who) => controls.current?.crewSet(slug, deployment, who)}
-          fighting={snapshot.combat !== null}
-          initiative={shipInitiative(ship.summary.crew.map((c) => c.character), snapshot.combat)}
-          party={snapshot.characters}
-          exhaustionLevels={snapshot.exhaustionLevels}
-          systemDamageLevels={snapshot.systemDamageLevels}
-        />
-      ))}
-
-      {gm && !editingGlossary && (
-        <HandoutDesk
-          party={Object.keys(snapshot.characters).sort((a, b) => name(a).localeCompare(name(b), 'uk'))}
-          handouts={snapshot.handouts}
-          send={(title, text, to) => controls.current?.sendHandout(title, text, to)}
-        />
-      )}
-
-      {gm && !editingGlossary && (
-        <WeatherBar
-          weather={snapshot.weather}
-          set={(key) => controls.current?.setWeather(key)}
-          roll={(why, value) => controls.current?.rollWeather(why, value)}
-          inFight={snapshot.combat !== null}
-        />
-      )}
-
-      {gm && !editingGlossary && (
-        <NpcDesk
-          npcs={snapshot.npcs}
-          set={(npc, base) => controls.current?.setNpc(npc, base)}
-          remove={(id) => controls.current?.removeNpc(id)}
-          clear={() => controls.current?.clearNpcs()}
-        />
-      )}
-
-      {gm && !editingGlossary && (
-        <CountsSwitch
-          characters={Object.keys(snapshot.characters).sort((a, b) => name(a).localeCompare(name(b), 'uk'))}
-          counts={snapshot.counts}
-          set={(slug, who) => controls.current?.setCounts(slug, who)}
-        />
-      )}
-
-      {gm && !editingGlossary && (
-        <Rests
-          rest={(kind) => controls.current?.sendRest(kind)}
-          traits={Object.entries(snapshot.sheets).flatMap(([slug, s]) =>
-            (s.restTraits ?? []).map((t) => ({ who: s.name ?? name(slug), name: t.name, text: t.text })))}
-        />
-      )}
-
-      {gm && !editingGlossary && (
-        <section className="rests">
-          <h2>Друк</h2>
-          <div className="buttons">
-            <a className="button-like" href="/?as=print" target="_blank" rel="noreferrer">
-              Роздрукувати всіх
-              <small>пʼять аркушів A4 українською; якщо ноутбук вимкнеться — гра йде на папері</small>
-            </a>
-          </div>
-          {Object.keys(snapshot.ships).length > 0 && <ShipPrintLinks />}
-        </section>
-      )}
-
-      {gm && !editingGlossary && (
-        <Session
-          session={snapshot.session}
-          lastClosed={snapshot.lastClosed}
-          close={() => controls.current?.closeSession()}
-        />
-      )}
-
-      {gm && !editingGlossary && (
-        <Feed
-          events={snapshot.events}
-          fights={snapshot.fights}
-          sceneNotes={snapshot.sceneNotes}
-          undoScene={(undo) => controls.current?.undoScene(undo)}
-          undo={(row) =>
-            // Relative to where the run ended: undo takes back THIS change, and what
-            // others did since stays (F-045).
-            controls.current?.sendChange(row.character, undoOf(row), undoNote(row), { [row.field]: row.to })
-          }
-        />
-      )}
-
-      {/* On the phone the reference and the ship's sheet live in the tabs (F-101). */}
-      {gm && (
-      <section>
-        <h2>За столом — {snapshot.clients.length}</h2>
-        <ul className="who-here">
-          {snapshot.clients.map((k) => (
-            <li key={k.id} className={k.id === snapshot.me ? 'це-я' : undefined}>
-              <span className={`role role-${k.role}`}>{k.role === 'gm' ? 'М' : 'Г'}</span>
-              <span className="name">{k.role === 'gm' ? 'Майстер' : name(k.character)}</span>
-              {k.id === snapshot.me && <span className="tag">це ти</span>}
-            </li>
-          ))}
-        </ul>
-      </section>
       )}
 
       {gm && (
@@ -294,6 +137,242 @@ export function App(): JSX.Element {
     </ExhaustionContext.Provider>
     </BriefContext.Provider>
     </TermContext.Provider>
+  );
+}
+
+/** The tabs of the GM's screen (F-102): the same names as on the phone, plus the table. */
+type GmView = 'party' | 'combat' | 'scene' | 'items' | 'ship' | 'handouts' | 'table';
+
+const GM_TABS: [GmView, string][] = [
+  ['party', 'Партія'], ['combat', 'Бій'], ['scene', 'Сцена'], ['items', 'Речі'],
+  ['ship', 'Корабель'], ['handouts', 'Роздатки'], ['table', 'Стіл'],
+];
+
+/**
+ * The GM's screen (F-102): the whole width of the laptop, tabs down the left, the feed
+ * down the right, the fight as a strip at the top. The same building blocks and the same
+ * names as the phone — "the GM's screen follows the same rules" (canon, section 6).
+ */
+export function GmScreen({
+  snapshot,
+  controls,
+  conditionChoices,
+  initialView = 'party',
+}: {
+  snapshot: Snapshot;
+  controls: RefObject<Controls | null>;
+  conditionChoices: string[];
+  /** Which tab opens first — for a test that wants to look at one. */
+  initialView?: GmView;
+}): JSX.Element {
+  const [view, setView] = useState<GmView>(initialView);
+  const combat = snapshot.combat;
+  const current = combat?.order.find((f) => f.id === combat.turn);
+  const next = combat === null ? undefined : nextTurn(combat, 'next');
+  const after = next === undefined ? undefined : combat?.order.find((f) => f.id === next.turn);
+  const party = Object.keys(snapshot.characters).sort((a, b) => name(a).localeCompare(name(b), 'uk'));
+  const ships = Object.entries(snapshot.ships);
+
+  return (
+    <div className="gm-layout">
+      <nav className="gm-rail ds-glass" aria-label="Вкладки майстра">
+        {GM_TABS.map(([id, label]) => (
+          <button key={id} type="button" className={view === id ? 'on' : undefined} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
+            {label}
+            {id === 'combat' && combat !== null && <span className="live" title="Бій триває" />}
+          </button>
+        ))}
+        <a href="/?as=ref" target="_blank" rel="noreferrer">Довідник ↗</a>
+      </nav>
+
+      <div className="gm-main">
+        {combat !== null && view !== 'combat' && (
+          <button type="button" className="ds-strip quiet gm-strip" onClick={() => setView('combat')}>
+            <b>⚔ Бій · раунд {combat.round}</b>
+            <span>
+              {current === undefined ? 'чекаємо кидки' : `ходить ${current.name}`}
+              {after !== undefined && after.id !== current?.id ? ` · далі ${after.name}` : ''}
+            </span>
+            <i>›</i>
+          </button>
+        )}
+
+        {view === 'party' && (
+          <>
+            <h2>Партія — {party.length}</h2>
+            {snapshot.homebrewProblems.map((p) => (
+              <p key={p} className="refusal">{p}</p>
+            ))}
+            <div className="cards">
+              {party.map((slug) => (
+                <Card
+                  key={slug}
+                  slug={slug}
+                  state={snapshot.characters[slug] ?? {}}
+                  sheet={snapshot.sheets[slug]}
+                  conditionChoices={conditionChoices}
+                  setConditions={(list) => controls.current?.sendChange(slug, { conditions: list })}
+                  {...companionOf(snapshot, slug, (c, changes) => controls.current?.sendChange(c, changes))}
+                  setEffects={(list) => controls.current?.sendChange(slug, { holotableEffects: list })}
+                  items={snapshot.homebrew[slug] ?? []}
+                  useItem={(item) => controls.current?.useItem(slug, item.name, false)}
+                  useFeature={(feature, allies) => controls.current?.useFeature(slug, feature, allies)}
+                  party={party}
+                  scene={sceneEffects(snapshot.weather)}
+                  setInspiration={(on) => controls.current?.sendChange(slug, { hasInspiration: on })}
+                />
+              ))}
+            </div>
+            <Rests
+              rest={(kind) => controls.current?.sendRest(kind)}
+              traits={Object.entries(snapshot.sheets).flatMap(([slug, sh]) =>
+                (sh.restTraits ?? []).map((t) => ({ who: sh.name ?? name(slug), name: t.name, text: t.text })))}
+            />
+          </>
+        )}
+
+        {view === 'combat' && (
+          <CombatBoard
+            combat={combat}
+            start={() => controls.current?.startCombat()}
+            roll={(whom, value, said) => controls.current?.rollInitiative(whom, value, said)}
+            move={(direction) => controls.current?.advanceTurn(direction)}
+            end={(clear) => controls.current?.endCombat(clear)}
+            party={snapshot.characters}
+            rest={(kind) => controls.current?.sendRest(kind)}
+            addEnemies={(monster, count, hp) => controls.current?.addEnemies(monster, count, hp)}
+            damageEnemy={(enemy, amount) => controls.current?.damageEnemy(enemy, amount)}
+            removeEnemy={(enemy) => controls.current?.removeEnemy(enemy)}
+            setEnemyConditions={(enemy, list) => controls.current?.setEnemyConditions(enemy, list)}
+            setEnemyEffects={(enemy, list) => controls.current?.setEnemyEffects(enemy, list)}
+            conditionChoices={conditionChoices}
+          />
+        )}
+
+        {view === 'scene' && (
+          <>
+            <WeatherBar
+              weather={snapshot.weather}
+              set={(key) => controls.current?.setWeather(key)}
+              roll={(why, value) => controls.current?.rollWeather(why, value)}
+              inFight={combat !== null}
+            />
+            <NpcDesk
+              npcs={snapshot.npcs}
+              set={(npc, base) => controls.current?.setNpc(npc, base)}
+              remove={(id) => controls.current?.removeNpc(id)}
+              clear={() => controls.current?.clearNpcs()}
+            />
+          </>
+        )}
+
+        {view === 'items' && (
+          <section>
+            <h2>Речі</h2>
+            <p className="hint">
+              Предмети з ефектами кожного персонажа — на його карточці у «Партії». Хомбрю-предмети
+              (що вони дають) правляться окремо.
+            </p>
+            <nav className="views">
+              <a href="/?as=gm&view=items">Редактор хомбрю-предметів →</a>
+            </nav>
+          </section>
+        )}
+
+        {view === 'ship' && (
+          ships.length === 0 ? (
+            <p className="hint">Корабля в грі немає.</p>
+          ) : (
+            <>
+              {ships.map(([slug, ship]) => (
+                <ShipPanel
+                  key={slug}
+                  summary={ship.summary}
+                  state={ship.state}
+                  damage={(amount, options) => controls.current?.shipDamage(slug, amount, options)}
+                  set={(changes) => controls.current?.shipSet(slug, changes)}
+                  turn={(regenerate, recovered) => controls.current?.shipTurn(slug, regenerate, recovered)}
+                  destructionSave={(roll) => controls.current?.shipDestructionSave(slug, roll)}
+                  move={(from, to) => controls.current?.shipPower(slug, from, to)}
+                  seat={(deployment, who) => controls.current?.crewSet(slug, deployment, who)}
+                  fighting={combat !== null}
+                  initiative={shipInitiative(ship.summary.crew.map((c) => c.character), combat)}
+                  party={snapshot.characters}
+                  exhaustionLevels={snapshot.exhaustionLevels}
+                  systemDamageLevels={snapshot.systemDamageLevels}
+                />
+              ))}
+              <nav className="views">
+                <a href="/?as=ship" target="_blank" rel="noreferrer">Лист корабля ↗</a>
+              </nav>
+            </>
+          )
+        )}
+
+        {view === 'handouts' && (
+          <HandoutDesk
+            party={party}
+            handouts={snapshot.handouts}
+            send={(title, text, to) => controls.current?.sendHandout(title, text, to)}
+          />
+        )}
+
+        {view === 'table' && (
+          <>
+            <section>
+              <h2>За столом — {snapshot.clients.length}</h2>
+              <ul className="who-here">
+                {snapshot.clients.map((k) => (
+                  <li key={k.id}>
+                    <span className={`role role-${k.role}`}>{k.role === 'gm' ? 'М' : 'Г'}</span>
+                    <span className="name">{k.role === 'gm' ? 'Майстер' : name(k.character)}</span>
+                    {k.id === snapshot.me && <span className="tag">це ти</span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <CountsSwitch
+              characters={party}
+              counts={snapshot.counts}
+              set={(slug, who) => controls.current?.setCounts(slug, who)}
+            />
+            <section className="rests">
+              <h2>Друк</h2>
+              <div className="buttons">
+                <a className="button-like" href="/?as=print" target="_blank" rel="noreferrer">
+                  Роздрукувати всіх
+                  <small>пʼять аркушів A4 українською; якщо ноутбук вимкнеться — гра йде на папері</small>
+                </a>
+              </div>
+              {ships.length > 0 && <ShipPrintLinks />}
+            </section>
+            <Session
+              session={snapshot.session}
+              lastClosed={snapshot.lastClosed}
+              close={() => controls.current?.closeSession()}
+            />
+            <nav className="views">
+              <a href="/?as=gm&view=glossary">Глосарій термінів →</a>
+              <a href="/?as=gm&view=items">Хомбрю-предмети →</a>
+            </nav>
+          </>
+        )}
+      </div>
+
+      <aside className="gm-feed">
+        <Feed
+          events={snapshot.events}
+          fights={snapshot.fights}
+          sceneNotes={snapshot.sceneNotes}
+          undoScene={(undo) => controls.current?.undoScene(undo)}
+          undo={(row) =>
+            // Relative to where the run ended: undo takes back THIS change, and what
+            // others did since stays (F-045).
+            controls.current?.sendChange(row.character, undoOf(row), undoNote(row), { [row.field]: row.to })
+          }
+        />
+      </aside>
+    </div>
   );
 }
 
@@ -726,7 +805,7 @@ export function AbilitiesPanel({ sheet }: { sheet: SheetSummary }): JSX.Element 
           </span>
         ))}
       </div>
-      <p className="saves">
+      <p className="save-line">
         <span className="ds-label">Сейви</span>{' '}
         {PHONE_ABILITIES.map(([ability, short]) => (
           <span key={ability} className={sheet.details.proficientSaves.includes(ability) ? 'save prof' : 'save'}>
