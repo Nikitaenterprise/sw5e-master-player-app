@@ -419,6 +419,11 @@ export function GmScreen({
                   start={() => controls.current?.startCombat(true)}
                   end={() => controls.current?.endCombat([])}
                   turn={() => controls.current?.shipTurn(slug, true)}
+                  enemies={{
+                    add: (size, tier, count, name) => controls.current?.addEnemyShips(size, tier, count, name),
+                    damage: (enemy, amount) => controls.current?.damageEnemy(enemy, amount),
+                    remove: (enemy) => controls.current?.removeEnemy(enemy),
+                  }}
                 />
                 <ShipPanel
                   summary={ship.summary}
@@ -2016,6 +2021,8 @@ export function Effects({
 /** How a fighter is named on screen: a party member by name, an enemy by creature and number. */
 export function fighterName(fighter: Fighter, term: Term): string {
   if (fighter.kind !== 'enemy') return name(fighter.character);
+  // An enemy ship (F-124) has no creature behind it: its name already carries its number.
+  if (fighter.enemy?.ship !== undefined) return fighter.name;
   return `${term('monster', fighter.monster ?? fighter.name)} ${fighter.number ?? ''}`.trim();
 }
 
@@ -2094,10 +2101,17 @@ function EnemyDetails({
   return (
     <div className="enemy">
       <span className={`enemy-hp${e.hp === 0 ? ' down' : e.hp * 2 <= e.maxHp ? ' low' : ''}`}>
-        КБ <b>{e.ac}</b> · ХП <b>{e.hp}</b>/{e.maxHp}
-        <Tip className="hp-from" text={e.hpFrom === 'gm' ? 'ХП кинув майстер' : `середнє з книги; кидок: ${e.hpRoll}`}>
-          {e.hpFrom === 'gm' ? ' кинуто' : ' сер.'}
-        </Tip>
+        {e.ship !== undefined ? (
+          // An enemy ship (F-124): shields go first, the hull is what keeps it flying.
+          <>КБ <b>{e.ac}</b> · щити <b>{e.ship.shields}</b>/{e.ship.maxShields} · корпус <b>{e.hp}</b>/{e.maxHp}</>
+        ) : (
+          <>
+            КБ <b>{e.ac}</b> · ХП <b>{e.hp}</b>/{e.maxHp}
+            <Tip className="hp-from" text={e.hpFrom === 'gm' ? 'ХП кинув майстер' : `середнє з книги; кидок: ${e.hpRoll}`}>
+              {e.hpFrom === 'gm' ? ' кинуто' : ' сер.'}
+            </Tip>
+          </>
+        )}
       </span>
       <span className="buttons">
         {ENEMY_STEPS.map((step) => (
@@ -2594,8 +2608,10 @@ export function CombatBoard({
           </div>
           {addEnemies !== undefined && (
             <div className="combat-add">
-              <h3>Додати ворога</h3>
-              <AddEnemies add={addEnemies} />
+              <h3>{combat.space === true ? 'Ворожі кораблі' : 'Додати ворога'}</h3>
+              {combat.space === true
+                ? <p className="hint">У космічному бою вороги — кораблі: додаєш їх на вкладці «Корабель», там і шкода їм.</p>
+                : <AddEnemies add={addEnemies} />}
             </div>
           )}
         </div>

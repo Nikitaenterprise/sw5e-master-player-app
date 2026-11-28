@@ -506,3 +506,4 @@ export { speciesSpeed, type Speed } from './speed.js';
 export { featureEffects, type FeatureEffect, type FeatureEffectSpec } from './featureEffects.js';
 export { monsterSaves, toMonsterAbility, type MonsterSave } from './monsters.js';
 export { computeShip, tableCell, SHIP_SYSTEMS, type ComputedShip, type ShipWeapon, type ShipSystem } from './ship.js';
+export { enemyShip } from './enemyShip.js';

@@ -11,6 +11,7 @@
 import { useState, type JSX } from 'react';
 import {
   DEPLOYMENTS,
+  ENEMY_SHIP_SIZES,
   POWER_SPENT,
   SHIP_DAMAGE_TYPES,
   SHIP_DESTROYED,
@@ -21,6 +22,7 @@ import {
   shipMaxima,
   type CharacterState,
   type CombatState,
+  type EnemyShipSize,
   type ShipDamageOptions,
   type ShipState,
   type ShipSummary,
@@ -215,6 +217,7 @@ export function SpaceFight({
   start,
   end,
   turn,
+  enemies,
 }: {
   summary: ShipSummary;
   combat: CombatState | null;
@@ -222,6 +225,8 @@ export function SpaceFight({
   start: () => void;
   end: () => void;
   turn: () => void;
+  /** Enemy ships (F-124). Absent — the block is not shown. */
+  enemies?: { add: (size: EnemyShipSize, tier: number, count: number, name?: string) => void; damage: (enemy: string, amount: number) => void; remove: (enemy: string) => void };
 }): JSX.Element {
   const [acted, setActed] = useState<string[]>([]);
   const [ending, setEnding] = useState(false);
@@ -256,6 +261,7 @@ export function SpaceFight({
   return (
     <section className="space-fight on">
       <h3>Космічний бій · раунд {combat.round}</h3>
+      {enemies !== undefined && <EnemyShips combat={combat} add={enemies.add} damage={enemies.damage} remove={enemies.remove} />}
       <ol className="space-steps">
         <li className={initiative === null ? 'now' : 'done'}>
           <b>1 · Ініціатива</b>
@@ -317,6 +323,108 @@ export function SpaceFight({
         </li>
       </ol>
     </section>
+  );
+}
+
+const SIZE_UK: Record<string, string> = {
+  Tiny: 'крихітний', Small: 'малий', Medium: 'середній', Large: 'великий', Huge: 'величезний', Gargantuan: 'гігантський',
+};
+
+/**
+ * Enemy ships in a space fight (F-124): the GM generates them by size and tier — the book
+ * puts the rest together — and deals each hit, which takes armour, then shields, then hull.
+ */
+export function EnemyShips({
+  combat,
+  add,
+  damage,
+  remove,
+}: {
+  combat: CombatState;
+  add: (size: EnemyShipSize, tier: number, count: number, name?: string) => void;
+  damage: (enemy: string, amount: number) => void;
+  remove: (enemy: string) => void;
+}): JSX.Element {
+  const [size, setSize] = useState<EnemyShipSize>('Small');
+  const [tier, setTier] = useState('0');
+  const [count, setCount] = useState('1');
+  const [label, setLabel] = useState('');
+  const [hits, setHits] = useState<Record<string, string>>({});
+  const ships = combat.order.filter((f) => f.enemy?.ship !== undefined);
+  return (
+    <div className="enemy-ships">
+      <h4>Ворожі кораблі</h4>
+      <form
+        className="add"
+        noValidate
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          const n = Number(count);
+          if (!Number.isInteger(n) || n < 1 || n > 10) return;
+          add(size, Number(tier), n, label.trim() === '' ? undefined : label.trim());
+        }}
+      >
+        <b>Додати ворожий корабель</b>
+        <label className="roll-field">
+          <span>Розмір</span>
+          <select value={size} onChange={(ev) => setSize(ev.target.value as EnemyShipSize)}>
+            {ENEMY_SHIP_SIZES.map((s) => <option key={s} value={s}>{SIZE_UK[s]} ({s})</option>)}
+          </select>
+        </label>
+        <label className="roll-field">
+          <span>Тір</span>
+          <select value={tier} onChange={(ev) => setTier(ev.target.value)}>
+            {[0, 1, 2, 3, 4, 5].map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+        <label className="roll-field">
+          <span>Скільки</span>
+          <input type="number" min={1} max={10} value={count} onChange={(ev) => setCount(ev.target.value)} />
+        </label>
+        <label className="roll-field">
+          <span>Назва</span>
+          <input value={label} onChange={(ev) => setLabel(ev.target.value)} placeholder="Ворожий корабель" maxLength={40} />
+        </label>
+        <button type="submit">додати в бій</button>
+      </form>
+      <p className="hint">Корабель складається за книгою: розмір і тір дають корпус, щити й КБ; зброя — під розмір. Ініціативу за нього кидаєш ти — у черзі на вкладці «Бій».</p>
+      {ships.length > 0 && (
+        <ul className="enemy-ship-list">
+          {ships.map((f) => {
+            const e = f.enemy;
+            const s = e?.ship;
+            if (e === undefined || s === undefined) return null;
+            return (
+              <li key={f.id} className={e.hp === 0 ? 'down' : undefined}>
+                <b>{f.name}</b>
+                <small> {SIZE_UK[s.size] ?? s.size} · {s.role} · тір {s.tier}</small>
+                <span className="ship-line">
+                  КБ {e.ac} · щити {s.shields}/{s.maxShields} · корпус {e.hp}/{e.maxHp} · броня −{s.damageReduction}
+                  {f.total !== null && <> · ініціатива {f.total}</>}
+                </span>
+                <span className="ship-line">
+                  {e.attacks.map((a, i) => <span key={`${a.name}-${i}`} className="ship-gun">{a.name} +{a.toHit} <small>({a.text.split(' · ')[0]})</small></span>)}
+                </span>
+                <form
+                  className="add"
+                  noValidate
+                  onSubmit={(ev) => {
+                    ev.preventDefault();
+                    const n = Number(hits[f.id] ?? '');
+                    if (Number.isInteger(n) && n > 0) damage(f.id, n);
+                    setHits({ ...hits, [f.id]: '' });
+                  }}
+                >
+                  <input type="number" min={1} value={hits[f.id] ?? ''} onChange={(ev) => setHits({ ...hits, [f.id]: ev.target.value })} placeholder="шкода" aria-label={`Шкода кораблю ${f.name}`} />
+                  <button type="submit">влучили</button>
+                  <button type="button" onClick={() => remove(f.id)}>прибрати</button>
+                </form>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 

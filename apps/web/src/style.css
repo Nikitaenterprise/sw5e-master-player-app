@@ -1429,3 +1429,15 @@ main.choose { display: flex; flex-direction: column; gap: 12px; }
   background: var(--panel-tint); color: var(--text); border: 1px solid var(--tile-line); padding: .4rem .6rem; font: inherit;
 }
 .catalog select option { background: var(--bg); color: var(--text); }
+
+/* F-124: enemy ships in a space fight */
+.enemy-ships { margin: 10px 0 14px; padding: 10px 12px; border: 1px solid var(--tile-line); border-left: 2px solid var(--alert); }
+.enemy-ships h4 { margin: 0 0 .5rem; font: 600 11px/1.2 var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: var(--alert); }
+.enemy-ships .add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.enemy-ships .add > b { flex-basis: 100%; }
+.enemy-ships input, .enemy-ships select { background: var(--panel-tint); color: var(--text); border: 1px solid var(--tile-line); padding: .3rem .5rem; font: inherit; }
+.enemy-ships input[type="number"] { width: 5rem; }
+.enemy-ship-list { gap: 8px; margin-top: 8px; }
+.enemy-ship-list li { display: flex; flex-direction: column; gap: 4px; }
+.enemy-ship-list li.down { opacity: .55; }
+.ship-gun { margin-right: 12px; }
