@@ -612,7 +612,6 @@ export function PhoneScreen({
   initialView?: PhoneView;
 }): JSX.Element {
   const [chosen, setView] = useState<PhoneView>(initialView);
-  const [effectsOpen, setEffectsOpen] = useState(false);
   const [seen, setSeen] = useState<string[]>(() => readSeen(character));
   const state = withQueued(snapshot.characters[character], snapshot.queued, character) ?? {};
   const waiting = queuedFields(snapshot.queued, character);
@@ -664,18 +663,12 @@ export function PhoneScreen({
         sheet={sheet}
         state={state}
         effectsCount={effects.length + scene.length}
-        toggleEffects={() => setEffectsOpen(!effectsOpen)}
+        toggleEffects={() => {
+          // One list of effects, on the sheet tab (F-119): the button leads there.
+          setView('sheet');
+          requestAnimationFrame(() => document.getElementById('my-effects')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        }}
       />
-      {effectsOpen && (
-        <section className="ds-panel phone-effects">
-          <h2 className="ds-label">Діє на тебе</h2>
-          {effects.length + scene.length === 0 ? (
-            <p className="hint">Зараз на тебе нічого не діє.</p>
-          ) : (
-            <Effects list={effects} scene={scene} />
-          )}
-        </section>
-      )}
       <UrgentStrips
         combat={combat}
         character={character}
@@ -715,12 +708,14 @@ export function PhoneScreen({
 
         {view === 'sheet' && (
           <>
-            {effects.length + scene.length > 0 && (
-              <section className="ds-panel">
-                <h2 className="ds-label">Діє на тебе</h2>
+            <section className="ds-panel" id="my-effects">
+              <h2 className="ds-label">Діє на тебе</h2>
+              {effects.length + scene.length === 0 ? (
+                <p className="hint">Зараз на тебе нічого не діє.</p>
+              ) : (
                 <Effects list={effects} scene={scene} />
-              </section>
-            )}
+              )}
+            </section>
             <RestNote rest={snapshot.lastRest} character={character} />
             {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
               <DeathSavesBlock state={state} roll={(value) => controls.current?.deathSave(character, value)} />

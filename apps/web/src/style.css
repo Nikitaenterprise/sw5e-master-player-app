@@ -1401,3 +1401,6 @@ main.choose { display: flex; flex-direction: column; gap: 12px; }
 
 /* F-118: why an effect on a score left the modifier as it was */
 .score-note { margin: .3rem 0; color: var(--effect); font-size: .82rem; }
+
+/* F-119: the effects button scrolls here; keep the heading clear of the sticky status strip */
+#my-effects { scroll-margin-top: 150px; }
