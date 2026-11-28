@@ -326,8 +326,8 @@ footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border
 .hit-dice { margin-top: .8rem; display: flex; flex-direction: column; gap: .45rem; }
 .hit-dice h3 { margin: 0; font-size: .95rem; }
 .hit-dice .value i { font-style: normal; color: var(--muted); font-weight: 400; }
-.hit-dice .roll { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
-.hit-dice .roll input { width: 4.5rem; }
+.hit-dice .roll { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .4rem; align-items: flex-end; }
+.hit-dice .roll input { width: 6rem; }
 
 /* ── Where does this number come from (F-042) ──────────────────────────── */
 .why { cursor: help; text-decoration: underline dotted color-mix(in srgb, var(--muted) 60%, transparent); text-underline-offset: .2em; }
@@ -512,8 +512,8 @@ a.ref-link:hover { color: var(--accent); }
 .combat .order .add.roll input { flex: 0 0 4.5rem; width: 4.5rem; }
 .my-initiative { margin-top: .8rem; padding-top: .6rem; border-top: 1px solid var(--border); }
 .my-initiative h3 { margin: 0 0 .4rem; font-size: .95rem; }
-.my-initiative .add.roll { display: flex; gap: .4rem; align-items: center; margin-top: .3rem; }
-.my-initiative .add.roll input { flex: 0 0 6rem; width: 6rem; }
+.my-initiative .add.roll { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-end; margin-top: .3rem; }
+.my-initiative .add.roll input { flex: none; width: 7.5rem; }
 .my-initiative .state-row small { color: var(--muted); font-size: .75rem; }
 .my-initiative .turn-now { color: var(--accent); font-weight: 600; margin: .4rem 0 0; }
 
@@ -605,8 +605,8 @@ a.ref-link:hover { color: var(--accent); }
 .turn-attacks li { flex-wrap: wrap; gap: .4rem; }
 .turn-attacks .what { flex: 1 1 100%; }
 .turn-attacks .what small, .turn-maneuvers small { color: var(--muted); }
-.turn-attacks .add.roll { display: flex; gap: .3rem; }
-.turn-attacks .add.roll input { width: 4.5rem; flex: 0 0 4.5rem; }
+.turn-actions .add.roll { display: flex; flex-wrap: wrap; gap: .4rem; align-items: flex-end; }
+.turn-actions .add.roll input { width: 6rem; flex: none; }
 .turn-maneuvers li { justify-content: space-between; padding: .45rem .7rem; }
 .turn-pools { display: flex; gap: .6rem; flex-wrap: wrap; margin: .6rem 0; }
 .turn-pools .pool { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; }
@@ -626,8 +626,8 @@ a.ref-link:hover { color: var(--accent); }
 .death-saves h3 { margin: 0 0 .3rem; color: var(--bad); }
 .death-saves .marks { display: flex; gap: 1.2rem; margin: .2rem 0 .4rem; }
 .death-saves .marks b { font-size: 1.1rem; letter-spacing: .1em; }
-.death-saves .add.roll { display: flex; gap: .3rem; }
-.death-saves .add.roll input { width: 4.5rem; flex: 0 0 4.5rem; }
+.death-saves .add.roll { display: flex; flex-wrap: wrap; gap: .4rem; align-items: flex-end; }
+.death-saves .add.roll input { width: 6rem; flex: none; }
 .down-line { margin: .3rem 0 0; font-size: .8rem; color: var(--bad); }
 
 /* ── End of the fight (F-059) ──────────────────────────────────────────── */
@@ -1261,3 +1261,11 @@ main.gm { max-width: none; }
 .turn-action.no { border-left-color: var(--alert); background: var(--tile-bad); }
 .turn-action.no .what > a, .turn-action.no .what > span:first-child { color: var(--alert); }
 .turn-action .problem { color: var(--alert); }
+
+/* F-108: every roll field says what goes into it */
+.roll-field { display: inline-flex; flex-direction: column; gap: 3px; min-width: 0; }
+.roll-field span { font: 600 10.5px/1.25 var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.roll-field > input { flex: none; max-width: 100%; }
+/* The hint above a hit die's fields takes its own line. */
+.hit-dice .roll .hint { flex-basis: 100%; }
+form.roll { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }

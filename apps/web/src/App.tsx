@@ -1126,6 +1126,7 @@ export function HitDice({
   constitutionModifier,
   counts = 'app',
   send,
+  initiallyOpen,
 }: {
   state: CharacterState;
   dice: { size: string; count: number }[];
@@ -1133,8 +1134,10 @@ export function HitDice({
   /** Who adds Constitution: the person or the app (F-064, ADR 0007). */
   counts?: WhoCounts;
   send: (changes: CharacterState, note?: string) => void;
+  /** A die size whose form is open from the start — for a test that wants to see it. */
+  initiallyOpen?: string;
 }): JSX.Element {
-  const [rolling, setRolling] = useState<string | null>(null);
+  const [rolling, setRolling] = useState<string | null>(initiallyOpen ?? null);
   const [roll, setRoll] = useState('');
   const [healed, setHealed] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -1193,28 +1196,35 @@ export function HitDice({
                   submit(size, count);
                 }}
               >
-                <span className="hint">{rollHint(size, constitutionModifier, counted)}</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={Number(size.slice(1))}
-                  value={roll}
-                  onChange={(ev) => setRoll(ev.target.value)}
-                  aria-label={`Що випало на ${size}`}
-                  autoFocus
-                />
-                {counted && (
+                <span className="hint">
+                  {rollHint(size, constitutionModifier, counted)}. За книгою модифікатор Статури додається завжди.
+                </span>
+                <label className="roll-field">
+                  <span>{size} — що випало</span>
                   <input
                     type="number"
                     inputMode="numeric"
-                    value={healed}
-                    onChange={(ev) => setHealed(ev.target.value)}
-                    aria-label="Скільки вилікував"
-                    placeholder="вилікував"
+                    min={1}
+                    max={Number(size.slice(1))}
+                    value={roll}
+                    onChange={(ev) => setRoll(ev.target.value)}
+                    aria-label={`Що випало на ${size}`}
+                    autoFocus
                   />
+                </label>
+                {counted && (
+                  <label className="roll-field">
+                    <span>{size} + модифікатор Статури — разом</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={healed}
+                      onChange={(ev) => setHealed(ev.target.value)}
+                      aria-label="Скільки вилікував"
+                    />
+                  </label>
                 )}
-                <button type="submit">лікуватись</button>
+                <button type="submit" aria-label="лікуватись">Відправити</button>
                 {problem !== null && <span className="refusal">{problem}</span>}
               </form>
             )}
@@ -1285,27 +1295,32 @@ function RollInput({
         setProblem(null);
       }}
     >
-      <input
-        type="number"
-        inputMode="numeric"
-        min={1}
-        max={INITIATIVE_DIE}
-        value={die}
-        onChange={(ev) => setDie(ev.target.value)}
-        aria-label={label}
-        placeholder={`d${INITIATIVE_DIE}`}
-      />
-      {sum !== 'none' && (
+      {/* Visible labels, not placeholders that vanish while typing (F-108). */}
+      <label className="roll-field">
+        <span>d{INITIATIVE_DIE} — що випало</span>
         <input
           type="number"
           inputMode="numeric"
-          value={total}
-          onChange={(ev) => setTotal(ev.target.value)}
-          aria-label="Скільки вийшло разом"
-          placeholder="разом"
+          min={1}
+          max={INITIATIVE_DIE}
+          value={die}
+          onChange={(ev) => setDie(ev.target.value)}
+          aria-label={label}
         />
+      </label>
+      {sum !== 'none' && (
+        <label className="roll-field">
+          <span>d{INITIATIVE_DIE} + модифікатор — разом</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={total}
+            onChange={(ev) => setTotal(ev.target.value)}
+            aria-label="Скільки вийшло разом"
+          />
+        </label>
       )}
-      <button type="submit">{button}</button>
+      <button type="submit" aria-label={button}>Відправити</button>
       {problem !== null && <span className="refusal">{problem}</span>}
     </form>
   );
