@@ -68,6 +68,7 @@
   --cut: 10px;
   --cut-s: 8px;
   --amber-deep: #b8742a;
+  --ok-deep: #2fbf7a;
   --f-head: "Exo 2", system-ui, sans-serif;
   --f-num: "JetBrains Mono", ui-monospace, monospace;
   --f-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -1093,3 +1094,82 @@ input, select, textarea { font-size: max(16px, 1rem) !important; }
 .a4 h1, .a4 h2, .a4 h3, .s-sheet h1, .s-sheet h2, .s-sheet h3, .role-card h2, .role-card h3,
 .print-root h1, .print-root h2, .print-root h3 { color: inherit; letter-spacing: normal; }
 .a4 b, .s-sheet b, .role-card b { text-shadow: none; }
+
+/* ── The player's phone (F-101): status strip, urgent strips, five tabs ───────── */
+main.player { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); gap: 12px; }
+main.player > header { border-bottom: 0; padding-bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+main.player > header h1 { display: none; }
+.phone { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.status-strip {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 5;
+  margin-inline: calc(-1 * clamp(1rem, 3vw, 2rem));
+  padding: 10px clamp(1rem, 3vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid transparent;
+  border-image: var(--line-grad) 1;
+}
+.status-strip .who { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; min-width: 0; }
+.status-strip .nm { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.status-strip .nm b { font: 700 17px/1.15 var(--f-head); letter-spacing: .1em; text-transform: uppercase; overflow-wrap: anywhere; }
+.status-strip .nm span { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.status-strip .fx-chip { flex: none; font: 600 12px/1 var(--f-num); color: var(--effect); background: var(--tile-fx); border: 1px solid var(--effect); padding: 8px 10px; min-height: 34px; cursor: pointer; }
+.status-strip .stats { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)) auto; gap: 6px; align-items: end; }
+.status-strip .st { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; }
+.status-strip .st small { width: 100%; font: 600 10px/1 var(--f-body); color: var(--muted); letter-spacing: .12em; text-transform: uppercase; }
+.status-strip .st i { font-style: normal; font: 500 13px/1 var(--f-num); color: var(--muted); }
+.status-strip .st em { font-style: normal; font: 600 13px/1 var(--f-num); color: var(--effect); }
+.status-strip .hpbar { width: 100%; height: 4px; background: rgb(255 255 255 / .12); position: relative; margin-top: 4px; }
+.status-strip .hpbar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--hp, 100%); background: linear-gradient(90deg, var(--ok-deep), var(--ok)); }
+.status-strip .hpbar.low::after { background: var(--alert); }
+.status-strip .insp { font-size: 18px; color: var(--gold); align-self: center; }
+.urgent { display: flex; flex-direction: column; gap: 6px; }
+.urgent .ds-strip { width: 100%; border: 0; text-align: left; cursor: pointer; font: inherit; }
+.urgent .ds-strip.quiet { min-height: 38px; padding-block: 6px; }
+.urgent .ds-strip span { flex: 1; font-size: 13px; }
+.urgent .ds-strip i { font-style: normal; font: 700 18px/1 var(--f-num); }
+.phone-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.phone-back { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.phone-tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 6px 4px calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid transparent;
+  border-image: var(--line-grad) 1;
+}
+.phone-tabs button {
+  position: relative;
+  min-height: 48px;
+  padding: 6px 2px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: 600 12px/1.1 var(--f-body);
+  cursor: pointer;
+  clip-path: none;
+  overflow-wrap: anywhere;
+}
+.phone-tabs button.on { color: var(--text); }
+.phone-tabs button.on::before { content: ""; position: absolute; top: -6px; left: 20%; right: 20%; height: 2px; background: linear-gradient(90deg, var(--bronze), var(--gold), var(--bronze)); box-shadow: 0 0 10px rgb(242 194 106 / .6); }
+.phone-tabs .badge { position: absolute; top: 2px; right: 10%; min-width: 16px; height: 16px; padding: 0 4px; background: var(--alert); color: var(--on-amber); font: 700 10px/16px var(--f-num); }
+.abilities-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.ds-tile.ability { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ds-tile.ability small { font: 600 10px/1 var(--f-body); letter-spacing: .12em; color: var(--muted); }
+.ds-tile.ability i { font: normal 11px/1 var(--f-num); color: var(--muted); }
+.saves { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; font: 500 13px/1.3 var(--f-num); color: var(--muted); }
+.saves .prof { color: var(--text); }
+.skills summary { cursor: pointer; }
+.skill-list { gap: 2px; }
+.skill-list li { display: flex; justify-content: space-between; padding: 4px 8px; background: var(--tile); border: 0; }
+.skill-list li.prof span { color: var(--text); font-weight: 600; }
+.skill-list li b { font-size: 15px; }

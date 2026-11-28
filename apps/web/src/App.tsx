@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { RestedMessage, CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SceneNote, SceneUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
+import type { Handout, RestedMessage, CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SceneNote, SceneUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -267,13 +267,8 @@ export function App(): JSX.Element {
         />
       )}
 
-      {!gm && (
-        <nav className="views">
-          <a href="/?as=ref">Довідник: сили, предмети, правила →</a>
-          {Object.keys(snapshot.ships).length > 0 && <a href="/?as=ship">Лист корабля →</a>}
-        </nav>
-      )}
-
+      {/* On the phone the reference and the ship's sheet live in the tabs (F-101). */}
+      {gm && (
       <section>
         <h2>За столом — {snapshot.clients.length}</h2>
         <ul className="who-here">
@@ -286,12 +281,15 @@ export function App(): JSX.Element {
           ))}
         </ul>
       </section>
+      )}
 
+      {gm && (
       <footer>
         Фаза 4 · F-064. Кубик кидає гравець і сам додає свої модифікатори (ADR 0007); застосунок рахує своє число для звірки й показує майстрові обидва. Наведи на число — побачиш, з чого воно складається; ✎ — ручна правка. Терміни — з глосарію state/i18n/uk/terms.json. Числа на карточках рахує рушій при старті сервера, на диску
         їх немає (ADR 0003). Відкат — не стирання: це така сама зміна, дописана
         в журнал (ADR 0002).
       </footer>
+      )}
     </main>
     </ExhaustionContext.Provider>
     </BriefContext.Provider>
@@ -348,85 +346,413 @@ function PlayerSheet({
   const sendChange = (changes: CharacterState): void => {
     controls.current?.sendChange(character, changes, undefined, baseFor(state, changes));
   };
+  return <PhoneScreen character={character} snapshot={snapshot} controls={controls} />;
+}
+
+/** The tabs of the player's phone (F-101), always in the same places. */
+type PhoneView = 'sheet' | 'scene' | 'items' | 'ship' | 'handouts' | 'combat';
+
+const SEEN_KEY = (character: string): string => `holotable-seen-handouts-${character}`;
+
+/** Handouts this phone has already opened: kept in the browser, a person's own memory. */
+function readSeen(character: string): string[] {
+  try {
+    const raw = localStorage.getItem(SEEN_KEY(character));
+    const list: unknown = raw === null ? [] : JSON.parse(raw);
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSeen(character: string, ids: string[]): void {
+  try {
+    localStorage.setItem(SEEN_KEY(character), JSON.stringify(ids));
+  } catch {
+    // A private window may refuse storage; the strip then shows again after a reload.
+  }
+}
+
+const PHONE_ABILITIES: [string, string][] = [
+  ['Strength', 'СИЛ'], ['Dexterity', 'СПР'], ['Constitution', 'СТА'],
+  ['Intelligence', 'ІНТ'], ['Wisdom', 'МУД'], ['Charisma', 'ХАР'],
+];
+
+/**
+ * The player's phone (F-101): the status strip with the numbers that matter right now,
+ * the urgent strips for combat and handouts at the top, five tabs at the bottom, and the
+ * combat screen over the tabs. The layout is the canon's, section 6.
+ */
+export function PhoneScreen({
+  character,
+  snapshot,
+  controls,
+  initialView = 'sheet',
+}: {
+  character: string;
+  snapshot: Snapshot;
+  controls: RefObject<Controls | null>;
+  /** Which tab opens first — for a test that wants to look at one. */
+  initialView?: PhoneView;
+}): JSX.Element {
+  const [chosen, setView] = useState<PhoneView>(initialView);
+  const [effectsOpen, setEffectsOpen] = useState(false);
+  const [seen, setSeen] = useState<string[]>(() => readSeen(character));
+  const state = withQueued(snapshot.characters[character], snapshot.queued, character) ?? {};
+  const waiting = queuedFields(snapshot.queued, character);
   const sheet = snapshot.sheets[character];
+  // The base is the very state this render computed the new number from — not whatever
+  // the connection holds by the time the click lands — so taps faster than a re-render
+  // each count once (F-046).
+  const sendChange = (changes: CharacterState): void => {
+    controls.current?.sendChange(character, changes, undefined, baseFor(state, changes));
+  };
+  const combat = snapshot.combat;
+  // The fight ended while its screen was open: back to the tabs.
+  const view: PhoneView = chosen === 'combat' && combat === null ? 'sheet' : chosen;
+  const unread = snapshot.handouts.filter((h) => !seen.includes(h.id));
+  const openHandouts = (): void => {
+    const ids = snapshot.handouts.map((h) => h.id);
+    setSeen(ids);
+    writeSeen(character, ids);
+    setView('handouts');
+  };
+  // Handouts that arrive while the tab is open are read as they come.
+  useEffect(() => {
+    if (view === 'handouts' && unread.length > 0) {
+      const ids = snapshot.handouts.map((h) => h.id);
+      setSeen(ids);
+      writeSeen(character, ids);
+    }
+  }, [view, unread.length, snapshot.handouts, character]);
+
+  const effects = (Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[];
+  const scene = sceneEffects(snapshot.weather);
+  const counts = whoCounts(snapshot.counts, character);
 
   return (
-    <section>
-      <Handouts handouts={snapshot.handouts} />
-      {Object.entries(snapshot.ships).map(([slug, ship]) => (
-        <ShipStrip
-          key={slug}
-          summary={ship.summary}
-          state={ship.state}
-          character={character}
-          {...(snapshot.characters[character] === undefined ? {} : { crewState: snapshot.characters[character] })}
-          exhaustionLevels={snapshot.exhaustionLevels}
-          systemDamageLevels={snapshot.systemDamageLevels}
-          move={(from, to) => controls.current?.shipPower(slug, from, to)}
-        />
-      ))}
-      {Object.keys(snapshot.ships).length > 0 && (
-        <MyStation card={snapshot.roleCard} actions={snapshot.roleActions} />
-      )}
-      <NpcsInScene npcs={snapshot.npcs} />
-      <WeatherBar weather={snapshot.weather} />
-      <h2>Мій стан</h2>
-      <RestNote rest={snapshot.lastRest} character={character} />
-      {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
-        <DeathSavesBlock
-          state={state}
-          roll={(value) => controls.current?.deathSave(character, value)}
-        />
-      )}
-      <Managed
+    <div className="phone">
+      <StatusStrip
+        character={character}
+        sheet={sheet}
         state={state}
-        waiting={waiting}
-        sendChange={sendChange}
-        {...(sheet === undefined ? {} : { maxHitPoints: sheet.maxHitPoints })}
-        restTraits={sheet?.restTraits ?? []}
+        effectsCount={effects.length + scene.length}
+        toggleEffects={() => setEffectsOpen(!effectsOpen)}
       />
-      <Effects
-        list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
-        scene={sceneEffects(snapshot.weather)}
-        items={snapshot.homebrew[character] ?? []}
-        {...(state.holotableItemsUsed === undefined ? {} : { used: state.holotableItemsUsed })}
-        use={(item) => controls.current?.useItem(character, item.name, true)}
+      {effectsOpen && (
+        <section className="ds-panel phone-effects">
+          <h2 className="ds-label">Діє на тебе</h2>
+          {effects.length + scene.length === 0 ? (
+            <p className="hint">Зараз на тебе нічого не діє.</p>
+          ) : (
+            <Effects list={effects} scene={scene} />
+          )}
+        </section>
+      )}
+      <UrgentStrips
+        combat={combat}
+        character={character}
+        unread={unread}
+        openCombat={() => setView('combat')}
+        openHandouts={openHandouts}
       />
-      {(() => {
-        const mine = companionOf(snapshot, character, (c, changes) => controls.current?.sendChange(c, changes)).companion;
-        return mine === undefined ? null : <CompanionBlock {...mine} />;
-      })()}
-      {snapshot.combat !== null && snapshot.combat.turn === character && sheet !== undefined && (
-        <MyTurn
-          combat={snapshot.combat}
-          character={character}
-          sheet={sheet}
-          state={state}
-          counts={whoCounts(snapshot.counts, character)}
-          attack={(weapon, value, said) => controls.current?.attackRoll(character, weapon, value, said)}
-          spend={(field) => sendChange({ [field]: (typeof state[field] === 'number' ? (state[field] as number) : 0) + 1 })}
-          done={() => controls.current?.turnDone()}
-          {...(Object.values(snapshot.companions).some((c) => c.owner === character) ? { companionRules: snapshot.companionRules } : {})}
-        />
+
+      <div className="phone-body">
+        {view === 'combat' && combat !== null && (
+          <section className="phone-combat">
+            <div className="phone-back">
+              <button type="button" className="ds-btn" onClick={() => setView('sheet')}>← до вкладок</button>
+              <span className="ds-label">Бій · раунд {combat.round}</span>
+            </div>
+            {combat.turn === character && sheet !== undefined && (
+              <MyTurn
+                combat={combat}
+                character={character}
+                sheet={sheet}
+                state={state}
+                counts={counts}
+                attack={(weapon, value, said) => controls.current?.attackRoll(character, weapon, value, said)}
+                spend={(field) => sendChange({ [field]: (typeof state[field] === 'number' ? (state[field] as number) : 0) + 1 })}
+                done={() => controls.current?.turnDone()}
+                {...(Object.values(snapshot.companions).some((c) => c.owner === character) ? { companionRules: snapshot.companionRules } : {})}
+              />
+            )}
+            <MyInitiative
+              combat={combat}
+              character={character}
+              counts={counts}
+              roll={(value, said, whom) => controls.current?.rollInitiative(whom ?? character, value, said)}
+            />
+          </section>
+        )}
+
+        {view === 'sheet' && (
+          <>
+            <RestNote rest={snapshot.lastRest} character={character} />
+            {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
+              <DeathSavesBlock state={state} roll={(value) => controls.current?.deathSave(character, value)} />
+            )}
+            {sheet !== undefined && <AbilitiesPanel sheet={sheet} />}
+            <h2>Мій стан</h2>
+            <Managed
+              state={state}
+              waiting={waiting}
+              sendChange={sendChange}
+              {...(sheet === undefined ? {} : { maxHitPoints: sheet.maxHitPoints })}
+              restTraits={sheet?.restTraits ?? []}
+            />
+            {(() => {
+              const mine = companionOf(snapshot, character, (c, changes) => controls.current?.sendChange(c, changes)).companion;
+              return mine === undefined ? null : <CompanionBlock {...mine} />;
+            })()}
+            {sheet !== undefined && sheet.hitDice.length > 0 && (
+              <HitDice
+                state={state}
+                dice={sheet.hitDice}
+                constitutionModifier={sheet.abilityModifiers['Constitution'] ?? 0}
+                counts={counts}
+                send={(changes, note) => controls.current?.sendChange(character, changes, note, baseFor(state, changes))}
+              />
+            )}
+            {sheet !== undefined && <SkillsPanel sheet={sheet} />}
+            <nav className="views">
+              <a href="/?as=ref">Довідник: сили, предмети, правила →</a>
+            </nav>
+          </>
+        )}
+
+        {view === 'scene' && (
+          <>
+            <NpcsInScene npcs={snapshot.npcs} />
+            <WeatherBar weather={snapshot.weather} />
+            {snapshot.npcs.length === 0 && snapshot.weather === null && <p className="hint">У сцені поки нікого й нічого.</p>}
+            <p className="hint">За столом зараз: {snapshot.clients.length}</p>
+          </>
+        )}
+
+        {view === 'items' && (
+          <>
+            <h2>Речі</h2>
+            {(snapshot.homebrew[character] ?? []).length === 0 && effects.length === 0 ? (
+              <p className="hint">Речей з ефектами в листі немає.</p>
+            ) : (
+              <Effects
+                list={effects}
+                items={snapshot.homebrew[character] ?? []}
+                {...(state.holotableItemsUsed === undefined ? {} : { used: state.holotableItemsUsed })}
+                use={(item) => controls.current?.useItem(character, item.name, true)}
+              />
+            )}
+          </>
+        )}
+
+        {view === 'ship' && (
+          <>
+            {Object.keys(snapshot.ships).length === 0 ? (
+              <p className="hint">Корабля в грі немає.</p>
+            ) : (
+              <>
+                {Object.entries(snapshot.ships).map(([slug, ship]) => (
+                  <ShipStrip
+                    key={slug}
+                    summary={ship.summary}
+                    state={ship.state}
+                    character={character}
+                    {...(snapshot.characters[character] === undefined ? {} : { crewState: snapshot.characters[character] })}
+                    exhaustionLevels={snapshot.exhaustionLevels}
+                    systemDamageLevels={snapshot.systemDamageLevels}
+                    move={(from, to) => controls.current?.shipPower(slug, from, to)}
+                  />
+                ))}
+                <MyStation card={snapshot.roleCard} actions={snapshot.roleActions} />
+                <nav className="views">
+                  <a href="/?as=ship">Лист корабля →</a>
+                </nav>
+              </>
+            )}
+          </>
+        )}
+
+        {view === 'handouts' && (
+          snapshot.handouts.length === 0 ? <p className="hint">Роздаток від майстра ще немає.</p> : <Handouts handouts={snapshot.handouts} />
+        )}
+      </div>
+
+      <PhoneTabs view={view} choose={(v) => (v === 'handouts' ? openHandouts() : setView(v))} unread={unread.length} />
+    </div>
+  );
+}
+
+/** The numbers that matter right now, always at the top of the phone (F-101). */
+export function StatusStrip({
+  character,
+  sheet,
+  state,
+  effectsCount,
+  toggleEffects,
+}: {
+  character: string;
+  sheet: SheetSummary | undefined;
+  state: CharacterState;
+  effectsCount: number;
+  toggleEffects: () => void;
+}): JSX.Element {
+  const lost = typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0;
+  const temporary = typeof state.temporaryHitPoints === 'number' ? state.temporaryHitPoints : 0;
+  const max = sheet?.maxHitPoints ?? 0;
+  const left = Math.max(0, max - lost);
+  const share = max === 0 ? 0 : left / max;
+  const speed = sheet?.details.speed.walk ?? null;
+  const term = useTerm();
+  // The same words as the GM's card: species and class through the glossary.
+  const line = sheet === undefined ? '' : sheet.classes === undefined
+    ? sheet.line
+    : [
+        ...(sheet.species === null ? [] : [term('species', sheet.species)]),
+        sheet.classes.map((c) => `${term('class', c.name)} ${c.levels}`).join(' / '),
+      ].join(' · ');
+  return (
+    <header className="status-strip ds-glass">
+      <div className="who">
+        <div className="nm">
+          <b>{sheet?.name ?? name(character)}</b>
+          {sheet !== undefined && <span>{line}</span>}
+        </div>
+        <button type="button" className="fx-chip" onClick={toggleEffects} aria-label="Що на мене діє">
+          ◆ ефекти {effectsCount}
+        </button>
+      </div>
+      {sheet !== undefined && (
+        <div className="stats">
+          <span className="st hp">
+            <small>ХП</small>
+            <b className="ds-num">{left}</b>
+            <i>/{max}</i>
+            {temporary > 0 && <em> +{temporary}</em>}
+            <span className={`hpbar${share <= 0.25 ? ' low' : ''}`} style={{ ['--hp' as string]: `${Math.round(share * 100)}%` }} />
+          </span>
+          <span className="st"><small>КБ</small> <b className="ds-num">{sheet.armorClass}</b></span>
+          <span className="st"><small>Ініц</small> <b className="ds-num">{signed(sheet.initiative)}</b></span>
+          {speed !== null && <span className="st"><small>Швид</small> <b className="ds-num">{speed}</b></span>}
+          {state.hasInspiration === true && <span className="insp" title="Натхнення">★</span>}
+        </div>
       )}
-      {snapshot.combat !== null && (
-        <MyInitiative
-          combat={snapshot.combat}
-          character={character}
-          counts={whoCounts(snapshot.counts, character)}
-          roll={(value, said, whom) => controls.current?.rollInitiative(whom ?? character, value, said)}
-        />
+    </header>
+  );
+}
+
+/** Combat and new handouts, at the top where nobody misses them (F-101, canon section 6). */
+export function UrgentStrips({
+  combat,
+  character,
+  unread,
+  openCombat,
+  openHandouts,
+}: {
+  combat: CombatState | null;
+  character: string;
+  unread: Handout[];
+  openCombat: () => void;
+  openHandouts: () => void;
+}): JSX.Element | null {
+  const mine = combat?.order.find((f) => f.character === character && f.kind === 'character');
+  const current = combat?.order.find((f) => f.id === combat.turn);
+  if (combat === null && unread.length === 0) return null;
+  const newest = unread[unread.length - 1];
+  return (
+    <div className="urgent">
+      {combat !== null && (
+        mine !== undefined && mine.roll === null ? (
+          <button type="button" className="ds-strip live" onClick={openCombat}>
+            <b>⚔ Бій почався</b><span>Раунд {combat.round} · кинь ініціативу</span><i>›</i>
+          </button>
+        ) : combat.turn === character ? (
+          <button type="button" className="ds-strip turn live" onClick={openCombat}>
+            <b>Твій хід</b><span>раунд {combat.round}</span><i>›</i>
+          </button>
+        ) : (
+          <button type="button" className="ds-strip quiet" onClick={openCombat}>
+            <b>⚔ Бій · раунд {combat.round}</b>
+            <span>{current === undefined ? 'чекаємо кидки' : `ходить ${current.name}`}</span><i>›</i>
+          </button>
+        )
       )}
-      {sheet !== undefined && sheet.hitDice.length > 0 && (
-        <HitDice
-          state={state}
-          dice={sheet.hitDice}
-          constitutionModifier={sheet.abilityModifiers['Constitution'] ?? 0}
-          counts={whoCounts(snapshot.counts, character)}
-          send={(changes, note) => controls.current?.sendChange(character, changes, note, baseFor(state, changes))}
-        />
+      {newest !== undefined && (
+        <button type="button" className="ds-strip mail live" onClick={openHandouts}>
+          <b>✉ Нова роздатка</b><span>{newest.title}{unread.length > 1 ? ` · і ще ${unread.length - 1}` : ''}</span><i>›</i>
+        </button>
       )}
+    </div>
+  );
+}
+
+const PHONE_TABS: [Exclude<PhoneView, 'combat'>, string][] = [
+  ['sheet', 'Лист'], ['scene', 'Сцена'], ['items', 'Речі'], ['ship', 'Корабель'], ['handouts', 'Роздатки'],
+];
+
+/** Five tabs at the bottom, always in the same places (canon, section 6). */
+export function PhoneTabs({
+  view,
+  choose,
+  unread,
+}: {
+  view: PhoneView;
+  choose: (view: PhoneView) => void;
+  unread: number;
+}): JSX.Element {
+  return (
+    <nav className="phone-tabs ds-glass" aria-label="Вкладки">
+      {PHONE_TABS.map(([id, label]) => (
+        <button key={id} type="button" className={view === id ? 'on' : undefined} aria-current={view === id ? 'page' : undefined} onClick={() => choose(id)}>
+          {label}
+          {id === 'handouts' && unread > 0 && <span className="badge">{unread}</span>}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/** The six abilities, their modifiers and scores, and the saving throws (F-101). */
+export function AbilitiesPanel({ sheet }: { sheet: SheetSummary }): JSX.Element {
+  return (
+    <section className="ds-panel">
+      <h2 className="ds-label">Характеристики</h2>
+      <div className="abilities-grid">
+        {PHONE_ABILITIES.map(([ability, short]) => (
+          <span key={ability} className="ds-tile ability">
+            <small>{short}</small>
+            <b className="ds-num">{signed(sheet.abilityModifiers[ability] ?? 0)}</b>
+            <i>{sheet.details.abilityScores[ability] ?? ''}</i>
+          </span>
+        ))}
+      </div>
+      <p className="saves">
+        <span className="ds-label">Сейви</span>{' '}
+        {PHONE_ABILITIES.map(([ability, short]) => (
+          <span key={ability} className={sheet.details.proficientSaves.includes(ability) ? 'save prof' : 'save'}>
+            {short} {signed(sheet.savingThrows[ability] ?? 0)}
+          </span>
+        ))}
+      </p>
     </section>
+  );
+}
+
+/** Skills, folded: long on a phone, looked up rather than read (F-101). */
+export function SkillsPanel({ sheet }: { sheet: SheetSummary }): JSX.Element {
+  const term = useTerm();
+  return (
+    <details className="ds-panel skills">
+      <summary className="ds-label">Навички</summary>
+      <ul className="skill-list">
+        {sheet.skills.map((k) => (
+          <li key={k.name} className={k.proficiency === 'none' ? undefined : 'prof'}>
+            <span>{term('skill', k.name)}</span>
+            <b className="ds-num">{signed(k.modifier)}</b>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
