@@ -11,7 +11,7 @@
 // by the same person, on the same character, within a short window, are shown as one
 // row — with the oldest `from` and the newest `to`, which is also exactly what undoing
 // the whole run means.
-import { MISMATCH_MARK, effectText } from '@holotable/protocol';
+import { MISMATCH_MARK, alignmentWords, effectText } from '@holotable/protocol';
 import type { Author, CharacterState, GameEvent, HolotableEffect, StateField, StateValue } from '@holotable/protocol';
 
 /** Notes that start with this mark an undo, so the feed can show it as one. */
@@ -99,8 +99,10 @@ export function collapse(events: GameEvent[], windowMs = RUN_WINDOW_MS): FeedRow
 }
 
 /** A state value as a human reads it. */
-export function valueText(value: StateValue | undefined): string {
+export function valueText(value: StateValue | undefined, field?: StateField): string {
   if (value === undefined) return '—';
+  // Alignment reads as the book writes it: "Light 30", not a bare signed number (F-115).
+  if (field === 'holotableAlignment' && typeof value === 'number') return alignmentWords(value);
   if (typeof value === 'boolean') return value ? 'так' : 'ні';
   if (Array.isArray(value)) {
     if (value.length === 0) return 'немає';

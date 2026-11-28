@@ -14,8 +14,8 @@ import {
 import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
-import { LookToggles } from './Look.js';
-import { shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, nextTurn, inventoryOf, itemKey, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { LookToggles, nebulaStyle } from './Look.js';
+import { alignmentTier, alignmentWords, ALIGNMENT_LIMIT, shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, nextTurn, inventoryOf, itemKey, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { NpcCards, NpcDesk } from './Npcs.js';
 import { WeatherBar } from './Weather.js';
@@ -326,6 +326,7 @@ export function GmScreen({
                   party={party}
                   scene={sceneEffects(snapshot.weather)}
                   setInspiration={(on) => controls.current?.sendChange(slug, { hasInspiration: on })}
+                  setAlignment={(score) => controls.current?.sendChange(slug, { holotableAlignment: score })}
                 />
               ))}
             </div>
@@ -629,6 +630,17 @@ export function PhoneScreen({
   const scene = sceneEffects(snapshot.weather);
   const counts = whoCounts(snapshot.counts, character);
 
+  // The sky behind the phone is the character's alignment (F-115), drifting with it.
+  const alignment = asAlignment(state.holotableAlignment);
+  useEffect(() => {
+    const root = document.documentElement.style;
+    const vars = nebulaStyle(alignment);
+    for (const [key, value] of Object.entries(vars)) root.setProperty(key, value);
+    return () => {
+      for (const key of Object.keys(vars)) root.removeProperty(key);
+    };
+  }, [alignment]);
+
   return (
     <div className="phone">
       <StatusStrip
@@ -841,6 +853,10 @@ export function StatusStrip({
         <div className="nm">
           <b>{sheet?.name ?? name(character)}</b>
           {sheet !== undefined && <span>{line}</span>}
+          {/* The player sees their own alignment too — it is their sheet (F-115). */}
+          {asAlignment(state.holotableAlignment) !== undefined && (
+            <span className="alignment-line">{alignmentText(asAlignment(state.holotableAlignment) ?? 0)}</span>
+          )}
         </div>
         <button type="button" className="fx-chip" onClick={toggleEffects} aria-label="Що на мене діє">
           ◆ ефекти {effectsCount}
@@ -864,6 +880,73 @@ export function StatusStrip({
         </div>
       )}
     </header>
+  );
+}
+
+/** The alignment in a character's state, if the GM has set one (F-115). */
+function asAlignment(value: StateValue | undefined): number | undefined {
+  return typeof value === 'number' ? value : undefined;
+}
+
+/** Whether the character wields the Force — then the book's scale is theirs as written. */
+function usesForce(sheet: SheetSummary): boolean {
+  return sheet.forcePoints !== undefined;
+}
+
+/** The score, then the tier in Ukrainian with the book's name in brackets. */
+function alignmentText(score: number): string {
+  const tier = alignmentTier(score);
+  return tier.en === 'Balanced' && score === 0 ? 'Balanced · Рівновага' : `${alignmentWords(score)} · ${tier.uk} (${tier.en})`;
+}
+
+/**
+ * The GM's alignment scale on a card (F-115): the score as the book writes it, the tier in
+ * both languages, steps towards the light or the dark, and a number typed in. A step
+ * the other way first takes points off, as the book says, because it is one signed scale.
+ * For a character without the Force the same scale is marked as a house rule.
+ */
+function AlignmentScale({ score, force, set }: { score: number; force: boolean; set: (score: number) => void }): JSX.Element {
+  const [typed, setTyped] = useState('');
+  const clamp = (n: number): number => Math.max(-ALIGNMENT_LIMIT, Math.min(ALIGNMENT_LIMIT, n));
+  const steps: [string, number][] = [['+5 світла', 5], ['+1 світла', 1], ['+1 темряви', -1], ['+5 темряви', -5]];
+  return (
+    <div className="alignment">
+      <span className="score">{alignmentWords(score)}</span>
+      <span className="tier">{alignmentText(score).split(' · ').slice(1).join(' · ')}</span>
+      {!force && <span className="house">добродій / злодій — домашнє правило: у книзі шкала лише для Сили</span>}
+      <span className="steps">
+        {steps.map(([label, step]) => (
+          <button
+            key={label}
+            type="button"
+            disabled={clamp(score + step) === score}
+            onClick={() => set(clamp(score + step))}
+          >
+            {label}
+          </button>
+        ))}
+      </span>
+      <form
+        className="add"
+        noValidate
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          const n = Number(typed);
+          if (typed.trim() === '' || !Number.isInteger(n) || Math.abs(n) > ALIGNMENT_LIMIT) return;
+          set(n);
+          setTyped('');
+        }}
+      >
+        <input
+          type="number"
+          value={typed}
+          onChange={(ev) => setTyped(ev.target.value)}
+          placeholder="−100…100"
+          aria-label="Схильність числом: світло — плюс, темрява — мінус"
+        />
+        <button type="submit">поставити</button>
+      </form>
+    </div>
   );
 }
 
@@ -2910,7 +2993,7 @@ export function Feed({
                 )}
               </span>
               <span className="change">
-                {valueText(row.from)} → <b>{valueText(row.to)}</b>
+                {valueText(row.from, row.field)} → <b>{valueText(row.to, row.field)}</b>
                 {row.count > 1 && <i className="times"> ×{row.count}</i>}
               </span>
               <span className="when">{whenText(row.at, now)}</span>
@@ -3140,6 +3223,7 @@ export function Card({
   party = [],
   scene: sceneOn,
   setInspiration,
+  setAlignment,
 }: {
   slug: string;
   state: CharacterState;
@@ -3163,6 +3247,8 @@ export function Card({
   party?: string[];
   /** The GM gives or takes inspiration (F-097). Absent — only the star is shown. */
   setInspiration?: (on: boolean) => void;
+  /** The GM sets the character's alignment (F-115). Absent — the scale is not shown. */
+  setAlignment?: (score: number) => void;
 }): JSX.Element {
   const term = useTerm();
   const conditions = (Array.isArray(state.conditions) ? state.conditions : []) as string[];
@@ -3186,7 +3272,7 @@ export function Card({
   const hpClass = left === 0 ? 'hp down' : share <= 0.25 ? 'hp low' : share <= 0.5 ? 'hp half' : 'hp';
 
   return (
-    <article className={`card${left === 0 ? ' is-down' : ''}`}>
+    <article className={`card${left === 0 ? ' is-down' : ''}`} style={nebulaStyle(asAlignment(state.holotableAlignment))}>
       <h3>
         {name(slug)}
         {state.hasInspiration === true && <span className="inspiration" title="Натхнення">★</span>}
@@ -3211,6 +3297,10 @@ export function Card({
                 .join(' / '),
             ].join(' · ')}
       </p>
+
+      {setAlignment !== undefined && (
+        <AlignmentScale score={asAlignment(state.holotableAlignment) ?? 0} force={usesForce(sheet)} set={setAlignment} />
+      )}
 
       <div className="big">
         <span className={hpClass}>

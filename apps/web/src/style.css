@@ -75,6 +75,13 @@
   /* the nebula follows the character's alignment (F-115); Balanced until then */
   --neb1: #6a4a1c;
   --neb2: #24324e;
+  /* the three pairs the nebula mixes between, canon section 0, the background (F-115) */
+  --neb1-balanced: #6a4a1c;
+  --neb2-balanced: #24324e;
+  --neb1-light: #1d4fb8;
+  --neb2-light: #0b7fc0;
+  --neb1-dark: #6a1422;
+  --neb2-dark: #3c0d26;
   --ember: #6E3C10;
   --star: #f3e6cf;
   --star-dim: #b9a98f;
@@ -1335,3 +1342,15 @@ form .refusal { flex-basis: 100%; min-width: 0; white-space: normal; overflow-wr
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
 }
+
+/* F-115: the alignment scale on the GM's card, and the card's own nebula in its corner */
+.card { background-image: radial-gradient(85% 60% at 0 0, color-mix(in oklab, var(--neb1) 90%, transparent), transparent 80%); }
+.alignment { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: .4rem 0; }
+.alignment .score { font: 600 15px/1.2 var(--f-num); color: var(--num); }
+.alignment .tier { color: var(--muted); font-size: .85rem; }
+.alignment .house { color: var(--waiting); font-size: .78rem; }
+.alignment .steps { display: flex; flex-wrap: wrap; gap: 4px; }
+.alignment .steps button { font-size: .75rem; padding: .2rem .5rem; }
+.alignment input { width: 4.5rem; }
+.alignment-line { color: var(--muted); font-size: .85rem; margin: 2px 0 0; }
+.status-strip .alignment-line { display: block; color: var(--muted); font-size: 12px; }

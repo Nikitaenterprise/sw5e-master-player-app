@@ -186,7 +186,40 @@ export const STATE_FIELDS = [
   'holotableItemsUsed',
   // What the GM gave the character at the table, by the item's name (F-104).
   'holotableItemsAdded',
+  // The character's alignment (F-115), the book's Force Alignment score: Light is
+  // positive, Dark negative, from -100 to 100. Set by the GM only.
+  'holotableAlignment',
 ] as const;
+
+/** The ends of the Force Alignment scale (variant rule `rule/force-alignment`). */
+export const ALIGNMENT_LIMIT = 100;
+
+/** The score as the book writes it: "Light 35", "Dark 40", "Balanced" (F-115). */
+export function alignmentWords(score: number): string {
+  if (score === 0) return 'Balanced';
+  return score > 0 ? `Light ${score}` : `Dark ${-score}`;
+}
+
+const ROMAN = ['I', 'II', 'III', 'IV', 'V'] as const;
+
+/**
+ * The tier the score has reached, from the book's Force Alignment table (F-115): below
+ * 10 points — Balanced; then every 10 points a tier, Minor and Major in turn, Tier I to V;
+ * at 100 — Luminous Being or Dark Entity. In Ukrainian and as the book says it.
+ */
+export function alignmentTier(score: number): { uk: string; en: string } {
+  const points = Math.min(ALIGNMENT_LIMIT, Math.abs(score));
+  if (points < 10) return { uk: 'Рівновага', en: 'Balanced' };
+  const light = score > 0;
+  if (points === ALIGNMENT_LIMIT) return light ? { uk: 'Сяйна істота', en: 'Luminous Being' } : { uk: 'Темна сутність', en: 'Dark Entity' };
+  const step = Math.floor(points / 10);
+  const roman = ROMAN[Math.ceil(step / 2) - 1] ?? 'V';
+  const major = step % 2 === 0;
+  return {
+    uk: `${major ? 'Велика' : 'Мала'} ${light ? 'доброчесність' : 'зіпсованість'} ${roman}`,
+    en: `${major ? 'Major' : 'Minor'} ${light ? 'Benevolence' : 'Corruption'} Tier ${roman}`,
+  };
+}
 
 export type StateField = (typeof STATE_FIELDS)[number];
 
@@ -1312,6 +1345,12 @@ function checkFields(changes: Record<string, unknown>): CharacterState | string 
       checked[field] = (value as string[]).map((c) => c.trim());
     } else if (field === 'hasInspiration') {
       if (typeof value !== 'boolean') return 'натхнення мусить бути так або ні';
+      checked[field] = value;
+    } else if (field === 'holotableAlignment') {
+      // The one number here that goes below zero: Dark is negative (F-115).
+      if (typeof value !== 'number' || !Number.isInteger(value) || Math.abs(value) > ALIGNMENT_LIMIT) {
+        return 'схильність — ціле число від Dark 100 до Light 100';
+      }
       checked[field] = value;
     } else {
       if (typeof value !== 'number' || !Number.isFinite(value)) {

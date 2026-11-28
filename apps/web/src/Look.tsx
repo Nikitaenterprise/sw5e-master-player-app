@@ -132,3 +132,19 @@ export function StyleguidePage(): JSX.Element {
     </main>
   );
 }
+
+/**
+ * The nebula's two colours for an alignment score (F-115, canon section 0, background): mixed
+ * from Balanced towards Light or Dark, the far colour's share the square root of the
+ * points over 100 — so the first tiers already tint the sky and 100 is the full colour.
+ * Nothing set, or 0 — nothing to override: the sky stays Balanced.
+ */
+export function nebulaStyle(score: number | undefined): Record<string, string> {
+  if (score === undefined || score === 0) return {};
+  const side = score > 0 ? 'light' : 'dark';
+  const share = Math.round(Math.sqrt(Math.min(100, Math.abs(score)) / 100) * 100);
+  return {
+    '--neb1': `color-mix(in oklab, var(--neb1-balanced), var(--neb1-${side}) ${share}%)`,
+    '--neb2': `color-mix(in oklab, var(--neb2-balanced), var(--neb2-${side}) ${share}%)`,
+  };
+}

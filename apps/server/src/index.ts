@@ -1507,6 +1507,11 @@ export async function start(
           refuse('речі додає майстер');
           return;
         }
+        // Alignment is the GM's call, for deeds and powers (F-115, the book's variant rule).
+        if (intent.changes.holotableAlignment !== undefined) {
+          refuse('схильність виставляє майстер');
+          return;
+        }
         // Inspiration is the GM's to give; the player only spends it (F-097).
         if (intent.changes.hasInspiration === true) {
           refuse('натхнення дає майстер');

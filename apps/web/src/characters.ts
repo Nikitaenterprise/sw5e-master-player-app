@@ -29,4 +29,5 @@ export const LABELS: Record<StateField, string> = {
   holotableEffects: 'Ефекти',
   holotableItemsUsed: 'Витрачені предмети',
   holotableItemsAdded: 'Додані майстром речі',
+  holotableAlignment: 'Схильність',
 };
