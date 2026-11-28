@@ -7,6 +7,7 @@ import { useEffect, useState, type JSX } from 'react';
 import { termUrl, type RefDoc, type RefHit, type TermKind, type TermMode } from '@holotable/protocol';
 import { Markdown } from './markdown.js';
 import { readMode } from './terms.js';
+import { readPrefs, savePrefs } from './Catalog.js';
 
 /** Where the page is: a search (with its words) or one document (with an anchor). */
 export interface RefPlace {
@@ -96,7 +97,11 @@ export function ReturnLink({ from }: { from: string }): JSX.Element {
 }
 
 export function ReferencePage(): JSX.Element {
-  const [place, setPlace] = useState<RefPlace>(() => placeFromUrl(location.search, location.hash));
+  // Opened bare, the reference starts from this device's last search (F-122).
+  const [place, setPlace] = useState<RefPlace>(() => {
+    const p = placeFromUrl(location.search, location.hash);
+    return p.q === '' && p.doc === null && p.term === undefined ? { ...p, q: readPrefs('ref').q } : p;
+  });
   // Steps taken inside the reference; the first back beyond them leaves for where we came from.
   const [steps, setSteps] = useState(0);
   const [from] = useState<string | null>(() => cameFrom(whereFrom(), location.origin));
@@ -172,9 +177,19 @@ export function ReferencePage(): JSX.Element {
   );
 }
 
-function Search({ q, setQ, open }: { q: string; setQ: (q: string) => void; open: (hit: RefHit) => void }): JSX.Element {
+/**
+ * The reference's search (F-049). Since F-122 each device keeps its last search and the
+ * searches pinned on it, so a session does not start with typing the same thing again.
+ */
+export function Search({ q, setQ, open }: { q: string; setQ: (q: string) => void; open: (hit: RefHit) => void }): JSX.Element {
   const [hits, setHits] = useState<RefHit[] | null>(null);
+  const [pinned, setPinned] = useState(() => readPrefs('ref').pinned);
   const mode = readMode();
+  const keep = (nextQ: string, nextPinned = pinned): void => {
+    setPinned(nextPinned);
+    savePrefs('ref', { q: nextQ, filters: {}, pinned: nextPinned });
+  };
+  useEffect(() => keep(q), [q]);
   useEffect(() => {
     if (q.trim().length < 2) {
       setHits(null);
@@ -199,6 +214,17 @@ function Search({ q, setQ, open }: { q: string; setQ: (q: string) => void; open:
         aria-label="Пошук у довіднику"
         autoFocus
       />
+      <div className="catalog-pinned">
+        {pinned.map((p, i) => (
+          <span key={`${p.label}-${i}`} className="chip-pin">
+            <button type="button" onClick={() => setQ(p.q)}>{p.label}</button>
+            <button type="button" aria-label={`Відкріпити «${p.label}»`} onClick={() => keep(q, pinned.filter((_, j) => j !== i))}>×</button>
+          </span>
+        ))}
+        {q.trim().length >= 2 && !pinned.some((p) => p.q === q) && (
+          <button type="button" onClick={() => keep(q, [...pinned, { label: q.trim(), q, filters: {} }])}>закріпити цей пошук</button>
+        )}
+      </div>
       {hits === null ? (
         <p className="hint">Дві літери — і пошук почнеться.</p>
       ) : hits.length === 0 ? (

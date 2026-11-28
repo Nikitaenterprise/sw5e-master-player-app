@@ -26,6 +26,7 @@ import { ShipPanel, ShipStrip, SpaceFight } from './Ship.js';
 import { MyStation } from './RoleCards.js';
 import { ShipPrintLinks } from './ShipSheet.js';
 import { saveChosen } from './Choose.js';
+import { Catalog } from './Catalog.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, isMismatch, type FeedRow,
 } from './feed.js';
@@ -253,11 +254,13 @@ function InventoryOf({
 }
 
 /** The tabs of the GM's screen (F-102): the same names as on the phone, plus the table. */
-type GmView = 'party' | 'combat' | 'scene' | 'items' | 'ship' | 'handouts' | 'table';
+type GmView = 'party' | 'combat' | 'scene' | 'items' | 'ship' | 'handouts' | 'table' | 'bestiary' | 'gear' | 'powers';
 
 const GM_TABS: [GmView, string][] = [
   ['party', 'Партія'], ['combat', 'Бій'], ['scene', 'Сцена'], ['items', 'Речі'],
   ['ship', 'Корабель'], ['handouts', 'Роздатки'], ['table', 'Стіл'],
+  // The reference as tabs, with search and filters (F-122).
+  ['bestiary', 'Бестіарій'], ['gear', 'Предмети'], ['powers', 'Сили й маневри'],
 ];
 
 /**
@@ -397,6 +400,11 @@ export function GmScreen({
           </>
         )}
 
+        {view === 'bestiary' && (
+          <Catalog of="monsters" {...(combat === null ? {} : { addEnemy: (key: string) => controls.current?.addEnemies(key, 1) })} />
+        )}
+        {view === 'gear' && <Catalog of="items" />}
+        {view === 'powers' && <Catalog of="powers" />}
         {view === 'ship' && (
           ships.length === 0 ? (
             <p className="hint">Корабля в грі немає.</p>

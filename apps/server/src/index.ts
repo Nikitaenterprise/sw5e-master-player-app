@@ -89,6 +89,8 @@ import {
   parseGlossarySet,
   HISTORY_LIMIT,
   inventoryOf,
+  type CatalogKind,
+  type CatalogRow,
 } from '@holotable/protocol';
 import { Log } from './log.js';
 import { State } from './state.js';
@@ -105,6 +107,7 @@ import { loadScenario, withScenarioGrants, withScenarioItems } from './scenario.
 import { loadHomebrew, itemsOf, homebrewFile, homebrewDefs, homebrewCandidates, saveHomebrewItem } from './homebrew.js';
 import type { RawCharacter } from '../../../packages/schema/src/rawCharacter.js';
 import { computeSummaries, computeSummary, computeRestPlans, applyRest, checkHitDice, computeCompanions, companionRules } from './sheets.js';
+import { catalogRows } from './catalog.js';
 import { localAddress, qrForTerminal } from './network.js';
 import { openInBrowser } from './open-browser.js';
 import { commitState } from './git.js';
@@ -446,6 +449,7 @@ export async function start(
     }
   });
 
+  const catalogs: Partial<Record<CatalogKind, CatalogRow[]>> = {};
   const route = (req: IncomingMessage, response: ServerResponse): void => {
     // The print page reads everything at once over plain HTTP: it is not a screen at
     // the table, so it must not show up in the list of who is connected.
@@ -494,6 +498,19 @@ export async function start(
       );
       response.writeHead(200, { 'content-type': TYPES['.json'] as string });
       response.end(JSON.stringify(hits));
+      return;
+    }
+    // The reference as lists for the GM's tabs (F-122): built once per kind, then served.
+    if (url.pathname === '/api/catalog') {
+      const of = url.searchParams.get('of');
+      if (of !== 'monsters' && of !== 'items' && of !== 'powers') {
+        response.writeHead(404, { 'content-type': TYPES['.json'] as string });
+        response.end(JSON.stringify({ error: 'такого списку немає' }));
+        return;
+      }
+      catalogs[of] ??= catalogRows(compendium, of);
+      response.writeHead(200, { 'content-type': TYPES['.json'] as string });
+      response.end(JSON.stringify(catalogs[of]));
       return;
     }
     if (url.pathname === '/api/term') {

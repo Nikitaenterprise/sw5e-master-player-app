@@ -1412,3 +1412,20 @@ main.choose { display: flex; flex-direction: column; gap: 12px; }
 
 /* F-121: back to where the reader came from */
 .ref-return { display: inline-flex; align-items: center; min-height: 44px; color: var(--data); text-decoration: none; }
+
+/* F-122: the reference as the GM's tabs — search, filters, pinned searches */
+.catalog-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-bottom: 10px; }
+.catalog-search { flex: 1 1 16rem; }
+.catalog-search input { width: 100%; }
+.catalog-pinned { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip-pin { display: inline-flex; border: 1px solid var(--tile-line); }
+.chip-pin button { background: var(--tile); border: 0; color: var(--text); font-size: .82rem; padding: .3rem .6rem; }
+.chip-pin button + button { color: var(--muted); }
+.catalog-rows { gap: 4px; }
+.catalog-rows li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.catalog-rows small { color: var(--muted); flex: 1 1 12rem; }
+.catalog-rows .to-fight { font-size: .78rem; padding: .2rem .55rem; }
+.catalog input, .catalog select, .ref-search {
+  background: var(--panel-tint); color: var(--text); border: 1px solid var(--tile-line); padding: .4rem .6rem; font: inherit;
+}
+.catalog select option { background: var(--bg); color: var(--text); }

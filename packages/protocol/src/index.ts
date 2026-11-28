@@ -191,6 +191,19 @@ export const STATE_FIELDS = [
   'holotableAlignment',
 ] as const;
 
+/** The reference's lists for the GM's tabs (F-122). */
+export type CatalogKind = 'monsters' | 'items' | 'powers';
+
+/** One entry of such a list: what it is in a line, and the fields its filters use. */
+export interface CatalogRow {
+  /** The reference's content type, for the link into it. */
+  type: string;
+  key: string;
+  name: string;
+  line: string;
+  facets: Record<string, string | number>;
+}
+
 /** The ends of the Force Alignment scale (variant rule `rule/force-alignment`). */
 export const ALIGNMENT_LIMIT = 100;
 
