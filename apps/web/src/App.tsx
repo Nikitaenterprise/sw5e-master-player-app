@@ -25,6 +25,7 @@ import { HandoutDesk, Handouts } from './Handouts.js';
 import { ShipPanel, ShipStrip, SpaceFight } from './Ship.js';
 import { MyStation } from './RoleCards.js';
 import { ShipPrintLinks } from './ShipSheet.js';
+import { saveChosen } from './Choose.js';
 import {
   collapse, valueText, authorText, subjectText, undoOf, undoNote, whenText, isMismatch, type FeedRow,
 } from './feed.js';
@@ -33,6 +34,11 @@ export function App(): JSX.Element {
   const { role, character } = roleFromUrl(location.search);
   const [snapshot, onChange] = useState<Snapshot>(EMPTY);
   const controls = useRef<Controls | null>(null);
+
+  // The phone remembers whose sheet it opened, so the bare address leads here next time (F-094).
+  useEffect(() => {
+    if (role === 'player' && character !== undefined) saveChosen(character);
+  }, [role, character]);
 
   useEffect(() => {
     const k = connect(role, character, onChange);
@@ -743,6 +749,7 @@ export function PhoneScreen({
             {sheet !== undefined && <SkillsPanel sheet={sheet} />}
             <nav className="views">
               <a href="/?as=ref">Довідник: сили, предмети, правила →</a>
+              <a href="/?choose">Інший персонаж →</a>
             </nav>
           </>
         )}

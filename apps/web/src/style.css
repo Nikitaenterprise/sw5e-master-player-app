@@ -1372,3 +1372,16 @@ form .refusal { flex-basis: 100%; min-width: 0; white-space: normal; overflow-wr
 .space-stations { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .space-stations li { display: block; background: none; border: 0; padding: 0; }
 .role-fight { color: var(--alert); font-weight: 600; }
+
+/* F-094: the bare address on a phone — who are you at this table */
+main.choose { display: flex; flex-direction: column; gap: 12px; }
+.choose-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.choose-list li { display: block; padding: 0; background: none; border: 0; }
+.choose-one {
+  display: flex; flex-direction: column; gap: 4px; min-height: 64px; justify-content: center; padding: 12px 16px;
+  background: var(--panel-tint); border: 1px solid var(--tile-line); color: var(--text); text-decoration: none;
+  clip-path: polygon(var(--cut-s) 0, 100% 0, 100% calc(100% - var(--cut-s)), calc(100% - var(--cut-s)) 100%, 0 100%, 0 var(--cut-s));
+}
+.choose-one b { font: 600 18px/1.2 var(--f-head); }
+.choose-one small { color: var(--muted); font-size: 13px; }
+.choose-one:active, .choose-one:hover { border-color: var(--amber); }
