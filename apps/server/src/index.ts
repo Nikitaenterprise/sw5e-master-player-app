@@ -391,6 +391,10 @@ export async function start(
   const companionRuleText = companionRules(ROOT);
   const ownerOf = (slug: string): string | undefined => companions[slug]?.owner;
   const combat = new CombatTracker(log, sheets, () => table.counts, compendium, companions);
+  // In a space fight a crew member fires the guns of the ship they sit in (F-125).
+  combat.shipWeapons = (character) => Object.values(shipSummaries())
+    .filter((s) => s.crew.some((c) => c.character === character))
+    .flatMap((s) => s.weapons.map((w) => ({ name: w.name, toHit: s.weaponAbilityModifier })));
   /** Where "until the next turn" of this character ends, when there is a fight (F-074). */
   const nextTurnOf = (slug: string): { round: number; of: string } | undefined => {
     const view = combat.view();

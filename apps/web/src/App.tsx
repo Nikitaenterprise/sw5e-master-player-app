@@ -22,7 +22,7 @@ import { WeatherBar } from './Weather.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
 import { HandoutDesk, Handouts } from './Handouts.js';
-import { ShipPanel, ShipStrip, SpaceFight } from './Ship.js';
+import { ShipPanel, ShipStrip, SpaceFight, StationTurn } from './Ship.js';
 import { MyStation } from './RoleCards.js';
 import { ShipPrintLinks } from './ShipSheet.js';
 import { saveChosen } from './Choose.js';
@@ -712,7 +712,29 @@ export function PhoneScreen({
               <button type="button" className="ds-btn" onClick={() => setView('sheet')}>← до вкладок</button>
               <span className="ds-label">{combatName(combat)} · раунд {combat.round}</span>
             </div>
-            {combat.turn === character && sheet !== undefined && (
+            {/* In a space fight the turn is the station's (F-125). */}
+            {combat.turn === character && combat.space === true && (() => {
+              const seat = Object.values(snapshot.ships).find((s) => s.summary.crew.some((c) => c.character === character));
+              const deployment = seat?.summary.crew.find((c) => c.character === character)?.deployment;
+              return seat === undefined || deployment === undefined ? (
+                <section className="my-turn">
+                  <h2>Твій хід · космічний бій</h2>
+                  <p className="hint">Ти не на станції — майстер садить на «Кораблі». Скажи майстрові, що робиш.</p>
+                  <button type="button" className="done" onClick={() => controls.current?.turnDone()}>Хід завершено</button>
+                </section>
+              ) : (
+                <StationTurn
+                  ship={seat.summary}
+                  deployment={deployment}
+                  sheet={sheet}
+                  actions={snapshot.roleActions}
+                  counts={counts}
+                  fire={(weapon, value, said) => controls.current?.attackRoll(character, weapon, value, said)}
+                  done={() => controls.current?.turnDone()}
+                />
+              );
+            })()}
+            {combat.turn === character && combat.space !== true && sheet !== undefined && (
               <MyTurn
                 combat={combat}
                 character={character}

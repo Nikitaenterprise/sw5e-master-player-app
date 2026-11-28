@@ -158,7 +158,9 @@ export class CombatTracker {
     if (!this.fighting) return 'бою немає';
     if (!this.characters.includes(character)) return 'цього персонажа немає в бою';
     if (this.turn !== character && author.kind !== 'gm') return 'зараз не твій хід';
-    if (!(this.sheets[character]?.attacks ?? []).some((a) => a.name === weapon)) return 'такої атаки на листі немає';
+    const ownWeapon = (this.sheets[character]?.attacks ?? []).some((a) => a.name === weapon);
+    const shipGun = this.space && this.shipWeapons(character).some((w) => w.name === weapon);
+    if (!ownWeapon && !shipGun) return 'такої атаки на листі немає';
     const problem = checkInitiativeRoll(roll);
     if (problem !== null) return problem;
     if (said !== undefined) {
@@ -179,7 +181,11 @@ export class CombatTracker {
   }
 
   private lastAttackView(a: { character: string; weapon: string; round: number; roll: number; said?: number }): LastAttack {
-    const bonus = this.sheets[a.character]?.attacks.find((x) => x.name === a.weapon)?.toHit;
+    // A ship's gun (F-125): the ship's weapon modifier plus the gunner's proficiency.
+    const gun = this.space ? this.shipWeapons(a.character).find((w) => w.name === a.weapon) : undefined;
+    const bonus = gun !== undefined
+      ? gun.toHit + (this.sheets[a.character]?.proficiencyBonus ?? 0)
+      : this.sheets[a.character]?.attacks.find((x) => x.name === a.weapon)?.toHit;
     return {
       character: a.character,
       weapon: a.weapon,
@@ -235,6 +241,12 @@ export class CombatTracker {
   }
 
   private readonly shipCache = new Map<string, ComputedShip>();
+
+  /**
+   * The guns of the ship a character sits in (F-125), with the ship's own attack
+   * modifier. Set by the server; in a space fight a crew member may fire them.
+   */
+  shipWeapons: (character: string) => { name: string; toHit: number }[] = () => [];
 
   /** An enemy ship's numbers, from its size and tier by the same engine as the party's ship. */
   private shipSummaryOf(ship: { size: EnemyShipSize; tier: number }): ComputedShip {

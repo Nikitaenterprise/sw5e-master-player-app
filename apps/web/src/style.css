@@ -1441,3 +1441,9 @@ main.choose { display: flex; flex-direction: column; gap: 12px; }
 .enemy-ship-list li { display: flex; flex-direction: column; gap: 4px; }
 .enemy-ship-list li.down { opacity: .55; }
 .ship-gun { margin-right: 12px; }
+
+/* F-125: a crew member's turn in a space fight is the station's */
+.station-turn .station-name { margin: .2rem 0 .6rem; }
+.ship-action { border-left: 2px solid var(--tile-line); padding: 4px 0 4px 10px; margin: 6px 0; }
+.ship-action summary { cursor: pointer; }
+.ship-action-text { white-space: pre-line; font-size: .88rem; color: var(--muted); }

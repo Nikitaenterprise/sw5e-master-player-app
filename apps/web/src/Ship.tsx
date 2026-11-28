@@ -19,6 +19,8 @@ import {
   SHIP_STABLE,
   SHIP_SYSTEM_NAMES,
   exhaustionEffects,
+  checkDeclaredTotal,
+  checkInitiativeRoll,
   shipMaxima,
   type CharacterState,
   type CombatState,
@@ -26,6 +28,9 @@ import {
   type ShipDamageOptions,
   type ShipState,
   type ShipSummary,
+  type ShipActionCard,
+  type SheetSummary,
+  type WhoCounts,
 } from '@holotable/protocol';
 import { name } from './characters.js';
 
@@ -425,6 +430,137 @@ export function EnemyShips({
         </ul>
       )}
     </div>
+  );
+}
+
+/** Each station's own action in a space fight, as the book's deployments describe them (F-125). */
+const STATION_ACTION: Record<string, string> = {
+  Pilot: 'Helm', Gunner: 'Fire', Mechanic: 'Patch', Operator: 'Detect', Technician: 'Regenerate Shields', Coordinator: 'Direct',
+};
+
+/** The action a station is there for: the gunner fires, the pilot takes the helm. */
+export function stationAction(deployment: string): string | undefined {
+  return STATION_ACTION[deployment];
+}
+
+/** A d20 typed for a ship's gun: what came up, and — when the player counts — their sum (ADR 0007). */
+function GunRoll({ weapon, counts, fire }: { weapon: string; counts: WhoCounts; fire: (weapon: string, roll: number, said?: number) => void }): JSX.Element {
+  const [die, setDie] = useState('');
+  const [total, setTotal] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <form
+      className="add roll"
+      noValidate
+      onSubmit={(ev) => {
+        ev.preventDefault();
+        const roll = Number(die);
+        const bad = checkInitiativeRoll(roll);
+        if (bad !== null) {
+          setProblem(bad);
+          return;
+        }
+        let said: number | undefined;
+        if (counts === 'player') {
+          said = Number(total);
+          const wrong = total.trim() === '' ? 'впиши, скільки вийшло разом' : checkDeclaredTotal(said);
+          if (wrong !== null) {
+            setProblem(wrong);
+            return;
+          }
+        }
+        fire(weapon, roll, said);
+        setDie('');
+        setTotal('');
+        setProblem(null);
+      }}
+    >
+      <label className="roll-field">
+        <span>d20 — що випало</span>
+        <input type="number" inputMode="numeric" value={die} onChange={(ev) => setDie(ev.target.value)} aria-label={`Постріл: ${weapon}, що випало на d20`} />
+      </label>
+      {counts === 'player' && (
+        <label className="roll-field">
+          <span>d20 + модифікатори — разом</span>
+          <input type="number" inputMode="numeric" value={total} onChange={(ev) => setTotal(ev.target.value)} aria-label="Скільки вийшло разом" />
+        </label>
+      )}
+      <button type="submit" aria-label="постріл">Відправити</button>
+      {problem !== null && <span className="refusal">{problem}</span>}
+    </form>
+  );
+}
+
+/** One of the book's ship actions, folded: its text, the checks it states, its parts. */
+function ShipAction({ action, open = false }: { action: ShipActionCard; open?: boolean }): JSX.Element {
+  return (
+    <details className="ship-action" open={open}>
+      <summary>
+        <b>{action.name}</b>
+        {action.checks.length > 0 && <small> · {action.checks.join('; ')}</small>}
+      </summary>
+      {action.parts.length > 0 && <p className="hint">Варіанти: {action.parts.map((p) => p.name).join(', ')}</p>}
+      <p className="ship-action-text">{action.text}</p>
+    </details>
+  );
+}
+
+/**
+ * A crew member's turn in a space fight (F-125): it is the station's turn. Its own action
+ * first — for the gunner, the ship's guns with the bonus spelled out and a field for the
+ * d20 — then every other ship action from the book. Personal weapons and powers belong to
+ * a fight on foot, so they are not here.
+ */
+export function StationTurn({
+  ship,
+  deployment,
+  sheet,
+  actions,
+  counts,
+  fire,
+  done,
+}: {
+  ship: ShipSummary;
+  deployment: string;
+  sheet: SheetSummary | undefined;
+  actions: ShipActionCard[];
+  counts: WhoCounts;
+  fire: (weapon: string, roll: number, said?: number) => void;
+  done: () => void;
+}): JSX.Element {
+  const main = stationAction(deployment);
+  const mainCard = actions.find((a) => a.name === main);
+  const others = actions.filter((a) => a.name !== main && (!a.pilotOnly || deployment === 'Pilot'));
+  const proficiency = sheet?.proficiencyBonus ?? 0;
+  const sign = (n: number): string => (n >= 0 ? `+${n}` : `−${-n}`);
+  return (
+    <section className="my-turn station-turn">
+      <h2>Твій хід · космічний бій</h2>
+      <p className="station-name">Твоя станція: <b>{deployment}</b>{main !== undefined && <> · головна дія — <b>{main}</b></>}</p>
+      {main === 'Fire' && (
+        <ul className="turn-actions">
+          {ship.weapons.map((w, i) => (
+            <li key={`${w.name}-${i}`} className="turn-action">
+              <span className="what">
+                <b>{w.name}{w.turret ? ' (турель)' : ''}</b>
+                <small> d20 · шкода {w.damage} {w.damageType}{w.range === null ? '' : ` · ${w.range.normal}/${w.range.long}`}</small>
+                <small className="bonus-parts">до d20: модифікатор зброї корабля {sign(ship.weaponAbilityModifier)} · володіння {sign(proficiency)}{counts === 'app' ? ` · разом ${sign(ship.weaponAbilityModifier + proficiency)}` : ''}</small>
+              </span>
+              <GunRoll weapon={w.name} counts={counts} fire={fire} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {mainCard !== undefined && <ShipAction action={mainCard} open={main !== 'Fire'} />}
+      {others.length > 0 && (
+        <>
+          <h3>Інші дії корабля</h3>
+          {others.map((a) => <ShipAction key={a.name} action={a} />)}
+        </>
+      )}
+      <p className="hint">Кидки для дій — за книгою; що вийшло, кажеш майстрові. Влучання вирішує майстер.</p>
+      <button type="button" className="done" onClick={done}>Хід завершено</button>
+    </section>
   );
 }
 
