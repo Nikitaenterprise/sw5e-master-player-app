@@ -78,7 +78,7 @@ describe('F-071 · роздатки на телефони', () => {
     const dir = mkdtempSync(join(tmpdir(), 'holotable-f071-log-'));
     new Log(dir, 11).append(handout('letter', ['sandra-vong'], 'Лист від Гора Грота'));
     const next = new Log(dir, 12).readAll();
-    expect(next.handouts.map((h) => h.title)).toEqual(['Лист від Гора Грота']);
+    expect(next.handouts.map((h) => (h.type === 'handout.sent' ? h.title : h.type))).toEqual(['Лист від Гора Грота']);
     expect(next.events, 'не плутається зі станом').toEqual([]);
     expect(next.combat).toEqual([]);
   });

@@ -245,6 +245,8 @@ export interface Controls {
   useItem: (character: string, item: string, spend: boolean) => void;
   /** Send a handout to some players, or to all with an empty list. GM only (F-071). */
   sendHandout: (title: string, text: string, to: string[]) => void;
+  /** Take a handout back from these players, or from everyone (F-105). */
+  withdrawHandout: (handout: string, from: string[]) => void;
   /** Damage to a ship — shields first; or a change to its state. GM only (F-060). */
   shipDamage: (ship: string, amount: number, options?: ShipDamageOptions) => void;
   shipSet: (ship: string, changes: ShipState) => void;
@@ -563,6 +565,11 @@ export function connect(
     sendHandout: (title, text, to) => {
       if (socket?.readyState !== 1) return;
       const message: ToServer = { type: 'handout-send', title, text, to };
+      socket.send(JSON.stringify(message));
+    },
+    withdrawHandout: (handout, from) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'handout-withdraw', handout, from };
       socket.send(JSON.stringify(message));
     },
     useFeature: (whom, feature, allies) => {

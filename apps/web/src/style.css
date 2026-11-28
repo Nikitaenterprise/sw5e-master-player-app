@@ -1239,3 +1239,8 @@ main.gm { max-width: none; }
 .inventory-desk { display: flex; flex-direction: column; gap: 14px; }
 .inventory-desk .add { display: flex; flex-wrap: wrap; gap: 6px; }
 .inventory-desk .add input[type="number"] { width: 5rem; }
+
+/* F-105: a handout taken back stays on the GM's list, faded */
+.handout-sent li.withdrawn { opacity: .55; }
+.handout-sent .buttons { flex-wrap: wrap; margin-top: 4px; }
+.handout-sent .buttons button { font-size: .78rem; }

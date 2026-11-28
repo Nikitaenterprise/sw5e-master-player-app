@@ -77,6 +77,9 @@ import {
   nextTurnRound,
   handoutsFor,
   type Handout,
+  type HandoutLine,
+  type HandoutWithdrawn,
+  parseHandoutWithdraw,
   effectsFrom,
   featureSource,
   sessionCommitMessage,
@@ -206,7 +209,7 @@ export async function start(
   const companionsDir = options.companionsDir ?? join(dirname(charactersDir), 'companions');
   const state = new State(log, charactersDir, companionsDir);
   // Handouts (F-071): from every session played, so last session's letter is still there.
-  const handouts: Handout[] = log.readAll().handouts;
+  const handouts: HandoutLine[] = log.readAll().handouts;
   const sendHandouts = (c: { socket: WebSocket; role: string; character?: string }): void =>
     send(c.socket, { type: 'handouts', handouts: handoutsFor(handouts, c.role === 'gm' ? 'gm' : 'player', c.character) });
   // The scene's NPCs (F-085): rebuilt from the log, like the fight.
@@ -1175,6 +1178,30 @@ export async function start(
         };
         log.append(handout);
         handouts.push(handout);
+        for (const c of connected.values()) sendHandouts(c);
+        return;
+      }
+
+      // Taking a handout back (F-105): a line of its own; the one sent stays in the log.
+      if (kind === 'handout-withdraw') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'роздатки відкликає майстер' });
+          return;
+        }
+        const back = parseHandoutWithdraw(data);
+        if (typeof back === 'string') {
+          send(socket, { type: 'refused', reason: back });
+          return;
+        }
+        if (!handouts.some((h) => h.type === 'handout.sent' && h.id === back.handout)) {
+          send(socket, { type: 'refused', reason: 'такої роздатки немає' });
+          return;
+        }
+        const line: HandoutWithdrawn = {
+          id: randomUUID(), at: Date.now(), author: authorOf(), type: 'handout.withdrawn', handout: back.handout, from: back.from,
+        };
+        log.append(line);
+        handouts.push(line);
         for (const c of connected.values()) sendHandouts(c);
         return;
       }

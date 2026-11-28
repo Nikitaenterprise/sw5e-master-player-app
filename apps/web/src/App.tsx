@@ -421,6 +421,7 @@ export function GmScreen({
             party={party}
             handouts={snapshot.handouts}
             send={(title, text, to) => controls.current?.sendHandout(title, text, to)}
+            withdraw={(handout, from) => controls.current?.withdrawHandout(handout, from)}
           />
         )}
 

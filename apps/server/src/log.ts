@@ -6,7 +6,7 @@
 // gives that simple a guarantee for the same price.
 import { appendFileSync, openSync, fsyncSync, closeSync, readFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isCombatEvent, isHandout, isNpcEvent, isSceneEvent, isShipCrewEvent, isShipEvent, type CombatEvent, type GameEvent, type Handout, type LogLine, type NpcEvent, type SceneEvent, type ShipCrewEvent, type ShipEvent } from '@holotable/protocol';
+import { isCombatEvent, isHandout, isNpcEvent, isSceneEvent, isShipCrewEvent, isShipEvent, type CombatEvent, type GameEvent, type HandoutLine, type LogLine, type NpcEvent, type SceneEvent, type ShipCrewEvent, type ShipEvent } from '@holotable/protocol';
 
 /**
  * What a log file holds. State changes and combat lines live in the same file, in the
@@ -18,7 +18,7 @@ export interface LogContents {
   events: GameEvent[];
   combat: CombatEvent[];
   /** Handouts the GM gave (F-071). */
-  handouts: Handout[];
+  handouts: HandoutLine[];
   /** The scene's NPCs (F-085). */
   npcs: NpcEvent[];
   /** The scene itself: the weather (F-086). */
@@ -114,7 +114,7 @@ export class Log {
   readAll(): LogContents {
     const events: GameEvent[] = [];
     const combat: CombatEvent[] = [];
-    const handouts: Handout[] = [];
+    const handouts: HandoutLine[] = [];
     const npcs: NpcEvent[] = [];
     const scene: SceneEvent[] = [];
     const ships: ShipEvent[] = [];
@@ -139,7 +139,7 @@ export class Log {
     const lines = readFileSync(file, 'utf8').split('\n').filter((r) => r.trim() !== '');
     const events: GameEvent[] = [];
     const combat: CombatEvent[] = [];
-    const handouts: Handout[] = [];
+    const handouts: HandoutLine[] = [];
     const npcs: NpcEvent[] = [];
     const scene: SceneEvent[] = [];
     const ships: ShipEvent[] = [];

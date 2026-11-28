@@ -76,6 +76,7 @@ export type ToServer =
   | HomebrewSet
   | UseFeature
   | HandoutSend
+  | HandoutWithdraw
   | NpcSet
   | NpcRemove
   | NpcsClear
@@ -1849,7 +1850,7 @@ export interface CombatEvent {
 }
 
 /** A line of the log: character state, the fight, a handout, an NPC, the scene. */
-export type LogLine = GameEvent | CombatEvent | Handout | NpcEvent | SceneEvent | ShipEvent | ShipCrewEvent;
+export type LogLine = GameEvent | CombatEvent | HandoutLine | NpcEvent | SceneEvent | ShipEvent | ShipCrewEvent;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The ship at the table (F-060). A ship is a living thing like a character: its state
@@ -2393,6 +2394,10 @@ export interface Handout {
   text: string;
   /** Who gets it, by slug. Empty — everyone at the table. */
   to: string[];
+  /** For the GM's screen (F-105): taken back from everyone. Never written to the log. */
+  withdrawn?: boolean;
+  /** For the GM's screen (F-105): taken back from these players. Never written to the log. */
+  hiddenFrom?: string[];
 }
 
 /** GM → server: send a handout. */
@@ -2402,6 +2407,40 @@ export interface HandoutSend {
   text: string;
   to: string[];
 }
+
+/** GM → server: take a handout back (F-105) — from these players, or from everyone. */
+export interface HandoutWithdraw {
+  type: 'handout-withdraw';
+  handout: string;
+  /** Empty — from everyone. */
+  from: string[];
+}
+
+export function parseHandoutWithdraw(data: unknown): HandoutWithdraw | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'handout-withdraw') return 'не відкликання роздатки';
+  if (typeof o['handout'] !== 'string' || o['handout'] === '' || o['handout'].length > 100) return 'яку роздатку відкликати?';
+  const from = o['from'] ?? [];
+  if (!Array.isArray(from) || from.some((x) => typeof x !== 'string') || from.length > 20) return 'у кого відкликати — список імен';
+  return { type: 'handout-withdraw', handout: o['handout'], from: from as string[] };
+}
+
+/**
+ * A handout taken back (F-105): a line of its own, so the one that went out stays in the
+ * log as it was (ADR 0002). Empty `from` — from everyone.
+ */
+export interface HandoutWithdrawn {
+  id: string;
+  at: number;
+  author: Author;
+  type: 'handout.withdrawn';
+  handout: string;
+  from: string[];
+}
+
+/** A handout line in the log: one sent, or one taken back. */
+export type HandoutLine = Handout | HandoutWithdrawn;
 
 /**
  * Server → every screen, after a rest (F-113): one line per character of what came back,
@@ -2440,9 +2479,27 @@ export function parseHandoutSend(data: unknown): HandoutSend | string {
  * those addressed to them. Filtered on the server — what a phone is not meant to read
  * never reaches it.
  */
-export function handoutsFor(list: Handout[], role: 'gm' | 'player', character?: string): Handout[] {
-  if (role === 'gm') return list;
-  return list.filter((h) => h.to.length === 0 || (character !== undefined && h.to.includes(character)));
+export function handoutsFor(lines: HandoutLine[], role: 'gm' | 'player', character?: string): Handout[] {
+  // Taken back (F-105): from everyone, or from some — the GM still sees the handout, marked.
+  const all: Handout[] = [];
+  const byId = new Map<string, Handout>();
+  for (const line of lines) {
+    if (line.type === 'handout.sent') {
+      const h: Handout = { ...line };
+      all.push(h);
+      byId.set(h.id, h);
+    } else {
+      const h = byId.get(line.handout);
+      if (h === undefined) continue;
+      if (line.from.length === 0) h.withdrawn = true;
+      else h.hiddenFrom = [...new Set([...(h.hiddenFrom ?? []), ...line.from])];
+    }
+  }
+  if (role === 'gm') return all;
+  return all.filter((h) =>
+    h.withdrawn !== true
+    && (character === undefined || !(h.hiddenFrom ?? []).includes(character))
+    && (h.to.length === 0 || (character !== undefined && h.to.includes(character))));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3014,9 +3071,9 @@ export function isNpcEvent(line: LogLine): line is NpcEvent {
   return line.type.startsWith('npc.');
 }
 
-/** Whether this log line is a handout. */
-export function isHandout(line: LogLine): line is Handout {
-  return line.type === 'handout.sent';
+/** Whether this log line is a handout: one sent, or one taken back (F-105). */
+export function isHandout(line: LogLine): line is HandoutLine {
+  return line.type === 'handout.sent' || line.type === 'handout.withdrawn';
 }
 
 /** Whether this log line is about the fight. */

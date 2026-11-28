@@ -13,11 +13,14 @@ export function HandoutDesk({
   party,
   handouts,
   send,
+  withdraw,
   now = Date.now(),
 }: {
   party: string[];
   handouts: Handout[];
   send: (title: string, text: string, to: string[]) => void;
+  /** Take one back — from these players, or from everyone (F-105). */
+  withdraw?: (handout: string, from: string[]) => void;
   now?: number;
 }): JSX.Element {
   const [title, setTitle] = useState('');
@@ -60,11 +63,30 @@ export function HandoutDesk({
       </form>
       {handouts.length > 0 && (
         <ul className="handout-sent">
-          {[...handouts].reverse().map((h) => (
-            <li key={h.id}>
-              <b>{h.title}</b> → {recipientsText(h.to)} <small>· {whenText(h.at, now)}</small>
-            </li>
-          ))}
+          {[...handouts].reverse().map((h) => {
+            // Who still has it: the recipients (or the whole party), minus those it was taken from.
+            const holders = (h.to.length === 0 ? party : h.to).filter((slug) => !(h.hiddenFrom ?? []).includes(slug));
+            return (
+              <li key={h.id} className={h.withdrawn === true ? 'withdrawn' : undefined}>
+                <b>{h.title}</b> → {recipientsText(h.to)} <small>· {whenText(h.at, now)}</small>
+                {h.withdrawn === true ? (
+                  <small> · відкликано в усіх</small>
+                ) : (
+                  <>
+                    {(h.hiddenFrom ?? []).length > 0 && <small> · відкликано в: {(h.hiddenFrom ?? []).map(name).join(', ')}</small>}
+                    {withdraw !== undefined && (
+                      <span className="buttons">
+                        <button type="button" onClick={() => withdraw(h.id, [])}>прибрати в усіх</button>
+                        {holders.map((slug) => (
+                          <button key={slug} type="button" onClick={() => withdraw(h.id, [slug])}>прибрати в {name(slug)}</button>
+                        ))}
+                      </span>
+                    )}
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
