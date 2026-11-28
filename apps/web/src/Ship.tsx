@@ -20,6 +20,7 @@ import {
   exhaustionEffects,
   shipMaxima,
   type CharacterState,
+  type CombatState,
   type ShipDamageOptions,
   type ShipState,
   type ShipSummary,
@@ -200,6 +201,117 @@ export function Stations({
   );
 }
 
+/**
+ * A space fight, step by step (F-112). The mechanics were there (F-060, F-063, F-061);
+ * what the table lacked was the way through them. One button starts it — the crew roll
+ * initiative on their phones as in any fight, and the ship acts on the lowest of them
+ * (F-063). Then the book's round in order: the ship's turn, each station in turn, a hit
+ * that takes the shields first and then the hull, and the end, which leaves the damage.
+ */
+export function SpaceFight({
+  summary,
+  combat,
+  initiative,
+  start,
+  end,
+  turn,
+}: {
+  summary: ShipSummary;
+  combat: CombatState | null;
+  initiative: { value: number; by: string } | null;
+  start: () => void;
+  end: () => void;
+  turn: () => void;
+}): JSX.Element {
+  const [acted, setActed] = useState<string[]>([]);
+  const [ending, setEnding] = useState(false);
+  if (combat === null) {
+    return (
+      <section className="space-fight">
+        <button type="button" className="next-turn" onClick={start}>
+          Почати космічний бій
+          <small>екіпаж кидає ініціативу на телефонах</small>
+        </button>
+        <ol className="space-steps idle">
+          <li><b>Ініціатива</b> — кожен за станцією кидає d20; корабель ходить на найнижчому.</li>
+          <li><b>Хід корабля</b> — щити й реактор, тоді станції по черзі.</li>
+          <li><b>Влучання</b> — шкода йде спершу в щити, потім у корпус.</li>
+          <li><b>Кінець бою</b> — черга зникає, пошкодження лишається.</li>
+        </ol>
+      </section>
+    );
+  }
+  const crew = summary.crew.map((c) => c.character);
+  const waiting = combat.order.filter((f) => f.kind === 'character' && crew.includes(f.character) && f.total === null);
+  const toggle = (deployment: string): void =>
+    setActed(acted.includes(deployment) ? acted.filter((d) => d !== deployment) : [...acted, deployment]);
+  return (
+    <section className="space-fight on">
+      <h3>Космічний бій · раунд {combat.round}</h3>
+      <ol className="space-steps">
+        <li className={initiative === null ? 'now' : 'done'}>
+          <b>1 · Ініціатива</b>
+          {initiative === null
+            ? <span> — чекаємо кидків: {waiting.length === 0 ? 'хтось зі станцій ще не в черзі' : waiting.map((f) => name(f.character)).join(', ')}.</span>
+            : <span> — Ініціатива корабля: <b>{initiative.value}</b> <small>(найнижча — {name(initiative.by)})</small></span>}
+        </li>
+        <li className={initiative === null ? '' : 'now'}>
+          <b>2 · Хід корабля</b>
+          <span className="space-row">
+            {/^\d+$/.test(summary.power.recovery) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  turn();
+                  setActed([]);
+                }}
+              >
+                Почати хід корабля
+                <small>щити регенерують, реактор дає +{summary.power.recovery} живлення</small>
+              </button>
+            ) : (
+              // A reactor that rolls its dice needs the number first: the panel below asks it.
+              <a href="#ship-turn" onClick={() => setActed([])}>Почати хід корабля ↓ — спершу впиши, що дав реактор ({summary.power.recovery})</a>
+            )}
+          </span>
+          <ul className="space-stations">
+            {summary.crew.map((c) => (
+              <li key={c.deployment}>
+                <label>
+                  <input type="checkbox" checked={acted.includes(c.deployment)} onChange={() => toggle(c.deployment)} />
+                  {' '}{c.deployment} — {name(c.character)}
+                </label>
+              </li>
+            ))}
+          </ul>
+          <small className="hint">Станції ходять по черзі; познач, хто вже походив. Що кожна може — у них на телефонах.</small>
+        </li>
+        <li>
+          <b>3 · Влучання</b>
+          <span> — шкода йде спершу щити, потім корпус: </span>
+          <a href="#ship-damage">завдати шкоди кораблю ↓</a>
+        </li>
+        <li>
+          <b>4 · Кінець бою</b>
+          {ending ? (
+            <span className="space-row">
+              <button type="button" onClick={() => { setEnding(false); end(); }}>так, завершити</button>
+              <button type="button" onClick={() => setEnding(false)}>ні</button>
+            </span>
+          ) : (
+            <span className="space-row">
+              <button type="button" onClick={() => setEnding(true)}>
+                Завершити космічний бій
+                <small>черга зникає; пошкодження лишається</small>
+              </button>
+            </span>
+          )}
+        </li>
+      </ol>
+    </section>
+  );
+}
+
 /** The GM's panel: the numbers from the rules, the state now, and the buttons that change it. */
 export function ShipPanel({
   summary,
@@ -291,7 +403,9 @@ export function ShipPanel({
         )}
       </div>
       <form
+        id="ship-damage"
         className="ship-damage"
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           const n = Number(amount);
@@ -314,7 +428,7 @@ export function ShipPanel({
         <small>спершу щити, решта — корпусу; тип шкоди — за книгою</small>
       </form>
       {turn !== undefined && (
-        <div className="ship-turn">
+        <div className="ship-turn" id="ship-turn">
           <button type="button" onClick={() => turn(regenerate, rolledRecovery ? Number(recovered) || 0 : undefined)}>Початок ходу корабля</button>
           <label><input type="checkbox" checked={regenerate} onChange={(e) => setRegenerate(e.target.checked)} /> з регенерацією щитів (+{left.max.regeneration})</label>
           {rolledRecovery && (

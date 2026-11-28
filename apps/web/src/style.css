@@ -1335,7 +1335,8 @@ form .refusal { flex-basis: 100%; min-width: 0; white-space: normal; overflow-wr
   button, select, summary, input:not([type="checkbox"]):not([type="radio"]) { min-height: 44px; min-width: 44px; }
   /* The rules that size these small on a laptop are more specific; on a phone they grow too. */
   .buttons button, .add button, .chip, .status-strip .fx-chip, .urgent .ds-strip.quiet { min-height: 44px; min-width: 44px; }
-  summary { display: flex; align-items: center; }
+  /* Block, not flex: flex would eat the spaces between a summary's words. */
+  summary { padding-block: 10px; box-sizing: border-box; }
   .views a { display: inline-flex; align-items: center; min-height: 44px; }
   main.player {
     padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -1354,3 +1355,20 @@ form .refusal { flex-basis: 100%; min-width: 0; white-space: normal; overflow-wr
 .alignment input { width: 4.5rem; }
 .alignment-line { color: var(--muted); font-size: .85rem; margin: 2px 0 0; }
 .status-strip .alignment-line { display: block; color: var(--muted); font-size: 12px; }
+
+/* F-112: a space fight, step by step, above the ship's panel */
+.space-fight { margin-bottom: 18px; padding: 14px 16px; background: var(--panel-tint); border: 1px solid var(--tile-line); }
+.space-fight h3 { margin: 0 0 .6rem; font: 600 11px/1.2 var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.space-fight .next-turn { background: var(--amber); color: var(--on-amber); border: 1px solid var(--amber); font: 600 1.05rem/1.2 var(--f-body); padding: .7rem 1.4rem; display: inline-flex; flex-direction: column; align-items: flex-start; gap: .2rem; cursor: pointer; }
+.space-fight .next-turn small { color: var(--on-amber); opacity: .8; font-weight: 400; font-size: .75rem; }
+.space-steps { margin: .8rem 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.space-steps > li { display: block; background: none; border: 0; border-left: 2px solid var(--tile-line); padding: 4px 0 4px 12px; }
+.space-steps > li.now { border-left-color: var(--amber); }
+.space-steps > li.done { border-left-color: var(--ok); }
+.space-steps.idle > li { color: var(--muted); }
+.space-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.space-row button { display: inline-flex; flex-direction: column; align-items: flex-start; gap: .15rem; }
+.space-row button small { color: var(--muted); font-size: .72rem; font-weight: 400; }
+.space-stations { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.space-stations li { display: block; background: none; border: 0; padding: 0; }
+.role-fight { color: var(--alert); font-weight: 600; }

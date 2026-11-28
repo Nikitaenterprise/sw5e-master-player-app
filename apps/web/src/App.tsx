@@ -22,7 +22,7 @@ import { WeatherBar } from './Weather.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
 import { HandoutDesk, Handouts } from './Handouts.js';
-import { ShipPanel, ShipStrip } from './Ship.js';
+import { ShipPanel, ShipStrip, SpaceFight } from './Ship.js';
 import { MyStation } from './RoleCards.js';
 import { ShipPrintLinks } from './ShipSheet.js';
 import {
@@ -395,8 +395,16 @@ export function GmScreen({
           ) : (
             <>
               {ships.map(([slug, ship]) => (
+                <div key={slug} className="ship-with-fight">
+                <SpaceFight
+                  summary={ship.summary}
+                  combat={combat}
+                  initiative={shipInitiative(ship.summary.crew.map((c) => c.character), combat)}
+                  start={() => controls.current?.startCombat()}
+                  end={() => controls.current?.endCombat([])}
+                  turn={() => controls.current?.shipTurn(slug, true)}
+                />
                 <ShipPanel
-                  key={slug}
                   summary={ship.summary}
                   state={ship.state}
                   damage={(amount, options) => controls.current?.shipDamage(slug, amount, options)}
@@ -411,6 +419,7 @@ export function GmScreen({
                   exhaustionLevels={snapshot.exhaustionLevels}
                   systemDamageLevels={snapshot.systemDamageLevels}
                 />
+                </div>
               ))}
               <nav className="views">
                 <a href="/?as=ship" target="_blank" rel="noreferrer">Лист корабля ↗</a>
@@ -800,7 +809,7 @@ export function PhoneScreen({
                     move={(from, to) => controls.current?.shipPower(slug, from, to)}
                   />
                 ))}
-                <MyStation card={snapshot.roleCard} actions={snapshot.roleActions} />
+                <MyStation card={snapshot.roleCard} actions={snapshot.roleActions} fighting={snapshot.combat !== null} />
                 <nav className="views">
                   <a href="/?as=ship">Лист корабля →</a>
                 </nav>

@@ -124,13 +124,15 @@ export function StationCard({ card, actions }: { card: RoleCard; actions: ShipAc
  * need it. With no station there is one line instead — the GM has not seated them, and
  * guessing a station for them would be worse than saying so.
  */
-export function MyStation({ card, actions }: { card: RoleCard | null; actions: ShipActionCard[] }): JSX.Element {
+export function MyStation({ card, actions, fighting = false }: { card: RoleCard | null; actions: ShipActionCard[]; fighting?: boolean }): JSX.Element {
   if (card === null) {
     return <p className="ship-line role-none">Станції поки немає: майстер садить за них на кораблі.</p>;
   }
+  // In a space fight the station is what the player acts from, so it opens by itself (F-112).
   return (
-    <details className="role-mine">
+    <details className="role-mine" open={fighting}>
       <summary>
+        {fighting && <span className="role-fight">Йде космічний бій · </span>}
         Твоя станція: <b>{card.deployment}</b>
         {card.rank !== null && <small> · ранг {card.rank}</small>}
       </summary>
