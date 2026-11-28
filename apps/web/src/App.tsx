@@ -567,6 +567,12 @@ export function PhoneScreen({
 
         {view === 'sheet' && (
           <>
+            {effects.length + scene.length > 0 && (
+              <section className="ds-panel">
+                <h2 className="ds-label">Діє на тебе</h2>
+                <Effects list={effects} scene={scene} />
+              </section>
+            )}
             <RestNote rest={snapshot.lastRest} character={character} />
             {sheet !== undefined && sheet.maxHitPoints - (typeof state.hitPointsLost === 'number' ? state.hitPointsLost : 0) <= 0 && (
               <DeathSavesBlock state={state} roll={(value) => controls.current?.deathSave(character, value)} />
@@ -706,18 +712,28 @@ export function StatusStrip({
           <span className="st hp">
             <small>ХП</small>
             <b className="ds-num">{left}</b>
-            <i>/{max}</i>
+            {effectSources(sheet, 'hitPoints').length > 0
+              ? <i className="fx" title={fromEffects(effectSources(sheet, 'hitPoints'))}>/{max}</i>
+              : <i>/{max}</i>}
             {temporary > 0 && <em> +{temporary}</em>}
             <span className={`hpbar${share <= 0.25 ? ' low' : ''}`} style={{ ['--hp' as string]: `${Math.round(share * 100)}%` }} />
           </span>
-          <span className="st"><small>КБ</small> <b className="ds-num">{sheet.armorClass}</b></span>
-          <span className="st"><small>Ініц</small> <b className="ds-num">{signed(sheet.initiative)}</b></span>
+          <span className="st"><small>КБ</small> <Lit sheet={sheet} what="armorClass">{sheet.armorClass}</Lit></span>
+          <span className="st"><small>Ініц</small> <Lit sheet={sheet} what="initiative">{signed(sheet.initiative)}</Lit></span>
           {speed !== null && <span className="st"><small>Швид</small> <b className="ds-num">{speed}</b></span>}
           {state.hasInspiration === true && <span className="insp" title="Натхнення">★</span>}
         </div>
       )}
     </header>
   );
+}
+
+/** A big number on the phone: lit, and saying why, when an effect changed it (F-103). */
+function Lit({ sheet, what, children }: { sheet: SheetSummary; what: string; children: ReactNode }): JSX.Element {
+  const sources = effectSources(sheet, what);
+  return sources.length === 0
+    ? <b className="ds-num">{children}</b>
+    : <b className="ds-num fx" title={fromEffects(sources)}>{children}</b>;
 }
 
 /** Combat and new handouts, at the top where nobody misses them (F-101, canon section 6). */
@@ -797,13 +813,20 @@ export function AbilitiesPanel({ sheet }: { sheet: SheetSummary }): JSX.Element 
     <section className="ds-panel">
       <h2 className="ds-label">Характеристики</h2>
       <div className="abilities-grid">
-        {PHONE_ABILITIES.map(([ability, short]) => (
-          <span key={ability} className="ds-tile ability">
-            <small>{short}</small>
-            <b className="ds-num">{signed(sheet.abilityModifiers[ability] ?? 0)}</b>
-            <i>{sheet.details.abilityScores[ability] ?? ''}</i>
-          </span>
-        ))}
+        {PHONE_ABILITIES.map(([ability, short]) => {
+          // An effect on the score (F-103): the score before and after, lit.
+          const parts = sheet.explain?.[`ability:${ability}`]?.parts ?? [];
+          const added = parts.filter((p) => p.label.startsWith(EFFECT_LABEL)).reduce((sum, p) => sum + p.value, 0);
+          const score = sheet.details.abilityScores[ability];
+          const lit = effectSources(sheet, `ability:${ability}`);
+          return (
+            <span key={ability} className={lit.length > 0 ? 'ds-tile ability fx' : 'ds-tile ability'} title={lit.length > 0 ? fromEffects(lit) : undefined}>
+              <small>{short}</small>
+              <b className="ds-num">{signed(sheet.abilityModifiers[ability] ?? 0)}</b>
+              <i>{score === undefined ? '' : added !== 0 ? `${score - added} → ${score}` : score}</i>
+            </span>
+          );
+        })}
       </div>
       <p className="save-line">
         <span className="ds-label">Сейви</span>{' '}
@@ -2671,6 +2694,23 @@ const asNumber = (value: unknown): number => (typeof value === 'number' ? value 
  * A number with its breakdown on hover (F-042). Without a breakdown it is just the
  * number — never an empty hint.
  */
+const EFFECT_LABEL = 'ефект: ';
+
+/**
+ * Which effects changed this number (F-103): the engine writes each one into the number's
+ * breakdown under the effect label and its source. Hit points have no line of their own — they grow with
+ * Constitution — so an effect on Constitution counts for them too.
+ */
+export function effectSources(sheet: SheetSummary | undefined, what: string): string[] {
+  if (sheet === undefined) return [];
+  const own = (key: string): string[] =>
+    (sheet.explain?.[key]?.parts ?? []).filter((p) => p.label.startsWith(EFFECT_LABEL)).map((p) => p.label.slice(EFFECT_LABEL.length));
+  return what === 'hitPoints' ? [...own('hitPoints'), ...own('ability:Constitution')] : own(what);
+}
+
+/** The words a lit number says about where it came from. */
+const fromEffects = (sources: string[]): string => sources.map((s) => `${EFFECT_LABEL}${s}`).join('\n');
+
 function Why({
   sheet,
   what,
@@ -2685,8 +2725,10 @@ function Why({
   const e = sheet.explain?.[what];
   // Hand edits on this number that are debt (F-043): marked, so they cannot pass as normal.
   const debt = (sheet.handEdits ?? []).filter((h) => h.key === what && h.verdict !== 'customItem');
+  // A number an effect changed is lit (F-103).
+  const lit = effectSources(sheet, what).length > 0;
   const number = e === undefined ? <>{children}</> : (
-    <span className="why" title={explanationText(e, signedTotal)}>
+    <span className={lit ? 'why fx' : 'why'} title={explanationText(e, signedTotal)}>
       {children}
     </span>
   );

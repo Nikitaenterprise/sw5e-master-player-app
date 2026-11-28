@@ -1223,3 +1223,9 @@ main.gm { max-width: none; }
   .gm-rail button, .gm-rail a { flex: none; }
   .gm-feed { grid-column: 1; }
 }
+
+/* F-103: a number an effect changed is lit in the effect colour, and says where from. */
+.ds-num.fx, .why.fx, .status-strip .st i.fx { color: var(--effect); text-shadow: 0 0 10px rgb(127 224 255 / .55); }
+.why.fx { border-bottom: 1px dotted var(--effect); }
+.ds-tile.ability.fx { border-top-color: var(--effect); background: var(--tile-fx); }
+.ds-tile.ability.fx b, .ds-tile.ability.fx i { color: var(--effect); }
