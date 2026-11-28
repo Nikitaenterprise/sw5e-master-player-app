@@ -1392,3 +1392,9 @@ main.choose { display: flex; flex-direction: column; gap: 12px; }
 .gm-hp button { font-size: .8rem; padding: .25rem .55rem; }
 .gm-hp .add { display: inline-flex; gap: 4px; align-items: center; }
 .gm-hp input { width: 4.5rem; }
+
+/* F-117: stable at 0 — what that means and what helps */
+.death-saves.stable h3 { color: var(--ok); }
+.stable-help { gap: 4px; font-size: .9rem; }
+.stable-help li { display: block; background: none; border: 0; padding: 2px 0; }
+.down-line .wake { margin-left: 8px; font-size: .78rem; padding: .2rem .5rem; }

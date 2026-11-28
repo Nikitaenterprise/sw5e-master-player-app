@@ -972,6 +972,13 @@ export async function start(
           if (plan === undefined) continue;
           const changes = applyRest(plan, current);
           lines[slug] = restSummary(changes, current);
+          // At 0 a short rest gives back no hit points by itself: only hit dice the player
+          // spends, healing, or 1d4 hours for a stable one (the book; F-117).
+          const max = sheets[slug]?.maxHitPoints;
+          const lost = typeof current.hitPointsLost === 'number' ? current.hitPointsLost : 0;
+          if (rest.kind === 'short' && max !== undefined && lost >= max) {
+            lines[slug] = `${lines[slug]} · на 0 ХП відпочинок сам ХП не повертає: кубики здоровʼя (витрачає гравець) або лікування`;
+          }
           // Someone who spent nothing and lost nothing needs no event. A log line that
           // changes nothing is noise in the GM's feed.
           if (Object.keys(changes).length === 0) continue;

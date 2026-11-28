@@ -909,6 +909,13 @@ export function hitPointChange(state: CharacterState, max: number, amount: numbe
   const lost = asNumber(state.hitPointsLost);
   const temporary = asNumber(state.temporaryHitPoints);
   if (amount >= 0) return { hitPointsLost: Math.max(0, lost - amount) };
+  // Damage at 0 hit points is a failed death save, and a stable creature stops being
+  // stable (the book, "Stabilizing a Creature"; F-117).
+  if (lost >= max && temporary === 0) {
+    const d = deathSavesOf(state);
+    const wasStable = d.successes >= DEATH_SAVES_LIMIT;
+    return { deathSaves: { successes: wasStable ? 0 : d.successes, failures: Math.min(DEATH_SAVES_LIMIT, (wasStable ? 0 : d.failures) + 1) } };
+  }
   const damage = -amount;
   const soaked = Math.min(temporary, damage);
   return {
@@ -2581,6 +2588,22 @@ export function DeathSavesBlock({
 }): JSX.Element {
   const d = deathSavesOf(state);
   const over = d.failures >= DEATH_SAVES_LIMIT || d.successes >= DEATH_SAVES_LIMIT;
+  // Three successes: stable — by the book still unconscious at 0 (F-117). Say what helps.
+  if (d.successes >= DEATH_SAVES_LIMIT) {
+    return (
+      <section className="death-saves stable">
+        <h3>Ти стабілізований</h3>
+        <p>Ти не вмираєш і більше не кидаєш рятівних, але за книгою лишаєшся без свідомості на 0 ХП.</p>
+        <p className="hint">Що підніме:</p>
+        <ul className="stable-help">
+          <li>лікування — сила, предмет, аптечка: майстер додає ХП;</li>
+          <li>короткий відпочинок — і кубики здоровʼя: їх можна витратити й на 0 ХП (вкладка «Лист», «Кубики здоровʼя»);</li>
+          <li>якщо ніхто не лікує — через 1d4 години сам отримаєш 1 ХП: це скаже майстер.</li>
+        </ul>
+        <p className="hint">Будь-яка шкода знову робить тебе нестабільним — тоді знову рятівні.</p>
+      </section>
+    );
+  }
   return (
     <section className="death-saves">
       <h3>Ти без свідомості</h3>
@@ -3523,7 +3546,17 @@ export function Card({
         </details>
       )}
 
-      {left === 0 && <p className="down-line">Без свідомості · {deathSavesText(state)}</p>}
+      {left === 0 && (
+        <p className="down-line">
+          Без свідомості · {deathSavesText(state)}
+          {/* Not healed, a stable creature regains 1 hit point after 1d4 hours (F-117). */}
+          {changeHp !== undefined && deathSavesOf(state).successes >= DEATH_SAVES_LIMIT && (
+            <button type="button" className="wake" onClick={() => changeHp({ hitPointsLost: sheet.maxHitPoints - 1, deathSaves: { successes: 0, failures: 0 } })}>
+              минуло 1d4 години → 1 ХП
+            </button>
+          )}
+        </p>
+      )}
       {companion !== undefined && <CompanionBlock {...companion} />}
       <Effects
         list={(Array.isArray(state.holotableEffects) ? state.holotableEffects : []) as HolotableEffect[]}
