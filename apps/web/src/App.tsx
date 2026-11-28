@@ -721,6 +721,7 @@ export function PhoneScreen({
               <DeathSavesBlock state={state} roll={(value) => controls.current?.deathSave(character, value)} />
             )}
             {sheet !== undefined && <AbilitiesPanel sheet={sheet} />}
+            {sheet !== undefined && <WeaponsPanel sheet={sheet} counts={counts} />}
             <h2>Мій стан</h2>
             <Managed
               state={state}
@@ -1102,6 +1103,65 @@ export function PhoneTabs({
         </button>
       ))}
     </nav>
+  );
+}
+
+/**
+ * What goes into one weapon's attack, part by part, for the player to add themselves
+ * (F-120, ADR 0007): the ability, proficiency with the weapon, an effect by its source.
+ * Straight from the engine's explanation of the number — never a sum. The damage bonus
+ * is named after the ability when it is just that ability's modifier.
+ */
+export function attackHints(sheet: SheetSummary, index: number): { toHit: string[]; damage: string | null } {
+  const parts = sheet.explain?.[`attack:${index}`]?.parts ?? [];
+  const named = (label: string): string => label.replace(/^ефект:\s*/, '').replace(/\s+\d+$/, '');
+  const toHit = parts.filter((p) => p.value !== 0 || /^(Сила|Спритність)/.test(p.label)).map((p) => `${named(p.label)} ${signed(p.value)}`);
+  const attack = sheet.attacks[index];
+  const bonus = attack === undefined ? null : /([+-])\s*(\d+)\s*$/.exec(attack.damageDice ?? attack.damage);
+  let damage: string | null = null;
+  if (bonus !== null && bonus !== undefined) {
+    const value = Number(bonus[2]) * (bonus[1] === '-' ? -1 : 1);
+    const ability = parts[0];
+    damage = ability !== undefined && ability.value === value ? `${named(ability.label)} ${signed(value)}` : signed(value);
+  }
+  return { toHit, damage };
+}
+
+/** One weapon's hints in a line: what to add to the d20 and to the damage (F-120). */
+function AttackHintLine({ sheet, index }: { sheet: SheetSummary; index: number }): JSX.Element {
+  const h = attackHints(sheet, index);
+  return (
+    <small className="bonus-parts">
+      до d20: {h.toHit.join(' · ')}
+      {h.damage !== null && <> · до шкоди: {h.damage}</>}
+    </small>
+  );
+}
+
+/**
+ * The weapons on the phone's sheet tab (F-120): each with its dice and, part by part, what
+ * the player adds. With the player counting there is no sum — they keep track themselves.
+ */
+export function WeaponsPanel({ sheet, counts }: { sheet: SheetSummary; counts: WhoCounts }): JSX.Element | null {
+  const term = useTerm();
+  if (sheet.attacks.length === 0) return null;
+  return (
+    <section className="ds-panel weapons-panel">
+      <h2 className="ds-label">Зброя</h2>
+      <ul className="weapons">
+        {sheet.attacks.map((a, i) => (
+          <li key={`${a.name}-${i}`}>
+            <span className="what">
+              <TermLink kind="weapon" english={a.name}>{term('weapon', a.name)}</TermLink>
+              <small> d20 · шкода {diceOnly(a.damageDice ?? a.damage)} {term('damage', a.damageType ?? '')}</small>
+              {counts === 'app' && <small> · разом {signed(a.toHit)}</small>}
+            </span>
+            <AttackHintLine sheet={sheet} index={i} />
+          </li>
+        ))}
+      </ul>
+      {counts === 'player' && <p className="hint">Це підказка, з чого складається кидок: суму рахуєш сам.</p>}
+    </section>
   );
 }
 
@@ -2732,6 +2792,7 @@ export function MyTurn({
                         {a !== undefined && counts === 'app' ? `${signed(a.toHit)} · ${a.damageDice} ${term('damage', a.damageType)}` : x.detail}
                       </small>
                       {x.problem !== undefined && <small className="problem">{x.problem}</small>}
+                      {x.attack !== undefined && counts === 'player' && <AttackHintLine sheet={sheet} index={x.attack} />}
                       {x.attack !== undefined && <RollMode mode={sheet.rollModes?.[`attack:${x.attack}`]} />}
                     </span>
                     {a !== undefined && (

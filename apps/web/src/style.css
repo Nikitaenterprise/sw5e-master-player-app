@@ -1404,3 +1404,8 @@ main.choose { display: flex; flex-direction: column; gap: 12px; }
 
 /* F-119: the effects button scrolls here; keep the heading clear of the sticky status strip */
 #my-effects { scroll-margin-top: 150px; }
+
+/* F-120: what goes into an attack, part by part — a hint, never a sum */
+.bonus-parts { display: block; color: var(--effect); font-size: .8rem; }
+.weapons-panel .weapons { gap: 6px; }
+.weapons-panel .weapons li { display: flex; flex-direction: column; gap: 2px; }
