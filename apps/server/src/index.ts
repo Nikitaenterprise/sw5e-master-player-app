@@ -83,6 +83,7 @@ import {
   rebase,
   parseGlossarySet,
   HISTORY_LIMIT,
+  inventoryOf,
 } from '@holotable/protocol';
 import { Log } from './log.js';
 import { State } from './state.js';
@@ -815,13 +816,37 @@ export async function start(
           send(socket, { type: 'refused', reason: 'накласти, не витрачаючи, може лише майстер' });
           return;
         }
-        const item = homebrewItems[use.character]?.find((i) => itemKey(i.name) === itemKey(use.item));
         const now = state.one(use.character);
-        if (item === undefined || now === undefined) {
-          send(socket, { type: 'refused', reason: `у листі немає «${use.item}» з ефектами` });
+        if (now === undefined) {
+          send(socket, { type: 'refused', reason: 'немає такого персонажа' });
           return;
         }
+        // Whatever the GM added counts as carried (F-104).
+        const added = (now.holotableItemsAdded ?? {}) as Record<string, number>;
+        const addedOf = (name: string): number =>
+          Object.entries(added).reduce((sum, [k, v]) => sum + (itemKey(k) === itemKey(name) ? v : 0), 0);
         const used = (now.holotableItemsUsed ?? {}) as Record<string, number>;
+        const homebrewItem = homebrewItems[use.character]?.find((i) => itemKey(i.name) === itemKey(use.item));
+        if (homebrewItem === undefined) {
+          // A plain thing from the inventory — a medpac (F-104): one less of it, no effects.
+          const row = inventoryOf(sheets[use.character]?.equipment ?? [], [], added, used).find((r) => r.key === itemKey(use.item));
+          if (row === undefined || !spend) {
+            send(socket, { type: 'refused', reason: `у листі немає «${use.item}»` });
+            return;
+          }
+          if (row.left === 0) {
+            send(socket, { type: 'refused', reason: `«${row.name}» закінчився` });
+            return;
+          }
+          const spent = state.apply(use.character, { holotableItemsUsed: { ...used, [row.key]: (used[row.key] ?? 0) + 1 } }, authorOf(), `використано «${row.name}»`);
+          if (typeof spent === 'string') {
+            send(socket, { type: 'refused', reason: spent });
+            return;
+          }
+          publish(spent);
+          return;
+        }
+        const item = { ...homebrewItem, quantity: homebrewItem.quantity + addedOf(homebrewItem.name) };
         if (spend && item.consumable && itemsLeft(item, used) === 0) {
           send(socket, { type: 'refused', reason: `«${item.name}» закінчився` });
           return;
@@ -1374,6 +1399,11 @@ export async function start(
         // Effects come from the GM or from using an item — never typed in by a player (F-067).
         if (intent.changes.holotableEffects !== undefined || intent.changes.holotableItemsUsed !== undefined) {
           refuse('ефекти накладає майстер; свій предмет — кнопкою «використати»');
+          return;
+        }
+        // Things are given by the GM; a player uses theirs up through "use" (F-104).
+        if (intent.changes.holotableItemsAdded !== undefined) {
+          refuse('речі додає майстер');
           return;
         }
         // Inspiration is the GM's to give; the player only spends it (F-097).

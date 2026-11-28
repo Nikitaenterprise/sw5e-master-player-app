@@ -177,9 +177,12 @@ export const STATE_FIELDS = [
   'deathSaves',
   // Ours, not sw5e.com's — so in the holotable namespace (ADR 0001). F-065.
   'holotableEffects',
-  // How many of each homebrew item are used up, by the item's key (F-067). The sheet's
-  // own quantity stays as sw5e.com wrote it; what is left is that minus this.
+  // How many of each item are used up, by the item's key (F-067). The sheet's own
+  // quantity stays as sw5e.com wrote it; what is left is that, plus what the GM added,
+  // minus this. Since F-104 it counts any item, not only homebrew ones.
   'holotableItemsUsed',
+  // What the GM gave the character at the table, by the item's name (F-104).
+  'holotableItemsAdded',
 ] as const;
 
 export type StateField = (typeof STATE_FIELDS)[number];
@@ -560,6 +563,67 @@ export function checkItemsUsed(value: unknown): string | null {
   return null;
 }
 
+/** One line of a character's things (F-104): what the sheet has, what the GM added, what is left. */
+export interface InventoryRow {
+  name: string;
+  key: string;
+  /** From the sheet (or, in the demo, from the scenario). */
+  base: number;
+  added: number;
+  used: number;
+  left: number;
+  equipped: boolean;
+  /** The homebrew item with effects, when this thing is one (F-066). */
+  homebrew?: HomebrewItem;
+}
+
+const countOf = (map: StateValue | undefined, name: string): number => {
+  if (typeof map !== 'object' || map === null || Array.isArray(map)) return 0;
+  const want = itemKey(name);
+  let sum = 0;
+  for (const [k, v] of Object.entries(map as Record<string, unknown>)) {
+    if (itemKey(k) === want && typeof v === 'number') sum += v;
+  }
+  return sum;
+};
+
+/**
+ * A character's things (F-104): the sheet's equipment, the homebrew items it carries, and
+ * what the GM added at the table, each with how many are left. Matched by name, case and
+ * spaces aside; a thing appears once.
+ */
+export function inventoryOf(
+  equipment: { name: string; quantity: number; equipped?: boolean }[],
+  homebrew: HomebrewItem[],
+  added: StateValue | undefined,
+  used: StateValue | undefined,
+): InventoryRow[] {
+  const rows = new Map<string, InventoryRow>();
+  const put = (name: string, base: number, equipped: boolean): void => {
+    const key = itemKey(name);
+    const row = rows.get(key);
+    if (row === undefined) rows.set(key, { name: name.trim(), key, base, added: 0, used: 0, left: 0, equipped });
+    else if (equipped) row.equipped = true;
+  };
+  for (const e of equipment) put(e.name, e.quantity, e.equipped === true);
+  for (const h of homebrew) {
+    if (!rows.has(itemKey(h.name))) put(h.name, h.quantity, false);
+    const row = rows.get(itemKey(h.name));
+    if (row !== undefined) row.homebrew = h;
+  }
+  if (typeof added === 'object' && added !== null && !Array.isArray(added)) {
+    for (const name of Object.keys(added as Record<string, unknown>)) {
+      if (!rows.has(itemKey(name))) put(name, 0, false);
+    }
+  }
+  for (const row of rows.values()) {
+    row.added = countOf(added, row.name);
+    row.used = countOf(used, row.name);
+    row.left = Math.max(0, row.base + row.added - row.used);
+  }
+  return [...rows.values()];
+}
+
 /** Effects that end with this: the fight, or a rest (a long rest ends the short-rest ones too). */
 export function effectsAfter(list: HolotableEffect[], ending: 'fight' | 'short' | 'long'): HolotableEffect[] {
   return list.filter((e) => {
@@ -697,6 +761,8 @@ export interface SheetSummary {
   featureEffects?: FeatureEffectSummary[];
   /** Features that change how a rest goes, with the sheet's own text (F-113). */
   restTraits?: { name: string; text: string }[];
+  /** The sheet's equipment, book items and the player's own, as sw5e.com wrote it (F-104). */
+  equipment: { name: string; quantity: number; equipped?: boolean }[];
   /**
    * Every hand edit in the sheet, with a verdict (F-043): unknown origin, redundant,
    * a choice the sheet never recorded, or the stats of a custom item. `key` is the
@@ -1211,7 +1277,7 @@ function checkFields(changes: Record<string, unknown>): CharacterState | string 
       const problem = checkDeathSaves(value);
       if (problem !== null) return problem;
       checked[field] = value as HitDiceUsed;
-    } else if (field === 'holotableItemsUsed') {
+    } else if (field === 'holotableItemsUsed' || field === 'holotableItemsAdded') {
       const problem = checkItemsUsed(value);
       if (problem !== null) return problem;
       checked[field] = value as HitDiceUsed;

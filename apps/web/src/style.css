@@ -1229,3 +1229,13 @@ main.gm { max-width: none; }
 .why.fx { border-bottom: 1px dotted var(--effect); }
 .ds-tile.ability.fx { border-top-color: var(--effect); background: var(--tile-fx); }
 .ds-tile.ability.fx b, .ds-tile.ability.fx i { color: var(--effect); }
+
+/* F-104: a character's things — on the phone and on the GM's desk */
+.inventory { gap: 4px; }
+.inventory li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--tile); border: 0; }
+.inventory .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.inventory .left { font: 700 14px/1 var(--f-num); color: var(--num); }
+.inventory small { color: var(--muted); }
+.inventory-desk { display: flex; flex-direction: column; gap: 14px; }
+.inventory-desk .add { display: flex; flex-wrap: wrap; gap: 6px; }
+.inventory-desk .add input[type="number"] { width: 5rem; }

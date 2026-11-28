@@ -59,6 +59,18 @@ export function computeSummary(root: string, charactersDir: string, slug: string
   return summarize(slug, computeSheet(raw, compendium, effects), raw, compendium);
 }
 
+/** The sheet's things: book equipment and the player's own items, with how many (F-104). */
+function equipmentOf(raw: RawCharacter): { name: string; quantity: number; equipped?: boolean }[] {
+  const amount = (q: unknown): number => {
+    const n = typeof q === 'number' ? q : Number(q);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+  };
+  return [
+    ...(raw.equipment ?? []).map((e) => ({ name: e.name, quantity: amount(e.quantity), ...(e.equipped === true ? { equipped: true } : {}) })),
+    ...(raw.customEquipment ?? []).map((e) => ({ name: e.name, quantity: amount(e.quantity), ...(e.equipped === true ? { equipped: true } : {}) })),
+  ];
+}
+
 function summarize(
   slug: string,
   sheet: ReturnType<typeof computeSheet>,
@@ -173,6 +185,7 @@ function summarize(
     rollModes: sheet.rollModes,
     ...(features.length === 0 ? {} : { featureEffects: features }),
     ...(restTraits(raw).length === 0 ? {} : { restTraits: restTraits(raw) }),
+    equipment: equipmentOf(raw),
     handEdits: computeHandEdits(raw, sheet).map((e) => ({ key: e.key, text: e.text, verdict: e.verdict })),
     warnings: sheet.warnings,
   };

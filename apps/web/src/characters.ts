@@ -28,4 +28,5 @@ export const LABELS: Record<StateField, string> = {
   deathSaves: 'Рятівні від смерті',
   holotableEffects: 'Ефекти',
   holotableItemsUsed: 'Витрачені предмети',
+  holotableItemsAdded: 'Додані майстром речі',
 };

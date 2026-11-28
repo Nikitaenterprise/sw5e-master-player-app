@@ -14,7 +14,7 @@ import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
 import { LookToggles } from './Look.js';
-import { shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, nextTurn, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, nextTurn, inventoryOf, itemKey, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { NpcDesk, NpcsInScene } from './Npcs.js';
 import { WeatherBar } from './Weather.js';
@@ -104,7 +104,7 @@ export function App(): JSX.Element {
       )}
 
       {gm && !editingGlossary && !editingItems ? (
-        <GmScreen snapshot={snapshot} controls={controls} conditionChoices={conditionChoices} />
+        <GmScreen snapshot={snapshot} controls={controls} conditionChoices={conditionChoices} {...tabFromUrl(GM_TABS.map(([id]) => id))} />
       ) : editingItems ? (
         <ItemsEditor
           items={snapshot.homebrewFile}
@@ -137,6 +137,111 @@ export function App(): JSX.Element {
     </ExhaustionContext.Provider>
     </BriefContext.Provider>
     </TermContext.Provider>
+  );
+}
+
+/** Homebrew items with what the GM added counted in (F-104), so "left" is right. */
+function withAdded(items: HomebrewItem[], state: CharacterState): HomebrewItem[] {
+  const added = state.holotableItemsAdded;
+  if (typeof added !== 'object' || added === null || Array.isArray(added)) return items;
+  return items.map((item) => {
+    const more = Object.entries(added as Record<string, number>).reduce((sum, [k, v]) => sum + (itemKey(k) === itemKey(item.name) ? v : 0), 0);
+    return more === 0 ? item : { ...item, quantity: item.quantity + more };
+  });
+}
+
+/**
+ * The GM's inventory desk (F-104): every character's things, one more, one less, and a
+ * new thing by name. What is added or taken away is a line in the log; the sheet from
+ * sw5e.com is not touched (ADR 0001, 0002).
+ */
+export function InventoryDesk({
+  party,
+  sheets,
+  characters,
+  homebrew,
+  change,
+}: {
+  party: string[];
+  sheets: Record<string, SheetSummary>;
+  characters: Record<string, CharacterState>;
+  homebrew: Record<string, HomebrewItem[]>;
+  change: (slug: string, changes: CharacterState, note: string) => void;
+}): JSX.Element {
+  return (
+    <section className="inventory-desk">
+      <h2>Речі партії</h2>
+      {party.map((slug) => (
+        <InventoryOf
+          key={slug}
+          slug={slug}
+          sheet={sheets[slug]}
+          state={characters[slug] ?? {}}
+          homebrew={homebrew[slug] ?? []}
+          change={(changes, note) => change(slug, changes, note)}
+        />
+      ))}
+    </section>
+  );
+}
+
+function InventoryOf({
+  slug,
+  sheet,
+  state,
+  homebrew,
+  change,
+}: {
+  slug: string;
+  sheet: SheetSummary | undefined;
+  state: CharacterState;
+  homebrew: HomebrewItem[];
+  change: (changes: CharacterState, note: string) => void;
+}): JSX.Element {
+  const [fresh, setFresh] = useState('');
+  const [count, setCount] = useState('1');
+  const map = (v: StateValue | undefined): Record<string, number> =>
+    typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, number>) : {};
+  const added = map(state.holotableItemsAdded);
+  const used = map(state.holotableItemsUsed);
+  const rows = inventoryOf(sheet?.equipment ?? [], homebrew, added, used).filter((r) => r.left > 0);
+  const who = sheet?.name ?? name(slug);
+  const give = (thing: string, n: number): void =>
+    change({ holotableItemsAdded: { ...added, [thing]: (added[thing] ?? 0) + n } }, `майстер дав: ${thing} ×${n}`);
+  const take = (key: string, thing: string, n: number): void =>
+    change({ holotableItemsUsed: { ...used, [key]: (used[key] ?? 0) + n } }, `майстер забрав: ${thing} ×${n}`);
+  return (
+    <div className="ds-panel">
+      <h3 className="ds-label">{who}</h3>
+      <ul className="inventory">
+        {rows.map((r) => (
+          <li key={r.key}>
+            <span className="name">{r.name}</span>
+            <b className="left">×{r.left}</b>
+            <span className="buttons">
+              <button type="button" title="на одну менше" onClick={() => take(r.key, r.name, 1)}>−1</button>
+              <button type="button" title="на одну більше" onClick={() => give(r.name, 1)}>+1</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <form
+        className="add"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const thing = fresh.trim();
+          const n = Math.max(1, Math.floor(Number(count) || 1));
+          if (thing === '') return;
+          give(thing, n);
+          setFresh('');
+          setCount('1');
+        }}
+      >
+        <input value={fresh} onChange={(e) => setFresh(e.target.value)} placeholder="назва: Medpac, Стимулятор…" aria-label={`Нова річ для ${who}`} />
+        <input type="number" min={1} value={count} onChange={(e) => setCount(e.target.value)} aria-label="Скільки" />
+        <button type="submit">додати</button>
+      </form>
+    </div>
   );
 }
 
@@ -214,7 +319,7 @@ export function GmScreen({
                   setConditions={(list) => controls.current?.sendChange(slug, { conditions: list })}
                   {...companionOf(snapshot, slug, (c, changes) => controls.current?.sendChange(c, changes))}
                   setEffects={(list) => controls.current?.sendChange(slug, { holotableEffects: list })}
-                  items={snapshot.homebrew[slug] ?? []}
+                  items={withAdded(snapshot.homebrew[slug] ?? [], snapshot.characters[slug] ?? {})}
                   useItem={(item) => controls.current?.useItem(slug, item.name, false)}
                   useFeature={(feature, allies) => controls.current?.useFeature(slug, feature, allies)}
                   party={party}
@@ -267,16 +372,18 @@ export function GmScreen({
         )}
 
         {view === 'items' && (
-          <section>
-            <h2>Речі</h2>
-            <p className="hint">
-              Предмети з ефектами кожного персонажа — на його карточці у «Партії». Хомбрю-предмети
-              (що вони дають) правляться окремо.
-            </p>
+          <>
+            <InventoryDesk
+              party={party}
+              sheets={snapshot.sheets}
+              characters={snapshot.characters}
+              homebrew={snapshot.homebrew}
+              change={(slug, changes, note) => controls.current?.sendChange(slug, changes, note)}
+            />
             <nav className="views">
-              <a href="/?as=gm&view=items">Редактор хомбрю-предметів →</a>
+              <a href="/?as=gm&view=items">Редактор хомбрю-предметів (що вони дають) →</a>
             </nav>
-          </section>
+          </>
         )}
 
         {view === 'ship' && (
@@ -425,7 +532,16 @@ function PlayerSheet({
   const sendChange = (changes: CharacterState): void => {
     controls.current?.sendChange(character, changes, undefined, baseFor(state, changes));
   };
-  return <PhoneScreen character={character} snapshot={snapshot} controls={controls} />;
+  return <PhoneScreen character={character} snapshot={snapshot} controls={controls} {...tabFromUrl(PHONE_TABS.map(([id]) => id))} />;
+}
+
+/**
+ * A tab named in the address, `?tab=items`, opens first (F-104): a bookmark to the GM's
+ * inventory, a link straight to a phone's handouts.
+ */
+function tabFromUrl<T extends string>(tabs: T[]): { initialView?: T } {
+  const wanted = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('tab');
+  return tabs.includes(wanted as T) ? { initialView: wanted as T } : {};
 }
 
 /** The tabs of the player's phone (F-101), always in the same places. */
@@ -618,16 +734,29 @@ export function PhoneScreen({
         {view === 'items' && (
           <>
             <h2>Речі</h2>
-            {(snapshot.homebrew[character] ?? []).length === 0 && effects.length === 0 ? (
-              <p className="hint">Речей з ефектами в листі немає.</p>
-            ) : (
+            {withAdded(snapshot.homebrew[character] ?? [], state).length > 0 && (
               <Effects
                 list={effects}
-                items={snapshot.homebrew[character] ?? []}
+                items={withAdded(snapshot.homebrew[character] ?? [], state)}
                 {...(state.holotableItemsUsed === undefined ? {} : { used: state.holotableItemsUsed })}
                 use={(item) => controls.current?.useItem(character, item.name, true)}
               />
             )}
+            <ul className="inventory">
+              {inventoryOf(sheet?.equipment ?? [], snapshot.homebrew[character] ?? [], state.holotableItemsAdded, state.holotableItemsUsed)
+                .filter((row) => row.left > 0 && row.homebrew === undefined)
+                .map((row) => (
+                  <li key={row.key}>
+                    <span className="name">{row.name}</span>
+                    <b className="left">×{row.left}</b>
+                    {row.equipped ? (
+                      <small>в руках</small>
+                    ) : (
+                      <button type="button" onClick={() => controls.current?.useItem(character, row.name, true)}>використати</button>
+                    )}
+                  </li>
+                ))}
+            </ul>
           </>
         )}
 
