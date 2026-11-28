@@ -144,7 +144,7 @@ describe('F-095 · нуль ХП', () => {
       combat: sandraTurn(), character: 'sandra-vong', sheet: sandra, state: { hitPointsLost: MAX - 1 }, counts: 'player',
       attack: () => undefined, spend: () => undefined, done: () => undefined,
     })));
-    expect(up, 'з 1 ХП — звичайний хід').toContain('Атаки');
+    expect(up, 'з 1 ХП — звичайний хід (з F-107 атаки — у групі «Дія»)').toContain('Дія');
     expect(up).toContain('Хід завершено');
   });
 

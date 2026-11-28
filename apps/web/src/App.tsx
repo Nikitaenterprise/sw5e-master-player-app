@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
-import type { Handout, RestedMessage, CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SceneNote, SceneUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
+import type { TurnAction, Handout, RestedMessage, CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SceneNote, SceneUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
 import {
   connect,
   roleFromUrl,
@@ -534,7 +534,8 @@ function PlayerSheet({
   const sendChange = (changes: CharacterState): void => {
     controls.current?.sendChange(character, changes, undefined, baseFor(state, changes));
   };
-  return <PhoneScreen character={character} snapshot={snapshot} controls={controls} {...tabFromUrl(PHONE_TABS.map(([id]) => id))} />;
+  // The combat screen may be named too: with no fight going on it falls back to the sheet.
+  return <PhoneScreen character={character} snapshot={snapshot} controls={controls} {...tabFromUrl<PhoneView>([...PHONE_TABS.map(([id]) => id), 'combat'])} />;
 }
 
 /**
@@ -2354,6 +2355,11 @@ const TURN_POOLS: { field: 'forcePointsUsed' | 'techPointsUsed' | 'superiorityDi
   { field: 'superiorityDiceUsed', label: 'Суперіориті', max: (s) => s.superiority?.quantity, note: (s) => s.superiority?.size ?? '' },
 ];
 
+/** The groups of a turn, in the order the table thinks of them (F-107). */
+const TURN_GROUPS: [TurnAction['group'], string][] = [
+  ['action', 'Дія'], ['bonus', 'Бонусна дія'], ['reaction', 'Реакція'], ['other', 'Інше — без дії або разом з атакою'],
+];
+
 /**
  * "Your turn" on the phone (F-057): what is needed right now, and nothing else — the
  * attacks, the maneuvers with their DC, the pools to spend, and "turn over".
@@ -2403,48 +2409,50 @@ export function MyTurn({
   return (
     <section className="my-turn">
       <h2>Твій хід · раунд {combat.round}</h2>
-      <h3>Атаки</h3>
-      <ul className="turn-attacks">
-        {sheet.attacks.map((a, i) => (
-          <li key={a.name}>
-            <span className="what">
-              <TermLink kind="weapon" english={a.name}>{term('weapon', a.name)}</TermLink>
-              <small>
-                {counts === 'app'
-                  ? ` ${signed(a.toHit)} · ${a.damageDice} ${term('damage', a.damageType)}`
-                  : ` шкода ${diceOnly(a.damageDice)} ${term('damage', a.damageType)}`}
-              </small>
-              <RollMode mode={sheet.rollModes?.[`attack:${i}`]} />
-            </span>
-            <RollInput
-              label={`Атака: ${a.name}, що випало на d20`}
-              sum={counts === 'player' ? 'required' : 'none'}
-              button="атака"
-              submit={(value, said) => attack(a.name, value, said)}
-            />
-          </li>
-        ))}
-      </ul>
+      {/* By the kind of action they take, as the book says (F-107). */}
+      {TURN_GROUPS.map(([group, title]) => {
+        // A sheet from before F-107 has no turn actions: its weapons are still an action.
+        const all: TurnAction[] = sheet.turnActions ?? sheet.attacks.map((a, i) => ({ kind: 'weapon', name: a.name, group: 'action', detail: '', attack: i }));
+        const things = all.filter((x) => x.group === group);
+        if (things.length === 0) return null;
+        return (
+          <div key={group} className="turn-group">
+            <h3>{title}</h3>
+            <ul className="turn-actions">
+              {things.map((x) => {
+                const a = x.attack === undefined ? undefined : sheet.attacks[x.attack];
+                return (
+                  <li key={`${x.kind}-${x.name}`} className={x.problem === undefined ? 'turn-action' : 'turn-action no'}>
+                    <span className="what">
+                      <TermLink kind={x.kind === 'weapon' ? 'weapon' : x.kind === 'power' ? 'power' : 'maneuver'} english={x.name}>
+                        {term(x.kind === 'weapon' ? 'weapon' : x.kind === 'power' ? 'power' : 'maneuver', x.name)}
+                      </TermLink>
+                      <small>
+                        {' '}
+                        {a !== undefined && counts === 'app' ? `${signed(a.toHit)} · ${a.damageDice} ${term('damage', a.damageType)}` : x.detail}
+                      </small>
+                      {x.problem !== undefined && <small className="problem">{x.problem}</small>}
+                      {x.attack !== undefined && <RollMode mode={sheet.rollModes?.[`attack:${x.attack}`]} />}
+                    </span>
+                    {a !== undefined && (
+                      <RollInput
+                        label={`Атака: ${a.name}, що випало на d20`}
+                        sum={counts === 'player' ? 'required' : 'none'}
+                        button="атака"
+                        submit={(value, said) => attack(a.name, value, said)}
+                      />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
       {last !== undefined && (
         <p className="hint">
           Записано: {term('weapon', last.weapon)} — {last.said ?? last.total} (випало {last.roll}). Влучання вирішує майстер.
         </p>
-      )}
-      {sheet.maneuvers.length > 0 && (
-        <>
-          <h3>Маневри</h3>
-          <ul className="turn-maneuvers">
-            {sheet.maneuvers.map((m) => (
-              <li key={m.name}>
-                <TermLink kind="maneuver" english={m.name}>{term('maneuver', m.name)}</TermLink>
-                <small>
-                  {m.cost === 0 ? 'без кубика' : `${m.cost} куб.`}
-                  {m.saveDC === null ? '' : ` · DC ${m.saveDC}`}
-                </small>
-              </li>
-            ))}
-          </ul>
-        </>
       )}
       <div className="turn-pools">
         {TURN_POOLS.map((p) => {

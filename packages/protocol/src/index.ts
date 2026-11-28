@@ -566,6 +566,22 @@ export function checkItemsUsed(value: unknown): string | null {
   return null;
 }
 
+/**
+ * One thing a character can do on a turn (F-107): a weapon, a power, a maneuver — in the
+ * group of the action it takes, as the book says. Computed on load, never stored.
+ */
+export interface TurnAction {
+  kind: 'weapon' | 'power' | 'maneuver';
+  name: string;
+  group: 'action' | 'bonus' | 'reaction' | 'other';
+  /** What it costs and what to throw, in words, with the save DC when there is one. */
+  detail: string;
+  /** Why this weapon is not used as it should be, by the book. Absent — nothing wrong. */
+  problem?: string;
+  /** For a weapon: its place among the sheet's attacks. */
+  attack?: number;
+}
+
 /** One line of a character's things (F-104): what the sheet has, what the GM added, what is left. */
 export interface InventoryRow {
   name: string;
@@ -766,6 +782,8 @@ export interface SheetSummary {
   restTraits?: { name: string; text: string }[];
   /** The sheet's equipment, book items and the player's own, as sw5e.com wrote it (F-104). */
   equipment: { name: string; quantity: number; equipped?: boolean }[];
+  /** What the character can do on a turn, by the kind of action it takes (F-107). */
+  turnActions: TurnAction[];
   /**
    * Every hand edit in the sheet, with a verdict (F-043): unknown origin, redundant,
    * a choice the sheet never recorded, or the stats of a custom item. `key` is the

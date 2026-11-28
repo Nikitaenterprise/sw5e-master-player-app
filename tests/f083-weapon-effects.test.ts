@@ -259,7 +259,8 @@ describe('F-083 · ефект на конкретну зброю чи вид а�
       combat, character: NIGRA, sheet: sheet as SheetSummary, state: {}, counts: 'player',
       attack: () => undefined, spend: () => undefined, done: () => undefined,
     }));
-    const turn = phone.slice(phone.indexOf('<ul class="turn-attacks">'));
+    // Since F-107 the weapons sit in the turn's action group.
+    const turn = phone.slice(phone.indexOf('<ul class="turn-actions">'));
     expect(lineOf(turn, RIFLE), 'гравцеві видно, що гвинтівкою — з перевагою').toContain('class="roll-mode advantage"');
     expect(lineOf(turn, SABRE)).not.toContain('roll-mode');
   });

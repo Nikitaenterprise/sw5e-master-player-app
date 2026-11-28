@@ -10,7 +10,7 @@
 // without touching a single file in state/.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { effectsAfter, usedOf, type CharacterState, type CompanionSummary, type HitDiceUsed, type HolotableEffect, type SheetSummary } from '@holotable/protocol';
+import { effectsAfter, usedOf, type CharacterState, type CompanionSummary, type HitDiceUsed, type HolotableEffect, type SheetSummary, type TurnAction } from '@holotable/protocol';
 import { loadCompendium as loadFresh, type Compendium } from '@holotable/compendium';
 
 // One compendium per root: a card is now recomputed whenever effects change (F-065),
@@ -57,6 +57,71 @@ export function computeSummary(root: string, charactersDir: string, slug: string
   const compendium = loadCompendium({ root });
   const raw = JSON.parse(readFileSync(join(charactersDir, `${slug}.json`), 'utf8')) as RawCharacter;
   return summarize(slug, computeSheet(raw, compendium, effects), raw, compendium);
+}
+
+const PERIOD_GROUP: Record<string, TurnAction['group']> = { action: 'action', bonusAction: 'bonus', reaction: 'reaction' };
+const POINTS = (n: number, kind: 'force' | 'tech'): string =>
+  `${n} ${n === 1 ? 'поінт' : n < 5 ? 'поінти' : 'поінтів'} ${kind === 'force' ? 'Сили' : 'техніки'}`;
+
+/**
+ * What a character can do on a turn (F-107), each thing in the group of the action it
+ * takes — read from the book, never guessed. A power: its casting time, and the cost the
+ * rules give ("casting a power at a given level costs that level + 1 points", at-will
+ * ones nothing). A maneuver: what its own text says it takes. A weapon: an action, and
+ * red when the character is not proficient or falls short of its Strength or Dexterity
+ * number ("you have disadvantage on attack rolls unless you meet the requirement").
+ */
+function turnActionsOf(
+  sheet: ReturnType<typeof computeSheet>,
+  why: ReturnType<typeof explainSheet>,
+  compendium: Compendium,
+): TurnAction[] {
+  const out: TurnAction[] = [];
+  sheet.weapons.forEach((w, i) => {
+    const problems: string[] = [];
+    if ((why.attacks[i]?.notes ?? []).some((n) => n.includes('без володіння'))) problems.push('не володієш цією зброєю');
+    for (const prop of w.properties) {
+      const need = /^(strength|dexterity) (\d+)$/i.exec(prop.trim());
+      if (need === null) continue;
+      const ability = need[1]?.toLowerCase() === 'strength' ? 'Strength' : 'Dexterity';
+      const score = sheet.abilities[ability].score;
+      const wanted = Number(need[2]);
+      if (score < wanted) problems.push(`потрібна ${ability === 'Strength' ? 'Сила' : 'Спритність'} ${wanted} (у тебе ${score}): атака з недоліком`);
+    }
+    out.push({
+      kind: 'weapon', name: w.name, group: 'action', attack: i,
+      detail: `d20 · шкода ${w.damage.replace(/\s*[+-]\s*\d+\s*$/, '')} ${w.damageType}`,
+      ...(problems.length === 0 ? {} : { problem: problems.join('; ') }),
+    });
+  });
+  for (const c of sheet.casting) {
+    const dc = String(c.saveDC.light ?? c.saveDC.universal ?? '');
+    for (const powerName of [...c.powersOnSheet, ...c.customPowers]) {
+      const doc = compendium.all('power').find((d) => String(d['name']).toLowerCase() === powerName.toLowerCase());
+      if (doc === undefined) {
+        out.push({ kind: 'power', name: powerName, group: 'other', detail: 'власна сила — у довіднику її немає' });
+        continue;
+      }
+      const level = typeof doc['level'] === 'number' ? doc['level'] : 0;
+      const period = (doc['castingTime'] as { period?: string } | undefined)?.period ?? '';
+      out.push({
+        kind: 'power', name: powerName, group: PERIOD_GROUP[period] ?? 'other',
+        detail: `${level === 0 ? 'за бажанням, 0 поінтів' : POINTS(level + 1, c.kind)} · рівень ${level}${dc === '' ? '' : ` · DC ${dc}`}`,
+      });
+    }
+  }
+  for (const s of sheet.superiority) {
+    for (const m of s.maneuversOnSheet) {
+      const text = String(compendium.all('maneuver').find((d) => String(d['name']).toLowerCase() === m.name.toLowerCase())?.['description'] ?? '');
+      const group: TurnAction['group'] = /\breaction\b/i.test(text) ? 'reaction' : /bonus action/i.test(text) ? 'bonus' : /\b(use|as) (your|an) action\b/i.test(text) ? 'action' : 'other';
+      const dc = m.maneuverType === null ? null : s.abilities[m.maneuverType].saveDC;
+      out.push({
+        kind: 'maneuver', name: m.name, group,
+        detail: `${m.diceCost === 0 ? 'без кубика' : `${m.diceCost} ${m.diceCost === 1 ? 'кубик' : 'кубики'} переваги`}${dc === null ? '' : ` · DC ${dc}`}`,
+      });
+    }
+  }
+  return out;
 }
 
 /** The sheet's things: book equipment and the player's own items, with how many (F-104). */
@@ -186,6 +251,7 @@ function summarize(
     ...(features.length === 0 ? {} : { featureEffects: features }),
     ...(restTraits(raw).length === 0 ? {} : { restTraits: restTraits(raw) }),
     equipment: equipmentOf(raw),
+    turnActions: turnActionsOf(sheet, why, compendium),
     handEdits: computeHandEdits(raw, sheet).map((e) => ({ key: e.key, text: e.text, verdict: e.verdict })),
     warnings: sheet.warnings,
   };

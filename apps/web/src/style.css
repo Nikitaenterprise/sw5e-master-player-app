@@ -1252,3 +1252,12 @@ main.gm { max-width: none; }
 .npc-uses li { padding: 4px 8px; background: var(--tile); border: 0; font-size: .9rem; }
 .npc-modifier.from-player { border-color: var(--effect); }
 .npc-modifier button { margin-left: 4px; }
+
+/* F-107: a turn by the kind of action; a weapon not used as it should be is red */
+.turn-group h3 { margin: .6rem 0 .3rem; font: 600 11px/1.2 var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.turn-actions { gap: 6px; }
+.turn-action { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-left: 2px solid var(--gold); }
+.turn-action .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.turn-action.no { border-left-color: var(--alert); background: var(--tile-bad); }
+.turn-action.no .what > a, .turn-action.no .what > span:first-child { color: var(--alert); }
+.turn-action .problem { color: var(--alert); }
