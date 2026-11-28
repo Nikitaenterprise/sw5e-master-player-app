@@ -492,7 +492,7 @@ a.ref-link:hover { color: var(--accent); }
 .combat button small { font-weight: 400; font-size: .7rem; color: var(--muted); }
 .combat .order { counter-reset: turn; display: flex; flex-direction: column; gap: .25rem; }
 .combat .order li {
-  display: flex; align-items: center; gap: .6rem; padding: .4rem .7rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .4rem .7rem;
   background: var(--panel); border: 1px solid var(--border);
 }
 .combat .order li::before {
@@ -508,8 +508,8 @@ a.ref-link:hover { color: var(--accent); }
 .combat .order .mark { font-style: normal; color: var(--accent); font-size: .78rem; white-space: nowrap; }
 .combat .order li.unrolled { opacity: .85; }
 .combat .order li.unrolled .who { color: var(--muted); }
-.combat .order .add.roll { display: flex; gap: .3rem; align-items: center; }
-.combat .order .add.roll input { flex: 0 0 4.5rem; width: 4.5rem; }
+.combat .order .add.roll { display: flex; flex-wrap: wrap; gap: .4rem; align-items: flex-end; }
+.combat .order .add.roll input { flex: none; width: 5.5rem; }
 .my-initiative { margin-top: .8rem; padding-top: .6rem; border-top: 1px solid var(--border); }
 .my-initiative h3 { margin: 0 0 .4rem; font-size: .95rem; }
 .my-initiative .add.roll { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-end; margin-top: .3rem; }
@@ -555,7 +555,7 @@ a.ref-link:hover { color: var(--accent); }
 .enemy-attacks { display: flex; gap: .7rem; flex-wrap: wrap; color: var(--muted); }
 .enemy-attacks span { cursor: help; text-decoration: underline dotted; text-underline-offset: .2em; }
 .add-enemies { margin: .6rem 0; display: flex; flex-direction: column; gap: .4rem; }
-.add-enemies > input, .add-enemies input[type="number"] {
+.add-enemies input {
   background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: .3rem .5rem; font: inherit;
 }
 .add-enemies input[type="number"] { width: 6rem; }
@@ -1269,3 +1269,43 @@ main.gm { max-width: none; }
 /* The hint above a hit die's fields takes its own line. */
 .hit-dice .roll .hint { flex-basis: 100%; }
 form.roll { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+
+/* F-109: the GM's fight in three zones — the queue, who acts now, adding an enemy */
+.combat-zones {
+  display: grid; gap: 18px; align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "now add" "queue queue";
+}
+.combat-queue { grid-area: queue; }
+.combat-side { display: contents; }
+.combat-now { grid-area: now; }
+.combat-add { grid-area: add; }
+@media (max-width: 900px) { .combat-zones { grid-template-columns: minmax(0, 1fr); grid-template-areas: "now" "add" "queue"; } }
+.combat-queue, .combat-now, .combat-add {
+  background: var(--panel-tint); border: 1px solid var(--tile-line); padding: 14px 16px; min-width: 0;
+  clip-path: polygon(0 0, calc(100% - var(--cut-s)) 0, 100% var(--cut-s), 100% 100%, var(--cut-s) 100%, 0 calc(100% - var(--cut-s)));
+}
+.combat-zones h3 { margin: 0 0 .6rem; font: 600 11px/1.2 var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.queue-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.queue-head h2 { margin: 0; flex: 1 1 auto; }
+.queue-head h2 small { color: var(--muted); font-weight: 400; }
+.combat .queue-head .next-turn { background: var(--amber); color: var(--on-amber); border-color: var(--amber); font-size: 1.05rem; padding: .7rem 1.4rem; }
+.combat .queue-head .next-turn small { color: var(--on-amber); opacity: .8; }
+.combat .queue-head .step-back { padding: .45rem .8rem; }
+.waiting-line { margin: 0 0 10px; }
+.combat-end { margin-top: 14px; }
+.acting { display: flex; flex-direction: column; gap: 6px; border-left: 2px solid var(--gold); padding-left: 10px; }
+.acting.foe { border-left-color: var(--alert); }
+.acting-name { font-size: 1.15rem; }
+.acting-line { color: var(--muted); font-size: .85rem; }
+.acting-stats { display: flex; flex-wrap: wrap; gap: 6px 14px; font-variant-numeric: tabular-nums; }
+.acting-attacks { gap: 2px; font-size: .85rem; }
+.acting-attacks li { padding: 2px 0; background: none; border: none; }
+.add-enemies .enemy-search, .add-enemies .enemy-search input { width: 100%; }
+.add-enemies .add { align-items: flex-end; }
+.add-enemies .add .picked { flex-basis: 100%; }
+/* The roll forms and steps inside the queue are small, not the big combat buttons. */
+.combat .order .add.roll { flex-wrap: nowrap; }
+.combat .order .add.roll input { width: 4.5rem; }
+.combat .order .add.roll button, .combat .add-enemies .add button { flex: none; display: inline-block; padding: .45rem .9rem; font-size: .9rem; }
+.combat .queue-head .next-turn, .combat .queue-head .step-back { flex: none; }

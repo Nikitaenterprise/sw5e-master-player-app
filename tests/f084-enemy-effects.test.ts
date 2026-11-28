@@ -283,7 +283,8 @@ describe('F-084 · ефекти й сейви на ворогах', () => {
       combat: t.view(), start: () => undefined, roll: () => undefined, move: () => undefined, end: () => undefined,
       damageEnemy: () => undefined, removeEnemy: () => undefined, setEnemyEffects: () => undefined,
     }));
-    const line = board.split('<li').find((part) => part.includes('Trandoshan Warrior')) as string;
+    // Since F-109 the name is also in the waiting line above the queue: look in the list itself.
+    const line = board.slice(board.indexOf('<ol class="order">')).split('<li').find((part) => part.includes('Trandoshan Warrior')) as string;
     expect(line).toContain('Сейви:');
     expect(line, 'сейв із бестіарію — виділений').toContain('class="book"');
     expect(line).toContain('МУД +3');

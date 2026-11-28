@@ -1914,15 +1914,20 @@ export function AddEnemies({ add }: { add: (monster: string, count: number, hp?:
 
   return (
     <div className="add-enemies">
-      <input
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          setPicked(null);
-        }}
-        placeholder="ворог із бестіарію: pirate, droid…"
-        aria-label="Пошук ворога в бестіарії"
-      />
+      <label className="roll-field enemy-search">
+        <span>Хто — з бестіарію англійською</span>
+        <input
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPicked(null);
+          }}
+          placeholder="pirate, droid, trooper…"
+          aria-label="Пошук ворога в бестіарії"
+        />
+      </label>
+      {picked === null && q.trim().length < 2 && <p className="hint">Почни писати — від дві літери зʼявляться підказки.</p>}
+      {picked === null && q.trim().length >= 2 && hits.length === 0 && <p className="hint">Нічого не знайшлося — спробуй інакше.</p>}
       {picked === null ? (
         hits.length > 0 && (
           <ul className="enemy-hits">
@@ -1958,19 +1963,23 @@ export function AddEnemies({ add }: { add: (monster: string, count: number, hp?:
             setProblem(null);
           }}
         >
-          <b>{term('monster', picked.name)}</b>
-          <label>
-            × <input type="number" min={1} max={20} value={count} onChange={(e) => setCount(e.target.value)} aria-label="Скільки" />
+          <b className="picked">{term('monster', picked.name)}</b>
+          <label className="roll-field">
+            <span>Скільки</span>
+            <input type="number" min={1} max={20} value={count} onChange={(e) => setCount(e.target.value)} aria-label="Скільки" />
           </label>
-          <input
-            type="number"
-            min={1}
-            value={hp}
-            onChange={(e) => setHp(e.target.value)}
-            placeholder="ХП: середнє"
-            aria-label="ХП кожного (порожньо — середнє з книги)"
-          />
-          <button type="submit">додати</button>
+          <label className="roll-field">
+            <span>ХП кожного</span>
+            <input
+              type="number"
+              min={1}
+              value={hp}
+              onChange={(e) => setHp(e.target.value)}
+              placeholder="середнє"
+              aria-label="ХП кожного (порожньо — середнє з книги)"
+            />
+          </label>
+          <button type="submit">Додати в бій</button>
           {problem !== null && <span className="refusal">{problem}</span>}
         </form>
       )}
@@ -2235,58 +2244,128 @@ export function CombatBoard({
     );
   }
   const waiting = combat.order.filter((f) => f.total === null);
+  const acting = combat.order.find((f) => f.id === combat.turn) ?? null;
+  // Three zones (F-109): the queue with its big "next turn" on top, then who acts now,
+  // then adding an enemy. Each hint lives in its own zone, so nothing runs together.
   return (
     <section className="combat on">
-      <h2>Бій · раунд {combat.round}</h2>
-      <ol className="order">
-        {combat.order.map((f) => (
-          <OrderRow
-            key={f.id}
-            fighter={f}
-            current={f.id === combat.turn}
-            roll={roll}
-            {...(damageEnemy === undefined ? {} : { damage: damageEnemy })}
-            {...(removeEnemy === undefined ? {} : { remove: removeEnemy })}
-            {...(setEnemyConditions === undefined ? {} : { setConditions: setEnemyConditions })}
-            {...(setEnemyEffects === undefined ? {} : { setEffects: setEnemyEffects })}
-            {...(conditionChoices === undefined ? {} : { conditionChoices })}
-          />
-        ))}
-      </ol>
-      {waiting.length > 0 && (
-        <p className="hint">
-          Чекаю кидок: {waiting.map((f) => fighterName(f, term)).join(', ')}. Хто не кинув — чергу пропускає;
-          впиши за нього сам, якщо його немає за столом.
-        </p>
-      )}
-      {combat.lastAttack !== undefined && <LastAttackLine attack={combat.lastAttack} />}
-      {addEnemies !== undefined && <AddEnemies add={addEnemies} />}
-      <div className="buttons">
-        <button type="button" onClick={() => move('next')}>
-          Наступний хід
-          <small>після останнього починається новий раунд</small>
-        </button>
-        <button type="button" onClick={() => move('back')}>
-          Крок назад
-          <small>якщо натиснув зарано</small>
-        </button>
-        <button type="button" onClick={() => setEnding(true)}>
-          Завершити бій
-          <small>черга зникає; ХП і пули лишаються; умови — на твій вибір</small>
-        </button>
+      <div className="combat-zones">
+        <div className="combat-queue">
+          <header className="queue-head">
+            <h2>
+              Черга <small>· раунд {combat.round}</small>
+            </h2>
+            <button type="button" className="next-turn" onClick={() => move('next')}>
+              Наступний хід
+              <small>після останнього — новий раунд</small>
+            </button>
+            <button type="button" className="step-back" onClick={() => move('back')}>
+              Крок назад
+              <small>якщо натиснув зарано</small>
+            </button>
+          </header>
+          {waiting.length > 0 && (
+            <p className="hint waiting-line">
+              Чекаю кидок: {waiting.map((f) => fighterName(f, term)).join(', ')}. Хто не кинув — чергу пропускає;
+              впиши за нього сам, якщо його немає за столом.
+            </p>
+          )}
+          <ol className="order">
+            {combat.order.map((f) => (
+              <OrderRow
+                key={f.id}
+                fighter={f}
+                current={f.id === combat.turn}
+                roll={roll}
+                {...(damageEnemy === undefined ? {} : { damage: damageEnemy })}
+                {...(removeEnemy === undefined ? {} : { remove: removeEnemy })}
+                {...(setEnemyConditions === undefined ? {} : { setConditions: setEnemyConditions })}
+                {...(setEnemyEffects === undefined ? {} : { setEffects: setEnemyEffects })}
+                {...(conditionChoices === undefined ? {} : { conditionChoices })}
+              />
+            ))}
+          </ol>
+          {combat.lastAttack !== undefined && <LastAttackLine attack={combat.lastAttack} />}
+          <div className="buttons combat-end">
+            <button type="button" onClick={() => setEnding(true)}>
+              Завершити бій
+              <small>черга зникає; ХП і пули лишаються; умови — на твій вибір</small>
+            </button>
+          </div>
+          {ending && (
+            <EndPanel
+              party={party ?? {}}
+              end={(clear) => {
+                setEnding(false);
+                end(clear);
+              }}
+              cancel={() => setEnding(false)}
+              {...(rest === undefined ? {} : { rest })}
+            />
+          )}
+        </div>
+        <div className="combat-side">
+          <div className="combat-now">
+            <h3>Зараз ходить</h3>
+            <ActingCard fighter={acting} />
+          </div>
+          {addEnemies !== undefined && (
+            <div className="combat-add">
+              <h3>Додати ворога</h3>
+              <AddEnemies add={addEnemies} />
+            </div>
+          )}
+        </div>
       </div>
-      {ending && (
-        <EndPanel
-          party={party ?? {}}
-          end={(clear) => {
-            setEnding(false);
-            end(clear);
-          }}
-          cancel={() => setEnding(false)}
-          {...(rest === undefined ? {} : { rest })}
-        />
-      )}
     </section>
+  );
+}
+
+/**
+ * Who acts now, on the GM's board (F-109): a party member with who throws for them, or
+ * an enemy with its hit points, armour class and attacks — the numbers the GM needs for
+ * that turn, without hunting for the row in the queue.
+ */
+function ActingCard({ fighter }: { fighter: Fighter | null }): JSX.Element {
+  const term = useTerm();
+  if (fighter === null) {
+    return <p className="hint">Поки ще ніхто: чекаємо кидки ініціативи, тоді «Наступний хід».</p>;
+  }
+  const who = fighterName(fighter, term);
+  const e = fighter.enemy;
+  return (
+    <div className={fighter.kind === 'enemy' ? 'acting foe' : 'acting'}>
+      <b className="acting-name">
+        {fighter.kind === 'enemy' && fighter.monster !== undefined ? <TermLink kind="monster" english={fighter.monster}>{who}</TermLink> : who}
+      </b>
+      <span className="acting-line">
+        ініціатива {fighter.said ?? fighter.total ?? '—'}
+        {skipsTurn(fighter) ? ' · пропускає хід' : ''}
+      </span>
+      {e !== undefined ? (
+        <>
+          <span className="acting-stats">
+            <span>ХП {e.hp} / {e.maxHp}</span>
+            <span>КБ {e.ac}</span>
+            <span>швидкість {e.speed}</span>
+          </span>
+          {e.attacks.length > 0 && (
+            <ul className="acting-attacks">
+              {e.attacks.map((a) => (
+                <li key={a.name}>
+                  {a.name} <b>{signed(a.toHit)}</b>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <span className="hint">
+          {fighter.counts === 'player' ? 'кидає й рахує гравець — його число прийде з телефона' : 'кидок вписує гравець, застосунок додає модифікатор'}
+        </span>
+      )}
+      {(fighter.conditions ?? []).length > 0 && <span className="acting-line">стани: {(fighter.conditions ?? []).join(', ')}</span>}
+    </div>
   );
 }
 
