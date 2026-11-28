@@ -676,8 +676,8 @@ a.ref-link:hover { color: var(--accent); }
 
 /* ── Homebrew items (F-066) ────────────────────────────────────────────── */
 .homebrew-items { display: flex; flex-wrap: wrap; gap: .3rem .6rem; flex-basis: 100%; }
-.homebrew-item { display: inline-flex; align-items: baseline; gap: .25rem; color: var(--text); }
-.homebrew-item .item-note { color: var(--muted); }
+.homebrew-item { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .25rem; color: var(--text); max-width: 100%; min-width: 0; }
+.homebrew-item .item-note { color: var(--muted); overflow-wrap: anywhere; }
 .homebrew-item button {
   background: var(--panel); color: var(--text); border: 1px solid var(--border);
   padding: 0 .4rem; font: inherit; font-size: .72rem; cursor: pointer;
@@ -1321,3 +1321,17 @@ form.roll { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .tip.sheet { left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); max-height: 45vh; }
 /* A refusal under a roll field takes its own line and is never cut. */
 form .refusal { flex-basis: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+
+/* F-111: on a phone every tap target is at least 44 px (both phone makers' guidelines),
+   and the page keeps clear of the side cut-outs when the phone lies on its side */
+@media (max-width: 600px) {
+  button, select, summary, input:not([type="checkbox"]):not([type="radio"]) { min-height: 44px; min-width: 44px; }
+  /* The rules that size these small on a laptop are more specific; on a phone they grow too. */
+  .buttons button, .add button, .chip, .status-strip .fx-chip, .urgent .ds-strip.quiet { min-height: 44px; min-width: 44px; }
+  summary { display: flex; align-items: center; }
+  .views a { display: inline-flex; align-items: center; min-height: 44px; }
+  main.player {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+}
