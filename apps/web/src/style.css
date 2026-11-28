@@ -1398,3 +1398,6 @@ main.choose { display: flex; flex-direction: column; gap: 12px; }
 .stable-help { gap: 4px; font-size: .9rem; }
 .stable-help li { display: block; background: none; border: 0; padding: 2px 0; }
 .down-line .wake { margin-left: 8px; font-size: .78rem; padding: .2rem .5rem; }
+
+/* F-118: why an effect on a score left the modifier as it was */
+.score-note { margin: .3rem 0; color: var(--effect); font-size: .82rem; }

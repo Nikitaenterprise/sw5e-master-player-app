@@ -15,7 +15,7 @@ import { name, LABELS } from './characters.js';
 import { spendHitDie, rollHint } from './hitDice.js';
 import { explanationText } from './explain.js';
 import { LookToggles, nebulaStyle } from './Look.js';
-import { alignmentTier, alignmentWords, ALIGNMENT_LIMIT, shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, nextTurn, inventoryOf, itemKey, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
+import { ABILITY_UK, alignmentTier, alignmentWords, ALIGNMENT_LIMIT, shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, nextTurn, inventoryOf, itemKey, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
 import { NpcCards, NpcDesk } from './Npcs.js';
 import { WeatherBar } from './Weather.js';
@@ -1110,6 +1110,27 @@ export function PhoneTabs({
   );
 }
 
+/** The modifier of an ability score, as the book has it. */
+const modifierOf = (score: number): number => Math.floor((score - 10) / 2);
+
+/**
+ * Where an effect moved a score but not its modifier (F-118): Strength 10 → 11 keeps +0,
+ * which by the book grows at 12. The book's modifier changes on even scores only,
+ * so +1 to an even score shows nothing — the app says so rather than look broken.
+ */
+export function scoreNotes(sheet: SheetSummary): string[] {
+  const notes: string[] = [];
+  for (const [ability, score] of Object.entries(sheet.details.abilityScores)) {
+    const added = (sheet.explain?.[`ability:${ability}`]?.parts ?? [])
+      .filter((p) => p.label.startsWith(EFFECT_LABEL))
+      .reduce((sum, p) => sum + p.value, 0);
+    if (added === 0 || score === undefined || modifierOf(score) !== modifierOf(score - added)) continue;
+    const next = added > 0 ? (score % 2 === 0 ? score + 2 : score + 1) : (score % 2 === 0 ? score - 1 : score - 2);
+    notes.push(`${ABILITY_UK[ability] ?? ability} ${score - added} → ${score}: модифікатор той самий — за книгою він ${added > 0 ? 'росте' : 'падає'} на ${next}`);
+  }
+  return notes;
+}
+
 /** The six abilities, their modifiers and scores, and the saving throws (F-101). */
 export function AbilitiesPanel({ sheet }: { sheet: SheetSummary }): JSX.Element {
   return (
@@ -1131,6 +1152,7 @@ export function AbilitiesPanel({ sheet }: { sheet: SheetSummary }): JSX.Element 
           );
         })}
       </div>
+      {scoreNotes(sheet).map((note) => <p key={note} className="score-note">{note}</p>)}
       <p className="save-line">
         <span className="ds-label">Сейви</span>{' '}
         {PHONE_ABILITIES.map(([ability, short]) => (
@@ -3426,6 +3448,7 @@ export function Card({
         </span>
       </div>
 
+      {scoreNotes(sheet).map((note) => <p key={note} className="score-note">{note}</p>)}
       <table className="abilities">
         <tbody>
           <tr>

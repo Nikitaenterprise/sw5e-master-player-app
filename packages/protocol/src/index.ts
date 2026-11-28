@@ -341,7 +341,7 @@ export function checkEffects(value: unknown): string | null {
   return null;
 }
 
-const ABILITY_UK: Record<string, string> = {
+export const ABILITY_UK: Record<string, string> = {
   Strength: 'Сила', Dexterity: 'Спритність', Constitution: 'Статура', Intelligence: 'Інтелект', Wisdom: 'Мудрість', Charisma: 'Харизма',
 };
 
