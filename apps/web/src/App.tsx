@@ -333,6 +333,7 @@ export function GmScreen({
                   scene={sceneEffects(snapshot.weather)}
                   setInspiration={(on) => controls.current?.sendChange(slug, { hasInspiration: on })}
                   setAlignment={(score) => controls.current?.sendChange(slug, { holotableAlignment: score })}
+                  changeHp={(changes) => controls.current?.sendChange(slug, changes)}
                 />
               ))}
             </div>
@@ -896,6 +897,63 @@ export function StatusStrip({
         </div>
       )}
     </header>
+  );
+}
+
+/**
+ * Damage (negative) or healing (positive) as a change of state (F-116). Damage takes
+ * temporary hit points first, then real ones, as the book says; hit points stay between
+ * 0 and the maximum, and healing leaves temporary ones alone.
+ */
+export function hitPointChange(state: CharacterState, max: number, amount: number): CharacterState {
+  const lost = asNumber(state.hitPointsLost);
+  const temporary = asNumber(state.temporaryHitPoints);
+  if (amount >= 0) return { hitPointsLost: Math.max(0, lost - amount) };
+  const damage = -amount;
+  const soaked = Math.min(temporary, damage);
+  return {
+    ...(soaked > 0 ? { temporaryHitPoints: temporary - soaked } : {}),
+    hitPointsLost: Math.min(max, lost + damage - soaked),
+  };
+}
+
+/**
+ * The GM's hit point buttons on a card (F-116): steps of damage and healing, a number
+ * typed in for a bigger hit, and temporary hit points. Every press is a line in the log.
+ */
+function HitPointControls({ state, max, change }: { state: CharacterState; max: number; change: (changes: CharacterState) => void }): JSX.Element {
+  const [typed, setTyped] = useState('');
+  const temporary = asNumber(state.temporaryHitPoints);
+  const amount = (): number | null => {
+    const n = Number(typed);
+    return typed.trim() !== '' && Number.isInteger(n) && n > 0 ? n : null;
+  };
+  const apply = (n: number): void => {
+    change(hitPointChange(state, max, n));
+    setTyped('');
+  };
+  return (
+    <div className="gm-hp">
+      <span className="steps">
+        ХП
+        {[-5, -1, 1, 5].map((step) => (
+          <button key={step} type="button" onClick={() => apply(step)} aria-label={step < 0 ? `шкода ${-step}` : `лікування ${step}`}>
+            {step < 0 ? `−${-step}` : `+${step}`}
+          </button>
+        ))}
+      </span>
+      <form className="add" noValidate onSubmit={(ev) => ev.preventDefault()}>
+        <input type="number" min={1} value={typed} onChange={(ev) => setTyped(ev.target.value)} placeholder="ХП" aria-label="Скільки ХП" />
+        <button type="button" onClick={() => { const n = amount(); if (n !== null) apply(-n); }}>шкода</button>
+        <button type="button" onClick={() => { const n = amount(); if (n !== null) apply(n); }}>лікування</button>
+      </form>
+      <span className="steps temp">
+        тимчасові {temporary}
+        <button type="button" disabled={temporary === 0} onClick={() => change({ temporaryHitPoints: Math.max(0, temporary - 1) })} aria-label="тимчасові −1">−1</button>
+        <button type="button" onClick={() => change({ temporaryHitPoints: temporary + 1 })} aria-label="тимчасові +1">+1</button>
+        <button type="button" onClick={() => change({ temporaryHitPoints: temporary + 5 })} aria-label="тимчасові +5">+5</button>
+      </span>
+    </div>
   );
 }
 
@@ -3240,6 +3298,7 @@ export function Card({
   scene: sceneOn,
   setInspiration,
   setAlignment,
+  changeHp,
 }: {
   slug: string;
   state: CharacterState;
@@ -3265,6 +3324,8 @@ export function Card({
   setInspiration?: (on: boolean) => void;
   /** The GM sets the character's alignment (F-115). Absent — the scale is not shown. */
   setAlignment?: (score: number) => void;
+  /** The GM changes hit points (F-116). Absent — the numbers are only shown. */
+  changeHp?: (changes: CharacterState) => void;
 }): JSX.Element {
   const term = useTerm();
   const conditions = (Array.isArray(state.conditions) ? state.conditions : []) as string[];
@@ -3313,6 +3374,8 @@ export function Card({
                 .join(' / '),
             ].join(' · ')}
       </p>
+
+      {changeHp !== undefined && <HitPointControls state={state} max={sheet.maxHitPoints} change={changeHp} />}
 
       {setAlignment !== undefined && (
         <AlignmentScale score={asAlignment(state.holotableAlignment) ?? 0} force={usesForce(sheet)} set={setAlignment} />
