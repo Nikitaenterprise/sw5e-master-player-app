@@ -1723,6 +1723,8 @@ export interface CombatState {
   turn: string | null;
   /** Everyone in the fight, already in turn order. */
   order: Fighter[];
+  /** A fight between ships, not on the ground (F-123). */
+  space?: boolean;
   /**
    * The last attack a party member typed on their phone (F-057): the GM decides whether
    * it hits. Both numbers, as everywhere a die is rolled (ADR 0007).
@@ -1798,6 +1800,17 @@ export function turnsUntil(combat: CombatState, id: string): number | null {
 /** GM → server: the fight begins. The party goes into the order; rolls come next. */
 export interface CombatStart {
   type: 'combat-start';
+  /** A fight between ships (F-123); absent — on the ground. */
+  space?: boolean;
+}
+
+/** Checks a start of a fight: on the ground, or in space (F-123). */
+export function parseCombatStart(data: unknown): CombatStart | string {
+  if (typeof data !== 'object' || data === null) return 'не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'combat-start') return 'не початок бою';
+  if (o['space'] !== undefined && typeof o['space'] !== 'boolean') return 'космічний бій — так чи ні';
+  return o['space'] === true ? { type: 'combat-start', space: true } : { type: 'combat-start' };
 }
 
 /**
@@ -1892,6 +1905,8 @@ export interface CombatEvent {
   type: CombatEventType;
   /** combat.started: the party members in the fight, by slug. */
   characters?: string[];
+  /** combat.started: a fight between ships (F-123). */
+  space?: boolean;
   /** combat.rolled: whose initiative it is. */
   character?: string;
   /** combat.rolled: the d20 as the person typed it. */

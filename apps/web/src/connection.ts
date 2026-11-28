@@ -199,7 +199,8 @@ export interface Controls {
   /** Look for terms anywhere in the compendium, to translate them. GM only (F-052). */
   searchTerms: (q: string) => void;
   /** Start the fight: the party goes into the turn order. GM only (F-054). */
-  startCombat: () => void;
+  /** Ground fight, or a fight between ships (F-123). */
+  startCombat: (space?: boolean) => void;
   /**
    * Send what came up on a d20, and the sum the person worked out when they are the one
    * counting (ADR 0007). A player may send only their own character's roll.
@@ -482,9 +483,9 @@ export function connect(
     // The fight is not queued the way a change is (F-045): a turn order is only
     // meaningful live, and a roll typed with no connection would land in a fight that
     // has since moved on. With no connection these buttons simply do nothing.
-    startCombat: () => {
+    startCombat: (space) => {
       if (socket?.readyState !== 1) return;
-      const message: ToServer = { type: 'combat-start' };
+      const message: ToServer = space === true ? { type: 'combat-start', space: true } : { type: 'combat-start' };
       socket.send(JSON.stringify(message));
     },
     rollInitiative: (whom, roll, said) => {

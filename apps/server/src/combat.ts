@@ -37,6 +37,8 @@ import type { Log } from './log.js';
 
 export class CombatTracker {
   private fighting = false;
+  /** A fight between ships (F-123), as the line that started it says. */
+  private space = false;
   private characters: string[] = [];
   /** What each person threw, and the sum they worked out themselves (ADR 0007). */
   private readonly rolls = new Map<string, { roll: number; said?: number }>();
@@ -74,6 +76,7 @@ export class CombatTracker {
     return {
       round: this.round,
       turn: this.turn,
+      ...(this.space ? { space: true } : {}),
       ...(this.attack === null ? {} : { lastAttack: this.lastAttackView(this.attack) }),
       order: initiativeOrder([
         ...this.characters.map((slug) => this.fighterOf(slug)),
@@ -91,8 +94,8 @@ export class CombatTracker {
    * The fight begins. Starting one while another is on replaces it: at the table that
    * is what "new fight" means, and the previous order is already in the log anyway.
    */
-  start(author: Author, characters: string[]): CombatEvent {
-    return this.write({ type: 'combat.started', author, characters: [...characters] });
+  start(author: Author, characters: string[], space = false): CombatEvent {
+    return this.write({ type: 'combat.started', author, characters: [...characters], ...(space ? { space: true } : {}) });
   }
 
   /**
@@ -100,7 +103,7 @@ export class CombatTracker {
    * caller has already checked they are allowed to send it.
    */
   roll(author: Author, character: string, roll: number, said?: number): CombatEvent | string {
-    if (!this.fighting) return 'бою немає — спершу «Почати бій»';
+    if (!this.fighting) return 'бою немає — спершу почни бій';
     const isEnemy = this.enemies.has(character);
     const pet = this.companions[character];
     const isCompanion = pet !== undefined && this.characters.includes(pet.owner);
@@ -123,7 +126,7 @@ export class CombatTracker {
   /** Move the turn on, or back. Refused while nobody has rolled: there is no queue yet. */
   move(author: Author, direction: 'next' | 'back'): CombatEvent | string {
     const now = this.view();
-    if (now === null) return 'бою немає — спершу «Почати бій»';
+    if (now === null) return 'бою немає — спершу почни бій';
     const to = nextTurn(now, direction);
     if (to.turn === now.turn && to.round === now.round) {
       return to.turn === null ? 'ніхто ще не кинув ініціативу' : 'це початок бою, назад нікуди';
@@ -189,7 +192,7 @@ export class CombatTracker {
    * table, continuing from those of the same kind already here, and its own hit points.
    */
   addEnemies(author: Author, monsterKey: string, count: number, hp?: number): CombatEvent | string {
-    if (!this.fighting) return 'бою немає — спершу «Почати бій»';
+    if (!this.fighting) return 'бою немає — спершу почни бій';
     const doc = this.compendium?.get('monster', monsterKey);
     if (doc === undefined) return 'такої істоти в бестіарії немає';
     if (count < 1 || count > MAX_ENEMIES_AT_ONCE) return `скільки — від 1 до ${MAX_ENEMIES_AT_ONCE}`;
@@ -415,6 +418,7 @@ export class CombatTracker {
       case 'combat.started':
         this.attack = null;
         this.fighting = true;
+        this.space = event.space === true;
         this.characters = [...(event.characters ?? [])];
         this.rolls.clear();
         this.enemies.clear();

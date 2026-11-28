@@ -24,7 +24,9 @@ const text = (html: string): string => html.replace(/<[^>]+>/g, ' ').replace(/\s
 const noop = (): undefined => undefined;
 const crew = ship.crew.map((c) => c.character);
 
+// Since F-123 a fight knows its kind: these are fights between ships.
 const fight = (rolled: boolean): CombatState => ({
+  space: true,
   round: 1,
   turn: null,
   order: crew.map((c) => ({ id: c, kind: 'character', character: c, name: c, modifier: 0, roll: rolled ? 10 : null, total: rolled ? 10 : null, said: null, counts: 'player', dexterity: 0 })),

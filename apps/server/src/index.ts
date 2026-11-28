@@ -89,6 +89,7 @@ import {
   parseGlossarySet,
   HISTORY_LIMIT,
   inventoryOf,
+  parseCombatStart,
   type CatalogKind,
   type CatalogRow,
 } from '@holotable/protocol';
@@ -655,7 +656,12 @@ export async function start(
         }
         let result: ReturnType<CombatTracker['move']>;
         if (kind === 'combat-start') {
-          result = combat.start(authorOf(), state.party());
+          const begin = parseCombatStart(data);
+          if (typeof begin === 'string') {
+            send(socket, { type: 'refused', reason: begin });
+            return;
+          }
+          result = combat.start(authorOf(), state.party(), begin.space === true);
         } else if (kind === 'combat-end') {
           const ending = parseCombatEnd(data);
           if (typeof ending === 'string') {

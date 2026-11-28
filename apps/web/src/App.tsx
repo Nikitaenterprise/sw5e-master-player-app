@@ -303,8 +303,8 @@ export function GmScreen({
 
       <div className="gm-main">
         {combat !== null && view !== 'combat' && (
-          <button type="button" className="ds-strip quiet gm-strip" onClick={() => setView('combat')}>
-            <b>⚔ Бій · раунд {combat.round}</b>
+          <button type="button" className="ds-strip quiet gm-strip" onClick={() => setView(combat.space === true ? 'ship' : 'combat')}>
+            <b>⚔ {combatName(combat)} · раунд {combat.round}</b>
             <span>
               {current === undefined ? 'чекаємо кидки' : `ходить ${current.name}`}
               {after !== undefined && after.id !== current?.id ? ` · далі ${after.name}` : ''}
@@ -352,7 +352,7 @@ export function GmScreen({
         {view === 'combat' && (
           <CombatBoard
             combat={combat}
-            start={() => controls.current?.startCombat()}
+            start={(space) => controls.current?.startCombat(space)}
             roll={(whom, value, said) => controls.current?.rollInitiative(whom, value, said)}
             move={(direction) => controls.current?.advanceTurn(direction)}
             end={(clear) => controls.current?.endCombat(clear)}
@@ -416,7 +416,7 @@ export function GmScreen({
                   summary={ship.summary}
                   combat={combat}
                   initiative={shipInitiative(ship.summary.crew.map((c) => c.character), combat)}
-                  start={() => controls.current?.startCombat()}
+                  start={() => controls.current?.startCombat(true)}
                   end={() => controls.current?.endCombat([])}
                   turn={() => controls.current?.shipTurn(slug, true)}
                 />
@@ -705,7 +705,7 @@ export function PhoneScreen({
           <section className="phone-combat">
             <div className="phone-back">
               <button type="button" className="ds-btn" onClick={() => setView('sheet')}>← до вкладок</button>
-              <span className="ds-label">Бій · раунд {combat.round}</span>
+              <span className="ds-label">{combatName(combat)} · раунд {combat.round}</span>
             </div>
             {combat.turn === character && sheet !== undefined && (
               <MyTurn
@@ -1058,6 +1058,11 @@ function Lit({ sheet, what, children }: { sheet: SheetSummary; what: string; chi
     : <Tip className="ds-num fx" text={fromEffects(sources)}>{children}</Tip>;
 }
 
+/** What the fight is called on every screen (F-123). */
+export function combatName(combat: CombatState): string {
+  return combat.space === true ? 'Космічний бій' : 'Бій';
+}
+
 /** Combat and new handouts, at the top where nobody misses them (F-101, canon section 6). */
 export function UrgentStrips({
   combat,
@@ -1081,7 +1086,7 @@ export function UrgentStrips({
       {combat !== null && (
         mine !== undefined && mine.roll === null ? (
           <button type="button" className="ds-strip live" onClick={openCombat}>
-            <b>⚔ Бій почався</b><span>Раунд {combat.round} · кинь ініціативу</span><i>›</i>
+            <b>⚔ {combatName(combat)} почався</b><span>Раунд {combat.round} · кинь ініціативу</span><i>›</i>
           </button>
         ) : combat.turn === character ? (
           <button type="button" className="ds-strip turn live" onClick={openCombat}>
@@ -1089,7 +1094,7 @@ export function UrgentStrips({
           </button>
         ) : (
           <button type="button" className="ds-strip quiet" onClick={openCombat}>
-            <b>⚔ Бій · раунд {combat.round}</b>
+            <b>⚔ {combatName(combat)} · раунд {combat.round}</b>
             <span>{current === undefined ? 'чекаємо кидки' : `ходить ${current.name}`}</span><i>›</i>
           </button>
         )
@@ -2483,7 +2488,7 @@ export function CombatBoard({
   rest,
 }: {
   combat: CombatState | null;
-  start: () => void;
+  start: (space?: boolean) => void;
   roll: (character: string, value: number, said?: number) => void;
   move: (direction: 'next' | 'back') => void;
   end: (clear?: { character: string; condition: string }[]) => void;
@@ -2507,10 +2512,15 @@ export function CombatBoard({
     return (
       <section className="combat">
         <h2>Бій</h2>
+        {/* Two kinds of fight (F-123): the party on foot, or the crew on the ship. */}
         <div className="buttons">
-          <button type="button" onClick={start}>
-            Почати бій
+          <button type="button" className="next-turn" onClick={() => start(false)}>
+            Почати наземний бій
             <small>партія стає в чергу; далі кожен кидає d20 і вписує, що випало</small>
+          </button>
+          <button type="button" onClick={() => start(true)}>
+            Почати космічний бій
+            <small>екіпаж за станціями; корабель ходить на найнижчій ініціативі; далі — вкладка «Корабель»</small>
           </button>
         </div>
       </section>

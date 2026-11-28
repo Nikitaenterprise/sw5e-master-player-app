@@ -206,7 +206,7 @@ describe('F-054 · бій: ініціатива і чий хід', () => {
     const idle = renderToStaticMarkup(createElement(CombatBoard, {
       combat: null, start: nothing, roll: nothing, move: nothing, end: nothing,
     }));
-    expect(idle.replace(/<[^>]+>/g, ' '), 'без бою — одна кнопка').toContain('Почати бій');
+    expect(idle.replace(/<[^>]+>/g, ' '), 'без бою — кнопки старту (з F-123 — дві)').toContain('Почати наземний бій');
     expect(idle).not.toContain('Наступний хід');
 
     const waiting = renderToStaticMarkup(createElement(MyInitiative, {
@@ -301,7 +301,7 @@ describe('F-054 · бій: ініціатива і чий хід', () => {
     expect(JSON.stringify(server.state.all()), 'кінець бою не чіпає ХП і пули').toBe(health);
     after.send({ type: 'combat-turn', direction: 'next' });
     await until(() => after.refusals().length === 1);
-    expect(after.refusals()[0]).toBe('бою немає — спершу «Почати бій»');
+    expect(after.refusals()[0]).toBe('бою немає — спершу почни бій');
   }, 30_000);
 
   it('F-009 сценарій 11: сервер убито посеред бою — черга, раунд і чий хід уціліли', async () => {

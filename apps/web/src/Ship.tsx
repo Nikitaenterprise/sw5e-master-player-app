@@ -225,6 +225,14 @@ export function SpaceFight({
 }): JSX.Element {
   const [acted, setActed] = useState<string[]>([]);
   const [ending, setEnding] = useState(false);
+  // A ground fight is on: the space one starts when it is over (F-123).
+  if (combat !== null && combat.space !== true) {
+    return (
+      <section className="space-fight">
+        <p className="hint">Зараз іде наземний бій. Космічний почнеш, коли його завершиш (вкладка «Бій»).</p>
+      </section>
+    );
+  }
   if (combat === null) {
     return (
       <section className="space-fight">
