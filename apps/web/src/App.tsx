@@ -16,7 +16,7 @@ import { explanationText } from './explain.js';
 import { LookToggles } from './Look.js';
 import { shipInitiative, usedOf, showTerm, termUrl, effectText, effectTargetText, untilText, itemsLeft, sceneEffects, weaponTarget, EFFECT_TARGETS, ENEMY_EFFECT_TARGETS, UNTIL_TEXT, exhaustionEffects, turnsUntil, initiativeOf, deathSavesOf, DEATH_SAVES_LIMIT, skipsTurn, nextTurn, inventoryOf, itemKey, checkInitiativeRoll, checkDeclaredTotal, whoCounts, INITIATIVE_DIE, type TermMode } from '@holotable/protocol';
 import { BriefContext, ExhaustionContext, TermContext, TermLink, useBrief, useTerm, readMode, saveMode, MODE_LABELS, type Term } from './terms.js';
-import { NpcDesk, NpcsInScene } from './Npcs.js';
+import { NpcCards, NpcDesk } from './Npcs.js';
 import { WeatherBar } from './Weather.js';
 import { GlossaryEditor } from './GlossaryEditor.js';
 import { ItemsEditor } from './ItemsEditor.js';
@@ -367,6 +367,7 @@ export function GmScreen({
               set={(npc, base) => controls.current?.setNpc(npc, base)}
               remove={(id) => controls.current?.removeNpc(id)}
               clear={() => controls.current?.clearNpcs()}
+              undoUse={(npc, modifier) => controls.current?.npcUseUndo(npc, modifier)}
             />
           </>
         )}
@@ -725,7 +726,13 @@ export function PhoneScreen({
 
         {view === 'scene' && (
           <>
-            <NpcsInScene npcs={snapshot.npcs} />
+            <NpcCards
+              npcs={snapshot.npcs}
+              character={character}
+              usable={inventoryOf(sheet?.equipment ?? [], snapshot.homebrew[character] ?? [], state.holotableItemsAdded, state.holotableItemsUsed)
+                .filter((r) => r.left > 0 && !r.equipped).map((r) => r.name)}
+              use={(npc, item) => controls.current?.npcUse(npc, character, item)}
+            />
             <WeatherBar weather={snapshot.weather} />
             {snapshot.npcs.length === 0 && snapshot.weather === null && <p className="hint">У сцені поки нікого й нічого.</p>}
             <p className="hint">За столом зараз: {snapshot.clients.length}</p>

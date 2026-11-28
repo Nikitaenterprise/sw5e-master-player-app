@@ -233,6 +233,10 @@ export interface Controls {
   setWeather: (weather: string | null) => void;
   /** This NPC leaves the scene. */
   removeNpc: (npc: string) => void;
+  /** Use one of my things on this NPC (F-106). */
+  npcUse: (npc: string, character: string, item: string) => void;
+  /** GM: take back a thing used on an NPC; it returns to its owner (F-106). */
+  npcUseUndo: (npc: string, modifier: string) => void;
   /** The scene is over: everyone out. */
   clearNpcs: () => void;
   /** An attack roll from the "your turn" screen (F-057). */
@@ -624,6 +628,16 @@ export function connect(
             ? [{ type: 'weather-set', weather: undo.weather }]
             : undo.npcs.map((npc) => ({ type: 'npc-set', npc }));
       for (const message of back) socket.send(JSON.stringify(message));
+    },
+    npcUse: (npc, character, item) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'npc-use', npc, character, item };
+      socket.send(JSON.stringify(message));
+    },
+    npcUseUndo: (npc, modifier) => {
+      if (socket?.readyState !== 1) return;
+      const message: ToServer = { type: 'npc-use-undo', npc, modifier };
+      socket.send(JSON.stringify(message));
     },
     removeNpc: (npc) => {
       if (socket?.readyState !== 1) return;

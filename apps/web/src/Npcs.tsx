@@ -4,6 +4,7 @@
 // The numbers here are shown, never applied. Whether the cigarette the party handed over
 // is worth +1 Persuasion, and who is doing the talking, is the GM's business — the app
 // keeps the note where it can be seen instead of quietly moving somebody's roll.
+import { name } from './characters.js';
 import { useState, type JSX } from 'react';
 import {
   ATTITUDE_BRIEF_KEY,
@@ -87,9 +88,12 @@ export function targetText(target: string, skill: (english: string) => string): 
 function Modifiers({
   list,
   set,
+  undoUse,
 }: {
   list: NpcModifier[];
   set: (list: NpcModifier[]) => void;
+  /** Cancel a player's thing on this NPC: the modifier goes, the thing comes back (F-106). */
+  undoUse?: (modifier: string) => void;
 }): JSX.Element {
   const term = useTerm();
   const skill = (x: string): string => term('skill', x);
@@ -102,11 +106,24 @@ function Modifiers({
   return (
     <div className="npc-modifiers">
       {list.map((m) => (
-        <span key={m.id} className="npc-modifier">
+        <span key={m.id} className={m.by === undefined ? 'npc-modifier' : 'npc-modifier from-player'}>
           {npcModifierText(m, skill)}
-          <button type="button" title="зняти" aria-label={`Зняти модифікатор ${m.source}`} onClick={() => set(list.filter((x) => x.id !== m.id))}>
-            ×
-          </button>
+          {m.by !== undefined && <small> · від {name(m.by)}</small>}
+          {/* A player's thing without a number: the GM sets it with one press (F-106). */}
+          {m.by !== undefined && m.bonus === undefined && m.mode === undefined && (
+            <>
+              <button type="button" onClick={() => set(list.map((x) => (x.id === m.id ? { ...x, bonus: 1 } : x)))}>+1</button>
+              <button type="button" onClick={() => set(list.map((x) => (x.id === m.id ? { ...x, bonus: 2 } : x)))}>+2</button>
+              <button type="button" onClick={() => set(list.map((x) => (x.id === m.id ? { ...x, mode: 'advantage' } : x)))}>перевага</button>
+            </>
+          )}
+          {m.by !== undefined && undoUse !== undefined ? (
+            <button type="button" title="скасувати й повернути річ" onClick={() => undoUse(m.id)}>скасувати</button>
+          ) : (
+            <button type="button" title="зняти" aria-label={`Зняти модифікатор ${m.source}`} onClick={() => set(list.filter((x) => x.id !== m.id))}>
+              ×
+            </button>
+          )}
         </span>
       ))}
       {!open && (
@@ -196,12 +213,15 @@ export function NpcDesk({
   set,
   remove,
   clear,
+  undoUse,
 }: {
   npcs: SceneNpc[];
   /** `base` is what this screen saw, so two GM pages do not overwrite each other (F-090). */
   set: (npc: NpcRecord, base?: NpcRecord) => void;
   remove: (id: string) => void;
   clear: () => void;
+  /** Cancel a player's thing on an NPC (F-106). */
+  undoUse?: (npc: string, modifier: string) => void;
 }): JSX.Element {
   const [name, setName] = useState('');
   const [attitude, setAttitude] = useState<NpcAttitude>('indifferent');
@@ -254,7 +274,7 @@ export function NpcDesk({
               label={`Чого хоче ${npc.name}`}
             />
             {npc.gm !== undefined && (
-              <Modifiers list={npc.gm.modifiers} set={(modifiers) => change(npc, { modifiers })} />
+              <Modifiers list={npc.gm.modifiers} set={(modifiers) => change(npc, { modifiers })} {...(undoUse === undefined ? {} : { undoUse: (modifier: string) => undoUse(npc.id, modifier) })} />
             )}
           </li>
         ))}
@@ -294,6 +314,68 @@ export function NpcDesk({
         Числа тут лише показані, не додані: кому саме вони дістались у розмові, вирішуєш
         ти за столом. Гравці бачать лише тих, кому ти поставив «видно гравцям», і тільки імʼя.
       </p>
+    </section>
+  );
+}
+
+/**
+ * The phone's scene (F-106): a card for every NPC the GM has shown, what players used on
+ * him, and "use on him" with this character's own things. Attitude and wants stay the GM's.
+ */
+export function NpcCards({
+  npcs,
+  character,
+  usable,
+  use,
+}: {
+  npcs: SceneNpc[];
+  character: string;
+  /** This character's things that are not used up, by name. */
+  usable: string[];
+  use: (npc: string, item: string) => void;
+}): JSX.Element | null {
+  if (npcs.length === 0) return null;
+  return (
+    <div className="npc-cards">
+      {npcs.map((npc) => (
+        <NpcCard key={npc.id} npc={npc} character={character} usable={usable} use={(item) => use(npc.id, item)} />
+      ))}
+    </div>
+  );
+}
+
+function NpcCard({ npc, character, usable, use }: { npc: SceneNpc; character: string; usable: string[]; use: (item: string) => void }): JSX.Element {
+  const [item, setItem] = useState('');
+  return (
+    <section className="ds-panel npc-card">
+      <h3 className="ds-label">{npc.name}</h3>
+      {(npc.uses ?? []).length > 0 && (
+        <ul className="npc-uses">
+          {(npc.uses ?? []).map((u) => (
+            <li key={u.id}>{u.item} — {name(u.by)}{u.by === character ? ' (ти)' : ''}</li>
+          ))}
+        </ul>
+      )}
+      {usable.length > 0 && (
+        <form
+          className="add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (item === '') return;
+            use(item);
+            setItem('');
+          }}
+        >
+          <label>
+            <span className="ds-label">використати на нього</span>
+            <select value={item} onChange={(e) => setItem(e.target.value)} aria-label={`Що використати на ${npc.name}`}>
+              <option value="">— обери річ —</option>
+              {usable.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </label>
+          <button type="submit" disabled={item === ''}>використати</button>
+        </form>
+      )}
     </section>
   );
 }

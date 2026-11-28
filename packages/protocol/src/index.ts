@@ -78,6 +78,8 @@ export type ToServer =
   | HandoutSend
   | HandoutWithdraw
   | NpcSet
+  | NpcUse
+  | NpcUseUndo
   | NpcRemove
   | NpcsClear
   | WeatherSet
@@ -2556,6 +2558,12 @@ export interface NpcModifier {
   target: string;
   bonus?: number;
   mode?: 'advantage' | 'disadvantage';
+  /**
+   * Put on by a player using a thing on this NPC (F-106): who, and what was used up. Such
+   * a modifier may come without a number — what a cigarette is worth is the GM's call.
+   */
+  by?: string;
+  item?: string;
 }
 
 /** One NPC of the scene as the log keeps him and the GM's screen shows him. */
@@ -2579,6 +2587,8 @@ export interface SceneNpc {
   id: string;
   name: string;
   gm?: Omit<NpcRecord, 'id' | 'name'>;
+  /** What players used on him (F-106): seen across the table, so every phone gets it. */
+  uses?: { id: string; item: string; by: string }[];
 }
 
 /** Server → everyone: who is in the scene. A player gets only those the GM showed. */
@@ -2675,6 +2685,7 @@ export interface NpcsClear {
 /** A modifier in the words the screen shows: source, what it touches, what it gives. */
 export function npcModifierText(m: NpcModifier, skill: (english: string) => string = (x) => x): string {
   const what = m.target === 'all' ? 'будь-яка перевірка' : effectTargetText(m.target, skill);
+  if (m.bonus === undefined && m.mode === undefined) return `${m.source}: ${what} — число вирішує майстер`;
   const value = m.bonus !== undefined ? `${m.bonus > 0 ? '+' : ''}${m.bonus}` : m.mode === 'advantage' ? 'перевага' : 'недолік';
   return `${m.source}: ${what} ${value}`;
 }
@@ -2707,7 +2718,12 @@ export function checkNpc(value: unknown): NpcRecord | string {
     if (typeof m['target'] !== 'string' || !NPC_MODIFIER_TARGETS.includes(m['target'])) return 'на що діє модифікатор — не зрозуміло';
     const bonus = m['bonus'];
     const mode = m['mode'];
-    if (bonus === undefined && mode === undefined) return 'модифікатор мусить дати число або перевагу/недолік';
+    const by = m['by'];
+    const thing = m['item'];
+    if (by !== undefined && (typeof by !== 'string' || by === '' || by.length > 60)) return 'хто поклав модифікатор — імʼя персонажа';
+    if (thing !== undefined && (typeof thing !== 'string' || thing === '' || thing.length > 120)) return 'яку річ використано — від 1 до 120 знаків';
+    // A player's thing comes without a number: the GM sets it (F-106).
+    if (bonus === undefined && mode === undefined && by === undefined) return 'модифікатор мусить дати число або перевагу/недолік';
     if (bonus !== undefined && (typeof bonus !== 'number' || !Number.isInteger(bonus) || bonus === 0 || Math.abs(bonus) > 20)) {
       return 'модифікатор — ціле число від −20 до 20, не нуль';
     }
@@ -2716,6 +2732,8 @@ export function checkNpc(value: unknown): NpcRecord | string {
       id: m['id'], source: (m['source'] as string).trim(), target: m['target'] as string,
       ...(bonus === undefined ? {} : { bonus: bonus as number }),
       ...(mode === undefined ? {} : { mode: mode as 'advantage' | 'disadvantage' }),
+      ...(by === undefined ? {} : { by: by as string }),
+      ...(thing === undefined ? {} : { item: thing as string }),
     });
   }
   return {
@@ -2755,7 +2773,43 @@ export function npcsFor(list: NpcRecord[], role: 'gm' | 'player'): SceneNpc[] {
   if (role === 'gm') {
     return list.map(({ id, name, ...gm }) => ({ id, name, gm }));
   }
-  return list.filter((npc) => npc.shown).map(({ id, name }) => ({ id, name }));
+  return list.filter((npc) => npc.shown).map(({ id, name, modifiers }) => {
+    const uses = modifiers.flatMap((m) => (m.by !== undefined && m.item !== undefined ? [{ id: m.id, item: m.item, by: m.by }] : []));
+    return uses.length === 0 ? { id, name } : { id, name, uses };
+  });
+}
+
+/** Player → server: use one of my things on this NPC (F-106). */
+export interface NpcUse {
+  type: 'npc-use';
+  npc: string;
+  character: string;
+  item: string;
+}
+
+/** GM → server: take back what a player used on an NPC; the thing comes back (F-106). */
+export interface NpcUseUndo {
+  type: 'npc-use-undo';
+  npc: string;
+  modifier: string;
+}
+
+export function parseNpcUse(data: unknown): NpcUse | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'npc-use') return 'не предмет на НПС';
+  for (const k of ['npc', 'character', 'item'] as const) {
+    if (typeof o[k] !== 'string' || o[k] === '' || (o[k] as string).length > 120) return 'на кого й що використати?';
+  }
+  return { type: 'npc-use', npc: o['npc'] as string, character: o['character'] as string, item: (o['item'] as string).trim() };
+}
+
+export function parseNpcUseUndo(data: unknown): NpcUseUndo | string {
+  if (typeof data !== 'object' || data === null) return 'повідомлення не обʼєкт';
+  const o = data as Record<string, unknown>;
+  if (o['type'] !== 'npc-use-undo') return 'не скасування';
+  if (typeof o['npc'] !== 'string' || typeof o['modifier'] !== 'string' || o['npc'] === '' || o['modifier'] === '') return 'що скасувати?';
+  return { type: 'npc-use-undo', npc: o['npc'], modifier: o['modifier'] };
 }
 
 /**

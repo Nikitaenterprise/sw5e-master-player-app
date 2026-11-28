@@ -80,6 +80,8 @@ import {
   type HandoutLine,
   type HandoutWithdrawn,
   parseHandoutWithdraw,
+  parseNpcUse,
+  parseNpcUseUndo,
   effectsFrom,
   featureSource,
   sessionCommitMessage,
@@ -1259,6 +1261,78 @@ export async function start(
 
       // The scene's NPCs (F-085): the GM's alone to add, change and send away. A player
       // gets the names of those the GM has shown, and nothing else.
+      // A thing used on an NPC (F-106): one less of it for the character, and a modifier
+      // on the NPC that says who and what — without a number, which is the GM's call.
+      if (kind === 'npc-use') {
+        const use = parseNpcUse(data);
+        if (typeof use === 'string') {
+          send(socket, { type: 'refused', reason: use });
+          return;
+        }
+        if (who.role === 'player' && who.character !== use.character) {
+          send(socket, { type: 'refused', reason: 'річ використовує її власник або майстер' });
+          return;
+        }
+        const npc = npcs.get(use.npc);
+        if (npc === undefined || (who.role === 'player' && !npc.shown)) {
+          send(socket, { type: 'refused', reason: 'такого НПС у сцені немає' });
+          return;
+        }
+        const now = state.one(use.character) ?? {};
+        const used = (now.holotableItemsUsed ?? {}) as Record<string, number>;
+        const row = inventoryOf(sheets[use.character]?.equipment ?? [], homebrewItems[use.character] ?? [], now.holotableItemsAdded, used)
+          .find((r) => r.key === itemKey(use.item));
+        if (row === undefined || row.left === 0) {
+          send(socket, { type: 'refused', reason: row === undefined ? `у листі немає «${use.item}»` : `«${row.name}» закінчився` });
+          return;
+        }
+        const spent = state.apply(use.character, { holotableItemsUsed: { ...used, [row.key]: (used[row.key] ?? 0) + 1 } }, authorOf(), `«${row.name}» — на ${npc.name}`);
+        if (typeof spent === 'string') {
+          send(socket, { type: 'refused', reason: spent });
+          return;
+        }
+        publish(spent);
+        const put = npcs.set(authorOf(), {
+          ...npc,
+          modifiers: [...npc.modifiers, { id: randomUUID().slice(0, 12), source: row.name.slice(0, 60), target: 'all', by: use.character, item: row.name }],
+        });
+        if (typeof put !== 'string') broadcastNpcs();
+        return;
+      }
+
+      if (kind === 'npc-use-undo') {
+        if (who.role !== 'gm') {
+          send(socket, { type: 'refused', reason: 'скасовує майстер' });
+          return;
+        }
+        const back = parseNpcUseUndo(data);
+        if (typeof back === 'string') {
+          send(socket, { type: 'refused', reason: back });
+          return;
+        }
+        const npc = npcs.get(back.npc);
+        const modifier = npc?.modifiers.find((m) => m.id === back.modifier);
+        if (npc === undefined || modifier === undefined || modifier.by === undefined || modifier.item === undefined) {
+          send(socket, { type: 'refused', reason: 'такого модифікатора немає' });
+          return;
+        }
+        const put = npcs.set(authorOf(), { ...npc, modifiers: npc.modifiers.filter((m) => m.id !== modifier.id) });
+        if (typeof put === 'string') {
+          send(socket, { type: 'refused', reason: put });
+          return;
+        }
+        broadcastNpcs();
+        // The thing comes back to whoever used it.
+        const now = state.one(modifier.by) ?? {};
+        const used = (now.holotableItemsUsed ?? {}) as Record<string, number>;
+        const key = itemKey(modifier.item);
+        if ((used[key] ?? 0) > 0) {
+          const returned = state.apply(modifier.by, { holotableItemsUsed: { ...used, [key]: (used[key] ?? 0) - 1 } }, authorOf(), `скасовано: «${modifier.item}» на ${npc.name} — повернуто`);
+          if (typeof returned !== 'string') publish(returned);
+        }
+        return;
+      }
+
       if (kind === 'npc-set' || kind === 'npc-remove' || kind === 'npcs-clear') {
         if (who.role !== 'gm') {
           send(socket, { type: 'refused', reason: 'НПС сцени веде майстер' });

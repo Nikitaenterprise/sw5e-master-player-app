@@ -1244,3 +1244,11 @@ main.gm { max-width: none; }
 .handout-sent li.withdrawn { opacity: .55; }
 .handout-sent .buttons { flex-wrap: wrap; margin-top: 4px; }
 .handout-sent .buttons button { font-size: .78rem; }
+
+/* F-106: the phone's scene cards, and a player's thing on the GM's NPC */
+.npc-cards { display: flex; flex-direction: column; gap: 12px; }
+.npc-card .add { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.npc-card select { min-width: 0; max-width: 100%; }
+.npc-uses li { padding: 4px 8px; background: var(--tile); border: 0; font-size: .9rem; }
+.npc-modifier.from-player { border-color: var(--effect); }
+.npc-modifier button { margin-left: 4px; }
