@@ -86,9 +86,9 @@ describe('F-043 · ручні правки як борг', () => {
   it('на карточці майстра число з правкою позначене, і видно, що це за правка', () => {
     const card = (slug: string) => renderToStaticMarkup(createElement(Card, { slug, state: {}, sheet: summaries[slug] }));
     const anam = card('anam-melekh');
-    expect(anam).toMatch(/class="hand-edit unknown" title="КБ: ручна правка \+4\. Походження невідоме">✎/);
+    expect(anam).toMatch(/class="hand-edit unknown" data-tip="КБ: ручна правка \+4\. Походження невідоме"[^>]*>✎/);
     expect(anam, 'список правок на карточці').toContain('Ручні правки — 2');
-    expect(card('sandra-vong')).toMatch(/class="hand-edit " title="Мудрість: ручна правка — записано 16 замість обчисленого 16\. Зайва/);
+    expect(card('sandra-vong')).toMatch(/class="hand-edit " data-tip="Мудрість: ручна правка — записано 16 замість обчисленого 16\. Зайва/);
     expect(card('alister'), 'без правок — без позначок і без списку').not.toContain('hand-edit');
     expect(card('nigra-4')).toContain('Ручні правки — 4 (+6 власних предметів)');
   });

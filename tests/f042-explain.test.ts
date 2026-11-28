@@ -88,7 +88,7 @@ describe('F-042 · підказка «звідки це число»', () => {
       slug: 'anam-melekh', state: {}, sheet: summaries['anam-melekh'],
     }));
     expect(html).toContain('class="why"');
-    expect(html).toMatch(/title="без броні: 10\n\+ Спритність: 2\n\+ ручна правка: 4\n= 16"/);
+    expect(html).toMatch(/data-tip="без броні: 10\n\+ Спритність: 2\n\+ ручна правка: 4\n= 16"/);
     expect(html, 'список навичок на карточці').toContain('Навички');
   });
 

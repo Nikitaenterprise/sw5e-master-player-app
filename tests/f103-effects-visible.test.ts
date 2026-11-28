@@ -35,8 +35,8 @@ describe('F-103 · видно, що діє ефект', () => {
     const html = renderToStaticMarkup(createElement(StatusStrip, {
       character: 'krinzh-dor', sheet: boosted, state: { holotableEffects: [bacta, shield] }, effectsCount: 2, toggleEffects: () => undefined,
     }));
-    expect(html).toMatch(/class="[^"]*\bfx\b[^"]*" title="ефект: Щит"[^>]*>15</);
-    expect(html).toMatch(/class="[^"]*\bfx\b[^"]*" title="ефект: Бакта-інʼєктор"[^>]*>\/38</);
+    expect(html).toMatch(/class="[^"]*\bfx\b[^"]*" data-tip="ефект: Щит"[^>]*>15</);
+    expect(html).toMatch(/class="[^"]*\bfx\b[^"]*" data-tip="ефект: Бакта-інʼєктор"[^>]*>\/38</);
     const quiet = renderToStaticMarkup(createElement(StatusStrip, {
       character: 'krinzh-dor', sheet: plain, state: {}, effectsCount: 0, toggleEffects: () => undefined,
     }));

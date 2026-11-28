@@ -1,4 +1,5 @@
 import { useContext, useEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import type { TurnAction, Handout, RestedMessage, CharacterState, CombatState, CompanionSummary, FeatureEffectSummary, HolotableEffect, HomebrewItem, FightSummary, Fighter, GameEvent, LastAttack, SceneNote, SceneUndo, SessionClosed, SheetSummary, StateValue, WhoCounts } from '@holotable/protocol';
 import {
   connect,
@@ -851,7 +852,7 @@ export function StatusStrip({
             <small>ХП</small>
             <b className="ds-num">{left}</b>
             {effectSources(sheet, 'hitPoints').length > 0
-              ? <i className="fx" title={fromEffects(effectSources(sheet, 'hitPoints'))}>/{max}</i>
+              ? <Tip className="fx max" text={fromEffects(effectSources(sheet, 'hitPoints'))}>/{max}</Tip>
               : <i>/{max}</i>}
             {temporary > 0 && <em> +{temporary}</em>}
             <span className={`hpbar${share <= 0.25 ? ' low' : ''}`} style={{ ['--hp' as string]: `${Math.round(share * 100)}%` }} />
@@ -871,7 +872,7 @@ function Lit({ sheet, what, children }: { sheet: SheetSummary; what: string; chi
   const sources = effectSources(sheet, what);
   return sources.length === 0
     ? <b className="ds-num">{children}</b>
-    : <b className="ds-num fx" title={fromEffects(sources)}>{children}</b>;
+    : <Tip className="ds-num fx" text={fromEffects(sources)}>{children}</Tip>;
 }
 
 /** Combat and new handouts, at the top where nobody misses them (F-101, canon section 6). */
@@ -958,11 +959,11 @@ export function AbilitiesPanel({ sheet }: { sheet: SheetSummary }): JSX.Element 
           const score = sheet.details.abilityScores[ability];
           const lit = effectSources(sheet, `ability:${ability}`);
           return (
-            <span key={ability} className={lit.length > 0 ? 'ds-tile ability fx' : 'ds-tile ability'} title={lit.length > 0 ? fromEffects(lit) : undefined}>
+            <Tip key={ability} className={lit.length > 0 ? 'ds-tile ability fx' : 'ds-tile ability'} text={lit.length > 0 ? fromEffects(lit) : undefined}>
               <small>{short}</small>
               <b className="ds-num">{signed(sheet.abilityModifiers[ability] ?? 0)}</b>
               <i>{score === undefined ? '' : added !== 0 ? `${score - added} → ${score}` : score}</i>
-            </span>
+            </Tip>
           );
         })}
       </div>
@@ -1191,6 +1192,8 @@ export function HitDice({
             {rolling === size && (
               <form
                 className="add roll"
+                // Our own check speaks Ukrainian and stays on screen; the browser's bubble does neither (F-110).
+                noValidate
                 onSubmit={(ev) => {
                   ev.preventDefault();
                   submit(size, count);
@@ -1269,6 +1272,8 @@ function RollInput({
   return (
     <form
       className="add roll"
+      // Our own check speaks Ukrainian and stays on screen; the browser's bubble does neither (F-110).
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const value = die.trim() === '' ? Number.NaN : Number(die);
@@ -1480,7 +1485,7 @@ function RollMode({ mode }: { mode: 'advantage' | 'disadvantage' | 'both' | unde
   if (mode === undefined) return null;
   const [mark, words] =
     mode === 'advantage' ? ['▲', 'перевага (ефект)'] : mode === 'disadvantage' ? ['▼', 'недолік (ефект)'] : ['▲▼', 'і перевага, і недолік — гасять одне одного'];
-  return <i className={`roll-mode ${mode}`} title={words}>{mark}</i>;
+  return <Tip className={`roll-mode ${mode}`} text={words}>{mark}</Tip>;
 }
 
 /**
@@ -1678,6 +1683,8 @@ export function Effects({
       {set !== undefined && open && (
         <form
           className="effect-form"
+          // Our own check speaks Ukrainian and stays on screen; the browser's bubble does neither (F-110).
+          noValidate
           onSubmit={(ev) => {
             ev.preventDefault();
             const n = Number(bonus);
@@ -1819,9 +1826,9 @@ function EnemyDetails({
     <div className="enemy">
       <span className={`enemy-hp${e.hp === 0 ? ' down' : e.hp * 2 <= e.maxHp ? ' low' : ''}`}>
         КБ <b>{e.ac}</b> · ХП <b>{e.hp}</b>/{e.maxHp}
-        <small title={e.hpFrom === 'gm' ? 'ХП кинув майстер' : `середнє з книги; кидок: ${e.hpRoll}`}>
+        <Tip className="hp-from" text={e.hpFrom === 'gm' ? 'ХП кинув майстер' : `середнє з книги; кидок: ${e.hpRoll}`}>
           {e.hpFrom === 'gm' ? ' кинуто' : ' сер.'}
-        </small>
+        </Tip>
       </span>
       <span className="buttons">
         {ENEMY_STEPS.map((step) => (
@@ -1851,15 +1858,15 @@ function EnemyDetails({
       <span className="enemy-saves">
         Сейви:
         {e.saves.map((save) => (
-          <span
+          <Tip
             key={save.ability}
-            className={save.book ? 'book' : undefined}
-            title={`${full(save.ability)}${save.book ? ' — з бестіарію' : ' — модифікатор характеристики, бестіарій сейва не дає'}${save.effect === 0 ? '' : ` · ефект ${signed(save.effect)}`}`}
+            {...(save.book ? { className: 'book' } : {})}
+            text={`${full(save.ability)}${save.book ? ' — з бестіарію' : ' — модифікатор характеристики, бестіарій сейва не дає'}${save.effect === 0 ? '' : ` · ефект ${signed(save.effect)}`}`}
           >
             {(ABILITY_SHORT.find((a) => a.key === save.ability)?.label ?? save.ability)} {signed(save.modifier)}
             {save.unclear === true && <b title="у бестіарії сейв названий, але число не приїхало — узято модифікатор характеристики">?</b>}
             <RollMode mode={save.mode} />
-          </span>
+          </Tip>
         ))}
         {e.initiativeMode !== undefined && (
           <span className="enemy-init-mode">ініціатива<RollMode mode={e.initiativeMode} /></span>
@@ -1868,10 +1875,10 @@ function EnemyDetails({
       {e.attacks.length > 0 && (
         <span className="enemy-attacks">
           {e.attacks.map((a) => (
-            <span key={a.name} title={a.text}>
+            <Tip key={a.name} text={a.text}>
               {a.name} {signed(a.toHit)}
               <RollMode mode={a.mode} />
-            </span>
+            </Tip>
           ))}
         </span>
       )}
@@ -1943,6 +1950,8 @@ export function AddEnemies({ add }: { add: (monster: string, count: number, hp?:
       ) : (
         <form
           className="add"
+          // Our own check speaks Ukrainian and stays on screen; the browser's bubble does neither (F-110).
+          noValidate
           onSubmit={(ev) => {
             ev.preventDefault();
             const n = Number(count);
@@ -2950,6 +2959,103 @@ export function effectSources(sheet: SheetSummary | undefined, what: string): st
 /** The words a lit number says about where it came from. */
 const fromEffects = (sources: string[]): string => sources.map((s) => `${EFFECT_LABEL}${s}`).join('\n');
 
+/** Where a tip stands (F-110): a sheet at the bottom on a phone, else by the number, on screen. */
+export type TipPlace = { sheet: true } | { sheet: false; left: number; width: number; top?: number; bottom?: number };
+
+/** The widest a tip gets on a laptop, and the narrowest screen that still is not a phone. */
+const TIP_WIDTH = 352;
+const PHONE_WIDTH = 600;
+/** Room a tip needs below the number before it goes above instead. */
+const TIP_ROOM = 180;
+
+/**
+ * Where to open a tip for a number at `r` on a screen `vw` × `vh` (F-110). On a phone it
+ * is a sheet across the bottom, above the tabs; on a laptop it hangs under the number —
+ * or over it near the bottom — and is pushed back in at the right edge.
+ */
+export function tipPlace(r: { left: number; top: number; bottom: number }, vw: number, vh: number): TipPlace {
+  if (vw < PHONE_WIDTH) return { sheet: true };
+  const width = Math.min(TIP_WIDTH, vw - 16);
+  const left = Math.max(8, Math.min(r.left, vw - width - 8));
+  return r.bottom + TIP_ROOM > vh ? { sheet: false, left, width, bottom: vh - r.top + 6 } : { sheet: false, left, width, top: r.bottom + 6 };
+}
+
+/**
+ * A number that says where it comes from, on a tap (F-110). The browser's own tooltip
+ * waits about a second and never opens under a finger, so this opens at once — finger,
+ * mouse or keyboard — and closes on a second tap, a tap elsewhere or Escape. The tip is
+ * drawn on the page itself (a portal), so no glass panel around the number can clip it.
+ * Without a text it is just the number.
+ */
+export function Tip({ text, className, children }: { text: string | undefined; className?: string; children: ReactNode }): JSX.Element {
+  const [place, setPlace] = useState<TipPlace | null>(null);
+  const anchor = useRef<HTMLSpanElement>(null);
+  const tip = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (place === null) return;
+    const away = (ev: Event): void => {
+      const target = ev.target;
+      if (target instanceof Node && (anchor.current?.contains(target) === true || tip.current?.contains(target) === true)) return;
+      setPlace(null);
+    };
+    const key = (ev: KeyboardEvent): void => {
+      if (ev.key === 'Escape') setPlace(null);
+    };
+    const shut = (): void => setPlace(null);
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', key);
+    window.addEventListener('resize', shut);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', key);
+      window.removeEventListener('resize', shut);
+    };
+  }, [place]);
+  if (text === undefined || text === '') return <span {...(className === undefined ? {} : { className })}>{children}</span>;
+  const toggle = (): void => {
+    if (place !== null) {
+      setPlace(null);
+      return;
+    }
+    const r = anchor.current?.getBoundingClientRect();
+    if (r !== undefined) setPlace(tipPlace(r, window.innerWidth, window.innerHeight));
+  };
+  return (
+    <span
+      ref={anchor}
+      {...(className === undefined ? {} : { className })}
+      data-tip={text}
+      role="button"
+      tabIndex={0}
+      aria-expanded={place !== null}
+      onClick={(ev) => {
+        ev.stopPropagation();
+        toggle();
+      }}
+      onKeyDown={(ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        ev.preventDefault();
+        toggle();
+      }}
+    >
+      {children}
+      {place !== null &&
+        createPortal(
+          <span
+            ref={tip}
+            className={place.sheet ? 'tip sheet' : 'tip'}
+            role="tooltip"
+            onClick={() => setPlace(null)}
+            {...(place.sheet ? {} : { style: { left: place.left, width: place.width, ...(place.top === undefined ? { bottom: place.bottom } : { top: place.top }) } })}
+          >
+            {text}
+          </span>,
+          document.body,
+        )}
+    </span>
+  );
+}
+
 function Why({
   sheet,
   what,
@@ -2967,17 +3073,17 @@ function Why({
   // A number an effect changed is lit (F-103).
   const lit = effectSources(sheet, what).length > 0;
   const number = e === undefined ? <>{children}</> : (
-    <span className={lit ? 'why fx' : 'why'} title={explanationText(e, signedTotal)}>
+    <Tip className={lit ? 'why fx' : 'why'} text={explanationText(e, signedTotal)}>
       {children}
-    </span>
+    </Tip>
   );
   if (debt.length === 0) return number;
   return (
     <>
       {number}
-      <span className={`hand-edit ${debt.some((h) => h.verdict === 'unknown') ? 'unknown' : ''}`} title={debt.map((h) => h.text).join('\n')}>
+      <Tip className={`hand-edit ${debt.some((h) => h.verdict === 'unknown') ? 'unknown' : ''}`} text={debt.map((h) => h.text).join('\n')}>
         ✎
-      </span>
+      </Tip>
     </>
   );
 }

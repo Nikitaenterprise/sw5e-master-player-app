@@ -162,6 +162,6 @@ describe('F-074 · ще здібності з ефектами', () => {
     // Outside the screen's term switch a skill reads in English, as on the "En" setting.
     expect(card).toContain('Rage: сейв: Сила перевага, Athletics перевага · на 10 раундів</button>');
     // The first cell of the saves row is Strength: its mark sits right after the number.
-    expect(card).toMatch(/<tr class="saves"><td>[^]*?>\+\d+<\/span><i class="roll-mode advantage"/);
+    expect(card).toMatch(/<tr class="saves"><td>[^]*?>\+\d+<\/span><span class="roll-mode advantage"/);
   });
 });
