@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import { PrintPage } from './Print.js';
-import { ReferencePage } from './Reference.js';
+import { ReferencePage, rememberWhereFrom } from './Reference.js';
 import { ShipSheetPage } from './ShipSheet.js';
 import { StyleguidePage, applySavedLook } from './Look.js';
 import { ChooseCharacter } from './Choose.js';
@@ -17,6 +17,14 @@ const page = params.get('as');
 const choosing = page !== 'gm' && (params.get('character') ?? '') === '' && [null, 'player'].includes(page);
 // The viewer's own glass and motion switches, before the first paint (F-114).
 applySavedLook();
+// Any link into the reference notes where it was followed from, so the reference's back
+// returns to this very screen and tab (F-121).
+if (page !== 'ref') {
+  document.addEventListener('click', (ev) => {
+    const link = ev.target instanceof Element ? ev.target.closest('a[href*="as=ref"]') : null;
+    if (link !== null) rememberWhereFrom(location.href);
+  }, true);
+}
 createRoot(root).render(
   page === 'print' ? <PrintPage />
     : page === 'ref' ? <ReferencePage />

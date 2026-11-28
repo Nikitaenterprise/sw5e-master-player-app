@@ -69,12 +69,12 @@ describe('F-050 · гіперпосилання в довідник', () => {
     expect(place.term).toEqual({ kind: 'weapon', name: 'Cryo pistol' });
   });
 
-  it('на карточці майстра назви — посилання в нову вкладку', () => {
+  it('на карточці майстра назви — посилання в довідник (з F-121 — у тій самій вкладці)', () => {
     const html = renderToStaticMarkup(createElement(Card, {
       slug: 'krinzh-dor', state: { conditions: ['Prone'] }, sheet: sheets['krinzh-dor'],
     }));
     const link = (kind: TermKind, english: string): string =>
-      `<a class="ref-link" href="${termUrl(kind, english).replace(/&/g, '&amp;')}" target="_blank" rel="noreferrer">`;
+      `<a class="ref-link" href="${termUrl(kind, english).replace(/&/g, '&amp;')}">`;
     expect(html).toContain(link('weapon', 'Cryo pistol'));
     expect(html).toContain(link('damage', 'cold'));
     expect(html).toContain(link('maneuver', 'Rally'));

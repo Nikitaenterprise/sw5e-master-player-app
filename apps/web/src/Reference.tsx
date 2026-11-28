@@ -43,19 +43,79 @@ export function nameIn(mode: TermMode, english: string, uk: string | undefined):
   return mode === 'uk' ? uk : `${uk} (${english})`;
 }
 
+/** Where this tab keeps the screen it left for the reference (F-121). Per tab, never sent anywhere. */
+const FROM_KEY = 'holotable.ref-from';
+
+/**
+ * Remember the screen that is leaving for the reference (F-121). The server sends no
+ * referrer on purpose (security audit F-070), so each screen notes its own address here.
+ */
+export function rememberWhereFrom(href: string): void {
+  try {
+    sessionStorage.setItem(FROM_KEY, href);
+  } catch {
+    // No storage: the reference's back then goes to its own search, as before.
+  }
+}
+
+/** The screen this tab left for the reference, if it noted one. */
+export function whereFrom(): string {
+  try {
+    return sessionStorage.getItem(FROM_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The page of ours that sent the reader here (F-121): a sheet, the GM's screen — not the
+ * reference itself and not someone else's site. Null when the reference was opened directly.
+ */
+export function cameFrom(referrer: string, origin: string): string | null {
+  if (referrer === '' || !referrer.startsWith(origin)) return null;
+  return new URL(referrer).searchParams.get('as') === 'ref' ? null : referrer;
+}
+
+/**
+ * What "back" does (F-121): steps taken inside the reference go back one by one; the first
+ * step back leaves for the page that sent the reader here; opened directly — the search.
+ */
+export function backTarget(steps: number, from: string | null): 'history' | 'leave' | 'search' {
+  if (steps > 0) return 'history';
+  return from === null ? 'search' : 'leave';
+}
+
+/** "← back to the sheet" at the top of the reference, when a page of ours sent the reader here. */
+export function ReturnLink({ from }: { from: string }): JSX.Element {
+  const as = new URL(from).searchParams.get('as');
+  return (
+    <a className="ref-return" href={from}>
+      ← {as === 'gm' ? 'назад до екрана майстра' : as === 'ship' ? 'назад до листа корабля' : 'назад до листа'}
+    </a>
+  );
+}
+
 export function ReferencePage(): JSX.Element {
   const [place, setPlace] = useState<RefPlace>(() => placeFromUrl(location.search, location.hash));
-  // Opened straight at a document (a link from a sheet): Back must not leave the reference.
+  // Steps taken inside the reference; the first back beyond them leaves for where we came from.
   const [steps, setSteps] = useState(0);
+  const [from] = useState<string | null>(() => cameFrom(whereFrom(), location.origin));
   const go = (next: RefPlace): void => {
     history.pushState(null, '', urlOf(next));
     setSteps((n) => n + 1);
     setPlace(next);
   };
   const back = (): void => {
-    if (steps > 0) {
+    const where = backTarget(steps, from);
+    if (where === 'history') {
       setSteps((n) => n - 1);
       history.back();
+      return;
+    }
+    if (where === 'leave' && from !== null) {
+      // Back in the browser's own history, so its back button stays in step too.
+      if (history.length > 1) history.back();
+      else location.replace(from);
       return;
     }
     const search: RefPlace = { q: '', doc: null, anchor: null };
@@ -90,6 +150,7 @@ export function ReferencePage(): JSX.Element {
   return (
     <main className="ref">
       <header>
+        {from !== null && <ReturnLink from={from} />}
         <h1>Довідник</h1>
         <p className="hint">Сили, предмети, риси, маневри, види, правила. Шукай англійською або українською.</p>
       </header>

@@ -278,6 +278,7 @@ export function GmScreen({
   initialView?: GmView;
 }): JSX.Element {
   const [view, setView] = useState<GmView>(initialView);
+  useTabInUrl(view);
   const combat = snapshot.combat;
   const current = combat?.order.find((f) => f.id === combat.turn);
   const next = combat === null ? undefined : nextTurn(combat, 'next');
@@ -565,6 +566,19 @@ function tabFromUrl<T extends string>(tabs: T[]): { initialView?: T } {
   return tabs.includes(wanted as T) ? { initialView: wanted as T } : {};
 }
 
+/**
+ * Keep the open tab in the address (F-121): back from the reference — or a reload — lands
+ * on the same tab rather than the first one. Replaces, so tabs do not fill the history.
+ */
+function useTabInUrl(view: string): void {
+  useEffect(() => {
+    const url = new URL(location.href);
+    if (url.searchParams.get('tab') === view) return;
+    url.searchParams.set('tab', view);
+    history.replaceState(history.state, '', url);
+  }, [view]);
+}
+
 /** The tabs of the player's phone (F-101), always in the same places. */
 type PhoneView = 'sheet' | 'scene' | 'items' | 'ship' | 'handouts' | 'combat';
 
@@ -625,6 +639,7 @@ export function PhoneScreen({
   const combat = snapshot.combat;
   // The fight ended while its screen was open: back to the tabs.
   const view: PhoneView = chosen === 'combat' && combat === null ? 'sheet' : chosen;
+  useTabInUrl(view);
   const unread = snapshot.handouts.filter((h) => !seen.includes(h.id));
   const openHandouts = (): void => {
     const ids = snapshot.handouts.map((h) => h.id);

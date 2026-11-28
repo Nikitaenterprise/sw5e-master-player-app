@@ -49,9 +49,9 @@ export function TermLink({ kind, english, children }: { kind: TermKind; english:
     'a',
     {
       className: 'ref-link',
+      // The same tab, so the browser's back returns to this screen (F-121); a new tab on a
+      // phone had no way back to the sheet.
       href: termUrl(kind, english),
-      target: '_blank',
-      rel: 'noreferrer',
       ...(brief === undefined ? {} : { title: brief }),
     },
     children,

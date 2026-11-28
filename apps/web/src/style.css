@@ -1409,3 +1409,6 @@ main.choose { display: flex; flex-direction: column; gap: 12px; }
 .bonus-parts { display: block; color: var(--effect); font-size: .8rem; }
 .weapons-panel .weapons { gap: 6px; }
 .weapons-panel .weapons li { display: flex; flex-direction: column; gap: 2px; }
+
+/* F-121: back to where the reader came from */
+.ref-return { display: inline-flex; align-items: center; min-height: 44px; color: var(--data); text-decoration: none; }
